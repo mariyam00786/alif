@@ -1,0 +1,25 @@
+name: mobile_app
+publish_to: none
+
+description: Mobile app prototype for Alif School students and parents.
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+  http: ^1.2.2
+  cupertino_icons: ^1.0.8
+  google_fonts: ^6.2.1
+  supabase_flutter: ^2.8.4
+  provider: ^6.1.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true

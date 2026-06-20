@@ -1,0 +1,17 @@
+{
+  "name": "@alif-school/design-system",
+  "version": "1.0.0",
+  "description": "Alif Online Moral School Design System",
+  "main": "index.ts",
+  "types": "index.ts",
+  "exports": {
+    ".": {
+      "types": "./index.ts",
+      "default": "./index.ts"
+    },
+    "./colors": "./colors.ts",
+    "./typography": "./typography.ts",
+    "./spacing": "./spacing.ts",
+    "./theme": "./theme.ts"
+  }
+}
