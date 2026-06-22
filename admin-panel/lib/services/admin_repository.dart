@@ -52,7 +52,6 @@ class AdminRepository {
     'address': s.address,
     'batch': s.batch,
     'status': s.status.name,
-    'batch': s.batch,
     'class': s.className,
   };
 
