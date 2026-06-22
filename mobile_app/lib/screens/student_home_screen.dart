@@ -313,58 +313,62 @@ class StudentHomeScreen extends StatelessWidget {
                   ),
                 ),
                 SafeArea(
-            bottom: false,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(18, 12, 18, _kCardOverlap + 8),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                  bottom: false,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      18,
+                      12,
+                      18,
+                      _kCardOverlap + 8,
+                    ),
+                    child: Row(
                       children: [
-                        Text(
-                          '${_greeting(isMalayalam)},',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                            color: Colors.white.withValues(alpha: 0.8),
-                            letterSpacing: 0.2,
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '${_greeting(isMalayalam)},',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                  color: Colors.white.withValues(alpha: 0.8),
+                                  letterSpacing: 0.2,
+                                ),
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                isMalayalam
+                                    ? 'അസ്സലാമു അലൈക്കും, $fullName 👋'
+                                    : 'Assalamu Alaikum, $fullName 👋',
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 19,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white,
+                                  letterSpacing: -0.3,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                        const SizedBox(height: 3),
-                        Text(
-                          isMalayalam
-                              ? 'അസ്സലാമു അലൈക്കും, $fullName 👋'
-                              : 'Assalamu Alaikum, $fullName 👋',
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 19,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white,
-                            letterSpacing: -0.3,
-                          ),
+                        const SizedBox(width: 10),
+                        PortalNotificationBell(
+                          notifications: demoNotifications,
+                          isMalayalam: isMalayalam,
+                          onDark: true,
+                          size: 42,
+                        ),
+                        const SizedBox(width: 8),
+                        PortalProfileAvatar(
+                          fallbackName: studentName,
+                          onDark: true,
+                          size: 42,
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(width: 10),
-                  PortalNotificationBell(
-                    notifications: demoNotifications,
-                    isMalayalam: isMalayalam,
-                    onDark: true,
-                    size: 42,
-                  ),
-                  const SizedBox(width: 8),
-                  PortalProfileAvatar(
-                    fallbackName: studentName,
-                    onDark: true,
-                    size: 42,
-                  ),
-                ],
-              ),
-            ),
-          ),
                 ),
               ],
             ),
