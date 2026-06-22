@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../../components/button.dart';
 import '../../components/input.dart';
 import '../../components/otp_box_field.dart';
 import '../../constants/app_theme.dart';
@@ -32,6 +31,9 @@ class MobileLoginScreen extends StatefulWidget {
 }
 
 class _MobileLoginScreenState extends State<MobileLoginScreen> {
+  /// Country code automatically prepended to the 10-digit local number.
+  static const String _countryCode = '+91';
+
   LoginStep _step = LoginStep.phone;
 
   /// The portal selected at the top of the screen. Decides which board opens
@@ -66,136 +68,189 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
 
     return Scaffold(
       backgroundColor: ColorPalette.backgroundLight,
-      body: SafeArea(
-        child: Stack(
-          children: [
-            Positioned(
-              top: -100,
-              left: -80,
-              child: Container(
-                width: 240,
-                height: 240,
-                decoration: BoxDecoration(
-                  color: ColorPalette.primaryMuted.withValues(alpha: 0.35),
-                  shape: BoxShape.circle,
+      body: Container(
+        width: double.infinity,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [ColorPalette.white, ColorPalette.primaryMuted],
+          ),
+        ),
+        child: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: EdgeInsets.symmetric(
+                horizontal: SpacingScale.lg,
+                vertical: SpacingScale.xl,
+              ),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 420),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildHero(isMalayalam),
+                    SizedBox(height: SpacingScale.xl),
+                    _buildCard(isMalayalam),
+                  ],
                 ),
               ),
             ),
-            Positioned(
-              bottom: -110,
-              right: -90,
-              child: Container(
-                width: 260,
-                height: 260,
-                decoration: BoxDecoration(
-                  color: ColorPalette.secondaryMuted.withValues(alpha: 0.32),
-                  shape: BoxShape.circle,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCard(bool isMalayalam) {
+    return Container(
+      padding: EdgeInsets.all(SpacingScale.lg),
+      decoration: BoxDecoration(
+        color: ColorPalette.white,
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(color: ColorPalette.neutral200),
+        boxShadow: [
+          BoxShadow(
+            color: ColorPalette.primaryDark.withValues(alpha: 0.06),
+            blurRadius: 30,
+            offset: const Offset(0, 16),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildPortalSelector(isMalayalam),
+          SizedBox(height: SpacingScale.lg),
+          if (_useEmail)
+            _buildEmailForm(isMalayalam)
+          else if (_step == LoginStep.phone)
+            _buildPhoneForm(isMalayalam)
+          else
+            _buildOtpForm(isMalayalam),
+          SizedBox(height: SpacingScale.lg),
+          if (_error != null) ...[
+            Container(
+              width: double.infinity,
+              padding: EdgeInsets.all(SpacingScale.md),
+              decoration: BoxDecoration(
+                color: ColorPalette.ratingNeedsImprovement.withValues(
+                  alpha: 0.1,
                 ),
-              ),
-            ),
-            Center(
-              child: SingleChildScrollView(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: SpacingScale.lg,
-                    vertical: SpacingScale.lg,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: ColorPalette.ratingNeedsImprovement.withValues(
+                    alpha: 0.35,
                   ),
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(maxWidth: 460),
-                    child: Container(
-                      padding: EdgeInsets.all(SpacingScale.lg),
-                      decoration: BoxDecoration(
-                        color: ColorPalette.white.withValues(alpha: 0.96),
-                        borderRadius: BorderRadius.circular(28),
-                        border: Border.all(color: ColorPalette.neutral200),
-                        boxShadow: [
-                          BoxShadow(
-                            color: ColorPalette.primaryDark.withValues(
-                              alpha: 0.08,
-                            ),
-                            blurRadius: 30,
-                            offset: Offset(0, 14),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          _buildPortalSelector(isMalayalam),
-                          SizedBox(height: SpacingScale.lg),
-                          _buildHeader(isMalayalam),
-                          SizedBox(height: SpacingScale.lg),
-                          if (_useEmail)
-                            _buildEmailForm(isMalayalam)
-                          else if (_step == LoginStep.phone)
-                            _buildPhoneForm(isMalayalam)
-                          else
-                            _buildOtpForm(isMalayalam),
-                          SizedBox(height: SpacingScale.lg),
-                          if (_error != null) ...[
-                            Container(
-                              width: double.infinity,
-                              padding: EdgeInsets.all(SpacingScale.md),
-                              decoration: BoxDecoration(
-                                color: ColorPalette.ratingNeedsImprovement
-                                    .withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: ColorPalette.ratingNeedsImprovement
-                                      .withValues(alpha: 0.35),
-                                ),
-                              ),
-                              child: Text(
-                                _error!,
-                                style: TextStyle(
-                                  color: ColorPalette.ratingNeedsImprovement,
-                                  fontSize: 14,
-                                ),
-                              ),
-                            ),
-                            SizedBox(height: SpacingScale.lg),
-                          ],
-                          AlifButton(
-                            label: _primaryLabel(isMalayalam),
-                            onPressed: _isLoading ? null : _handlePrimaryAction,
-                            isLoading: _isLoading,
-                            variant: ButtonVariant.primary,
-                            size: ButtonSize.large,
-                            width: double.infinity,
-                            borderRadius: BorderRadius.circular(14),
-                            isMalayalam: isMalayalam,
-                          ),
-                          if (_step == LoginStep.otp && !_useEmail) ...[
-                            SizedBox(height: SpacingScale.sm),
-                            TextButton(
-                              onPressed: _isLoading ? null : _backToPhone,
-                              child: Text(
-                                isMalayalam
-                                    ? 'വേറെ നമ്പർ ഉപയോഗിക്കുക'
-                                    : 'Use a different number',
-                              ),
-                            ),
-                          ],
-                          SizedBox(height: SpacingScale.md),
-                          _buildMethodSwitch(isMalayalam),
-                          SizedBox(height: SpacingScale.lg),
-                          Text(
-                            isMalayalam
-                                ? '© 2026 അലിഫ് ഓൺലൈൻ മോറൽ സ്കൂൾ'
-                                : '© 2026 Alif Online Moral School',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: ColorPalette.neutral600,
-                            ),
-                          ),
-                        ],
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.error_outline_rounded,
+                    color: ColorPalette.ratingNeedsImprovement,
+                    size: 20,
+                  ),
+                  SizedBox(width: SpacingScale.sm),
+                  Expanded(
+                    child: Text(
+                      _error!,
+                      style: TextStyle(
+                        color: ColorPalette.ratingNeedsImprovement,
+                        fontSize: 14,
                       ),
                     ),
                   ),
-                ),
+                ],
+              ),
+            ),
+            SizedBox(height: SpacingScale.lg),
+          ],
+          _buildPrimaryButton(isMalayalam),
+          if (_step == LoginStep.otp && !_useEmail) ...[
+            SizedBox(height: SpacingScale.sm),
+            TextButton(
+              onPressed: _isLoading ? null : _backToPhone,
+              child: Text(
+                isMalayalam
+                    ? 'വേറെ നമ്പർ ഉപയോഗിക്കുക'
+                    : 'Use a different number',
               ),
             ),
           ],
+          SizedBox(height: SpacingScale.sm),
+          _buildMethodSwitch(isMalayalam),
+          SizedBox(height: SpacingScale.md),
+          Divider(color: ColorPalette.neutral200, height: 1),
+          SizedBox(height: SpacingScale.md),
+          Text(
+            isMalayalam
+                ? '© 2026 അലിഫ് ഓൺലൈൻ മോറൽ സ്കൂൾ'
+                : '© 2026 Alif Online Moral School',
+            style: TextStyle(fontSize: 12, color: ColorPalette.neutral500),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPrimaryButton(bool isMalayalam) {
+    final enabled = !_isLoading;
+    return Opacity(
+      opacity: enabled ? 1 : 0.75,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [ColorPalette.primaryDark, ColorPalette.primaryLight],
+          ),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: ColorPalette.primaryDark.withValues(alpha: 0.35),
+              blurRadius: 20,
+              offset: const Offset(0, 12),
+            ),
+          ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: enabled ? _handlePrimaryAction : null,
+            child: SizedBox(
+              height: 56,
+              child: Center(
+                child: _isLoading
+                    ? const SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.4,
+                          valueColor: AlwaysStoppedAnimation(Colors.white),
+                        ),
+                      )
+                    : Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            _primaryLabel(isMalayalam),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          const Icon(
+                            Icons.arrow_forward_rounded,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                        ],
+                      ),
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -276,8 +331,17 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
         duration: const Duration(milliseconds: 180),
         padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
         decoration: BoxDecoration(
-          color: selected ? ColorPalette.primaryDark : Colors.transparent,
+          color: selected ? ColorPalette.white : Colors.transparent,
           borderRadius: BorderRadius.circular(11),
+          boxShadow: selected
+              ? [
+                  BoxShadow(
+                    color: ColorPalette.neutral900.withValues(alpha: 0.08),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -285,7 +349,9 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
             Icon(
               icon,
               size: 16,
-              color: selected ? Colors.white : ColorPalette.neutral600,
+              color: selected
+                  ? ColorPalette.primaryDark
+                  : ColorPalette.neutral500,
             ),
             const SizedBox(width: 6),
             Flexible(
@@ -296,7 +362,9 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
                 style: TextStyle(
                   fontSize: 12.5,
                   fontWeight: FontWeight.w700,
-                  color: selected ? Colors.white : ColorPalette.neutral600,
+                  color: selected
+                      ? ColorPalette.primaryDark
+                      : ColorPalette.neutral500,
                 ),
               ),
             ),
@@ -306,7 +374,7 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
     );
   }
 
-  Widget _buildHeader(bool isMalayalam) {
+  Widget _buildHero(bool isMalayalam) {
     final subtitle = _useEmail
         ? (isMalayalam
               ? 'ഇമെയിലും പാസ്‌വേഡും ഉപയോഗിച്ച് സൈൻ ഇൻ ചെയ്യുക'
@@ -318,63 +386,46 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
     return Column(
       children: [
         Container(
-          padding: EdgeInsets.symmetric(
-            horizontal: SpacingScale.md,
-            vertical: SpacingScale.xs,
-          ),
+          width: 72,
+          height: 72,
           decoration: BoxDecoration(
-            color: ColorPalette.primaryMuted,
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(
-              color: ColorPalette.primaryLight.withValues(alpha: 0.3),
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [ColorPalette.primaryDark, ColorPalette.primaryLight],
             ),
-          ),
-          child: Text(
-            isMalayalam ? 'സുരക്ഷിത പ്രവേശനം' : 'Secure Sign In',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: ColorPalette.primaryDark,
-            ),
-          ),
-        ),
-        SizedBox(height: SpacingScale.sm),
-        Container(
-          width: 56,
-          height: 56,
-          decoration: BoxDecoration(
-            color: ColorPalette.primaryDark,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(22),
             boxShadow: [
               BoxShadow(
                 color: ColorPalette.primaryDark.withValues(alpha: 0.28),
-                blurRadius: 14,
-                offset: Offset(0, 6),
+                blurRadius: 22,
+                offset: const Offset(0, 12),
               ),
             ],
           ),
-          child: Icon(_portalIcon, size: 30, color: Colors.white),
+          child: Icon(_portalIcon, size: 34, color: Colors.white),
         ),
-        SizedBox(height: SpacingScale.md),
+        SizedBox(height: SpacingScale.lg),
         Text(
           _portalTitle(isMalayalam),
-          style: TextStyle(
-            fontSize: 24,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            fontSize: 26,
             height: 1.15,
             fontWeight: FontWeight.w800,
-            color: ColorPalette.primaryDark,
+            color: ColorPalette.textPrimary,
+            letterSpacing: -0.4,
           ),
-          textAlign: TextAlign.center,
         ),
         SizedBox(height: SpacingScale.xs),
         Text(
           subtitle,
+          textAlign: TextAlign.center,
           style: TextStyle(
             fontSize: 14,
-            height: 1.35,
-            color: ColorPalette.neutral600,
+            height: 1.4,
+            color: ColorPalette.textTertiary,
           ),
-          textAlign: TextAlign.center,
         ),
       ],
     );
@@ -396,9 +447,24 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
             SizedBox(height: SpacingScale.md),
             AlifInput(
               label: isMalayalam ? 'ഫോൺ നമ്പർ' : 'Phone Number',
-              placeholder: '+966...',
+              placeholder: '98XXXXXXXX',
               type: InputType.phone,
               controller: _phoneController,
+              maxLength: 10,
+              leading: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 12),
+                child: Center(
+                  widthFactor: 1,
+                  child: Text(
+                    '+91',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: ColorPalette.textSecondary,
+                    ),
+                  ),
+                ),
+              ),
               onChanged: (value) {
                 setState(() => _phone = value);
               },
@@ -406,8 +472,8 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
               validator: _validatePhone,
               isMalayalam: isMalayalam,
               helperText: isMalayalam
-                  ? 'ദേശ കോഡ് സഹിതം'
-                  : 'Include country code',
+                  ? '10 അക്ക മൊബൈൽ നമ്പർ'
+                  : '10-digit mobile number',
             ),
           ],
         ),
@@ -509,29 +575,20 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
     required IconData icon,
     required Widget child,
   }) {
-    return Container(
-      width: double.infinity,
-      padding: EdgeInsets.all(SpacingScale.md),
-      decoration: BoxDecoration(
-        color: accent.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: accent.withValues(alpha: 0.32)),
-      ),
-      child: Column(
-        children: [
-          Container(
-            width: 46,
-            height: 46,
-            decoration: BoxDecoration(
-              color: ColorPalette.white,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, color: accent, size: 24),
+    return Column(
+      children: [
+        Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: accent.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(14),
           ),
-          SizedBox(height: SpacingScale.md),
-          child,
-        ],
-      ),
+          child: Icon(icon, color: accent, size: 22),
+        ),
+        SizedBox(height: SpacingScale.md),
+        child,
+      ],
     );
   }
 
@@ -548,28 +605,18 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
   // ===== Validation =====
 
   String? _validatePhone(String? value) {
-    final normalizedPhone = _normalizePhone(value);
-
-    if (normalizedPhone == null) {
-      return 'Phone number is required';
-    }
-    if (!normalizedPhone.startsWith('+') || normalizedPhone.length < 12) {
-      return 'Invalid phone number format';
+    if (_normalizePhone(value) == null) {
+      return 'Enter a valid 10-digit mobile number';
     }
     return null;
   }
 
   String? _normalizePhone(String? value) {
-    final raw = value?.trim() ?? '';
-    if (raw.isEmpty) {
+    final digits = (value ?? '').replaceAll(RegExp(r'\D'), '');
+    if (digits.length != 10) {
       return null;
     }
-
-    if (raw.startsWith('+')) {
-      return raw;
-    }
-
-    return '+$raw';
+    return '$_countryCode$digits';
   }
 
   String? _validateOtp(String? value) {
