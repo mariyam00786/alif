@@ -6,6 +6,7 @@ import '../model/app_models.dart';
 import '../services/admin_api_client.dart';
 import '../services/admin_repository.dart';
 import '../services/google_auth_service.dart';
+
 /// Central application state for the Alif admin panel.
 ///
 /// Wraps the [AdminRepository] and exposes the loaded [AdminAppState] together
@@ -159,7 +160,8 @@ class AdminProvider extends ChangeNotifier {
       if (_repository.isConfigured) {
         await loadState();
       }
-      final email = loginEmail ?? (student.email.isNotEmpty ? student.email : null);
+      final email =
+          loginEmail ?? (student.email.isNotEmpty ? student.email : null);
       if (email != null) {
         _lastInfo =
             'Student added. Portal login email: $email (password: Demo@12345)';
@@ -224,8 +226,7 @@ class AdminProvider extends ChangeNotifier {
       final email =
           loginEmail ?? (teacher.email.isNotEmpty ? teacher.email : null);
       if (email != null) {
-        _lastInfo =
-            'Teacher added. Login email: $email (password: Demo@12345)';
+        _lastInfo = 'Teacher added. Login email: $email (password: Demo@12345)';
         notifyListeners();
       }
     } catch (error) {
