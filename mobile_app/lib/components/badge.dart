@@ -88,7 +88,7 @@ class AlifBadge extends StatelessWidget {
               fontWeight: FontWeight.w600,
               color: textColor,
             ),
-            textDirection: isMalayalam ? TextDirection.rtl : TextDirection.ltr,
+            textDirection: TextDirection.ltr,
           ),
           if (onClose != null) ...[
             SizedBox(width: SpacingScale.xs),
@@ -116,7 +116,9 @@ class AlifBadge extends StatelessWidget {
         };
       case BadgeVariant.error:
         return {
-          'background': ColorPalette.ratingNeedsImprovement.withValues(alpha: 0.1),
+          'background': ColorPalette.ratingNeedsImprovement.withValues(
+            alpha: 0.1,
+          ),
           'text': ColorPalette.ratingNeedsImprovement,
         };
       case BadgeVariant.info:

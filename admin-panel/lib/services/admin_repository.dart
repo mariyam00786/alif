@@ -36,6 +36,7 @@ class AdminRepository {
         data['notifications'] as List<dynamic>? ?? const [],
       ),
       badges: _parseBadges(data['badges'] as List<dynamic>? ?? const []),
+      classes: _parseClassNames(data['classes'] as List<dynamic>? ?? const []),
     );
   }
 
@@ -49,6 +50,8 @@ class AdminRepository {
     'gender': s.gender.name,
     'address': s.address,
     'status': s.status.name,
+    'batch': s.batch,
+    'class': s.className,
   };
 
   Future<void> createStudent(StudentRecord student) async {
@@ -306,6 +309,20 @@ class AdminRepository {
       status: _parseRecordStatus(data['status']?.toString()),
     );
   }).toList();
+
+  List<String> _parseClassNames(List<dynamic> rows) {
+    final names = <String>{};
+    for (final row in rows) {
+      if (row is Map) {
+        final name = row['name']?.toString().trim() ?? '';
+        if (name.isNotEmpty) names.add(name);
+      } else if (row is String && row.trim().isNotEmpty) {
+        names.add(row.trim());
+      }
+    }
+    final list = names.toList()..sort();
+    return list;
+  }
 
   List<ActivityRule> _parseActivities(List<dynamic> rows) => rows.map((row) {
     final data = Map<String, dynamic>.from(row as Map);

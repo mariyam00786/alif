@@ -7,10 +7,18 @@ import 'api_service.dart';
 import 'supabase_bootstrap.dart';
 
 class MobileGoogleAuthResult {
-  const MobileGoogleAuthResult({required this.token, required this.role});
+  const MobileGoogleAuthResult({
+    required this.token,
+    required this.role,
+    this.hasParentAccess = false,
+  });
 
   final String token;
   final String role;
+
+  /// True when this account is also linked to one or more children, so the
+  /// signed-in user can switch into the parent view from the student portal.
+  final bool hasParentAccess;
 }
 
 class MobileGoogleAuthService {
@@ -64,17 +72,17 @@ class MobileGoogleAuthService {
       }
       final accessToken = response.session?.accessToken;
       if (accessToken == null || accessToken.isEmpty) {
-        throw StateError('Login failed. Please check your username and password.');
+        throw StateError(
+          'Login failed. Please check your username and password.',
+        );
       }
       _demoUser = null;
-      return _exchangeAccessToken(
-        accessToken,
-        allowedRoles: const {'teacher'},
-      );
+      return _exchangeAccessToken(accessToken, allowedRoles: const {'teacher'});
     }
 
     // Offline demo fallback.
-    if (id.toLowerCase() != _demoTeacherUsername || password != _demoTeacherPassword) {
+    if (id.toLowerCase() != _demoTeacherUsername ||
+        password != _demoTeacherPassword) {
       throw StateError('Invalid username or password.');
     }
     _demoUser = const MobilePortalUser(
@@ -217,7 +225,11 @@ class MobileGoogleAuthService {
     }
 
     MobileApiService.setAuthToken(token);
-    return MobileGoogleAuthResult(token: token, role: role);
+    return MobileGoogleAuthResult(
+      token: token,
+      role: role,
+      hasParentAccess: user['has_parent_access'] == true,
+    );
   }
 
   static Future<void> signOut() async {

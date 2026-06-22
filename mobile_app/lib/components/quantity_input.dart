@@ -110,9 +110,7 @@ class _AlifQuantityInputState extends State<AlifQuantityInput> {
               fontWeight: FontWeight.w600,
               color: ColorPalette.textPrimary,
             ),
-            textDirection: widget.isMalayalam
-                ? TextDirection.rtl
-                : TextDirection.ltr,
+            textDirection: TextDirection.ltr,
           ),
           SizedBox(height: SpacingScale.sm),
         ],
@@ -170,9 +168,7 @@ class _AlifQuantityInputState extends State<AlifQuantityInput> {
           Text(
             widget.unit!,
             style: TextStyle(fontSize: 12, color: ColorPalette.neutral600),
-            textDirection: widget.isMalayalam
-                ? TextDirection.rtl
-                : TextDirection.ltr,
+            textDirection: TextDirection.ltr,
           ),
         ],
       ],

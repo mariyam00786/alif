@@ -316,6 +316,7 @@ class DemoData {
           isActive: true,
         ),
       ],
+      classes: const ['Qaida', 'Nazrah', 'Hifz'],
     );
   }
 }

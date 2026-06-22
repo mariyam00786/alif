@@ -23,8 +23,9 @@ class AppRoutes {
         return MaterialPageRoute(
           settings: settings,
           builder: (context) => MobileGoogleLoginScreen(
-            onLoginSuccess: (role) =>
-                context.read<AppStateProvider>().login(role),
+            onLoginSuccess: (role, {bool hasParentAccess = false}) => context
+                .read<AppStateProvider>()
+                .login(role, hasParentAccess: hasParentAccess),
           ),
         );
     }

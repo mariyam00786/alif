@@ -26,6 +26,11 @@ class PortalHeader extends StatelessWidget {
   final Widget? trailing;
   final Widget? bottom;
 
+  /// Optional portal name shown as a small pill above the title (e.g.
+  /// "Student Portal" / "Teacher Portal" / "Parent Portal") so it is always
+  /// clear which portal is open.
+  final String? portalLabel;
+
   const PortalHeader({
     super.key,
     required this.title,
@@ -33,6 +38,7 @@ class PortalHeader extends StatelessWidget {
     this.icon,
     this.trailing,
     this.bottom,
+    this.portalLabel,
   });
 
   @override
@@ -46,38 +52,42 @@ class PortalHeader extends StatelessWidget {
           colors: [Color(0xFF134D2A), Color(0xFF1B7A3E), Color(0xFF22965C)],
           stops: [0.0, 0.55, 1.0],
         ),
-        borderRadius: BorderRadius.vertical(bottom: Radius.circular(28)),
+        borderRadius: BorderRadius.vertical(bottom: Radius.circular(24)),
         boxShadow: [
           BoxShadow(
             color: Color(0x301B6B3A),
-            blurRadius: 20,
-            offset: Offset(0, 8),
+            blurRadius: 18,
+            offset: Offset(0, 6),
           ),
         ],
       ),
       child: SafeArea(
         bottom: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (portalLabel != null) ...[
+                _PortalBadge(label: portalLabel!),
+                const SizedBox(height: 10),
+              ],
               Row(
                 children: [
                   if (icon != null) ...[
                     Container(
-                      width: 46,
-                      height: 46,
+                      width: 40,
+                      height: 40,
                       decoration: BoxDecoration(
                         color: Colors.white.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(13),
+                        borderRadius: BorderRadius.circular(12),
                         border: Border.all(
                           color: Colors.white.withValues(alpha: 0.12),
                         ),
                       ),
-                      child: Icon(icon, color: Colors.white, size: 24),
+                      child: Icon(icon, color: Colors.white, size: 21),
                     ),
-                    const SizedBox(width: 14),
+                    const SizedBox(width: 12),
                   ],
                   Expanded(
                     child: Column(
@@ -88,20 +98,20 @@ class PortalHeader extends StatelessWidget {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
-                            fontSize: 22,
+                            fontSize: 18,
                             fontWeight: FontWeight.w800,
-                            letterSpacing: -0.4,
+                            letterSpacing: -0.3,
                             color: Colors.white,
                           ),
                         ),
                         if (subtitle != null) ...[
-                          const SizedBox(height: 2),
+                          const SizedBox(height: 1),
                           Text(
                             subtitle!,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
-                              fontSize: 13.5,
+                              fontSize: 12.5,
                               fontWeight: FontWeight.w500,
                               color: Colors.white.withValues(alpha: 0.8),
                             ),
@@ -113,10 +123,45 @@ class PortalHeader extends StatelessWidget {
                   ?trailing,
                 ],
               ),
-              if (bottom != null) ...[const SizedBox(height: 14), bottom!],
+              if (bottom != null) ...[const SizedBox(height: 12), bottom!],
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Small translucent pill that names the active portal inside a [PortalHeader].
+class _PortalBadge extends StatelessWidget {
+  final String label;
+
+  const _PortalBadge({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.16),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.24)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.badge_rounded, size: 12.5, color: Colors.white),
+          const SizedBox(width: 5),
+          Text(
+            label.toUpperCase(),
+            style: const TextStyle(
+              fontSize: 10.5,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.6,
+              color: Colors.white,
+            ),
+          ),
+        ],
       ),
     );
   }

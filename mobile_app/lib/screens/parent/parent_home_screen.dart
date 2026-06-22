@@ -50,6 +50,7 @@ class ParentHomeScreen extends StatelessWidget {
             title: isMalayalam ? 'നമസ്കാരം' : 'Welcome',
             subtitle: parentName,
             icon: Icons.family_restroom_rounded,
+            portalLabel: isMalayalam ? 'രക്ഷിതാവ് പോർട്ടൽ' : 'Parent Portal',
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
               children: [

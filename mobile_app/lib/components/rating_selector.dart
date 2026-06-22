@@ -190,9 +190,7 @@ class _AlifRatingSelectorState extends State<AlifRatingSelector> {
                   fontWeight: FontWeight.w600,
                   color: isSelected ? ColorPalette.white : option.color,
                 ),
-                textDirection: widget.isMalayalam
-                    ? TextDirection.rtl
-                    : TextDirection.ltr,
+                textDirection: TextDirection.ltr,
               ),
               SizedBox(height: SpacingScale.xs),
 

@@ -19,11 +19,17 @@ class ParentDashboard extends StatefulWidget {
   final ValueChanged<AppLocale> onLocaleChanged;
   final VoidCallback onLogout;
 
+  /// When provided, the profile tab offers a "switch to student" action so a
+  /// dual student/parent account can return to its own student board without
+  /// signing out. Defaults to null for parent-only accounts.
+  final VoidCallback? onSwitchToStudent;
+
   const ParentDashboard({
     super.key,
     required this.locale,
     required this.onLocaleChanged,
     required this.onLogout,
+    this.onSwitchToStudent,
   });
 
   @override
@@ -246,6 +252,16 @@ class _ParentDashboardState extends State<ParentDashboard> {
                 ),
               ),
               const SizedBox(height: 10),
+              if (widget.onSwitchToStudent != null) ...[
+                _profileTile(
+                  icon: Icons.school_rounded,
+                  label: isMalayalam
+                      ? 'വിദ്യാർഥി കാഴ്ചയിലേക്ക് മാറുക'
+                      : 'Switch to student view',
+                  onTap: widget.onSwitchToStudent,
+                ),
+                const SizedBox(height: 10),
+              ],
               _profileTile(
                 icon: Icons.logout_rounded,
                 label: isMalayalam ? 'ലോഗ് ഔട്ട്' : 'Log out',

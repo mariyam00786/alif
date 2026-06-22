@@ -1,10 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import '../model/app_models.dart';
 import '../services/admin_api_client.dart';
 import '../services/admin_repository.dart';
 import '../services/google_auth_service.dart';
-
 /// Central application state for the Alif admin panel.
 ///
 /// Wraps the [AdminRepository] and exposes the loaded [AdminAppState] together
@@ -42,11 +43,25 @@ class AdminProvider extends ChangeNotifier {
   bool _loading = true;
   AdminSection _selectedSection = AdminSection.dashboard;
 
+  bool _whatsAppChecked = false;
+  bool _whatsAppConnected = true;
+  String _whatsAppMessage = '';
+
   AdminAppState? get state => _state;
   bool get isLoggedIn => _isLoggedIn;
   bool get loading => _loading;
   AdminSection get selectedSection => _selectedSection;
   List<AdminSection> get navigationSections => _navigationSections;
+
+  /// Whether the WhatsApp sender (used to deliver OTPs) is currently online.
+  bool get whatsAppConnected => _whatsAppConnected;
+
+  /// Human-readable detail about the WhatsApp sender state.
+  String get whatsAppMessage => _whatsAppMessage;
+
+  /// True only when a check has completed and the sender is NOT connected, so
+  /// the admin should be warned that OTP delivery will fail.
+  bool get showWhatsAppAlert => _whatsAppChecked && !_whatsAppConnected;
 
   void _initialize() {
     if (_forceBypassLogin) {
@@ -90,40 +105,58 @@ class AdminProvider extends ChangeNotifier {
     _state = state;
     _loading = false;
     notifyListeners();
+    // Check the WhatsApp sender connection in the background so the dashboard
+    // can warn the admin if OTP delivery is currently broken.
+    unawaited(refreshWhatsAppStatus());
   }
 
-  Future<void> addStudent(StudentRecord student) async {
-    _state?.students.insert(0, student);
-    notifyListeners();
+  /// Fetches the live WhatsApp sender status from the backend. Failures are
+  /// swallowed so a status hiccup never blocks the dashboard.
+  Future<void> refreshWhatsAppStatus() async {
     try {
-      await _repository.createStudent(student);
+      final response = await _apiClient.getJson('/api/admin/whatsapp-status');
+      final data = response['data'] as Map<String, dynamic>? ?? const {};
+      _whatsAppConnected = data['connected'] == true;
+      _whatsAppMessage = data['message']?.toString() ?? '';
+      _whatsAppChecked = true;
+      notifyListeners();
     } catch (_) {
-      // Optimistic update kept for demo / offline mode.
+      // Ignore: do not disrupt the dashboard if the status endpoint is down.
     }
   }
 
+  Future<void> addStudent(StudentRecord student) async {
+    if (_repository.isConfigured) {
+      await _repository.createStudent(student);
+      await loadState();
+      return;
+    }
+    _state?.students.insert(0, student);
+    notifyListeners();
+  }
+
   Future<void> updateStudent(StudentRecord student) async {
+    if (_repository.isConfigured) {
+      await _repository.updateStudentRecord(student);
+      await loadState();
+      return;
+    }
     final list = _state?.students;
     if (list != null) {
       final index = list.indexWhere((item) => item.id == student.id);
       if (index >= 0) list[index] = student;
     }
     notifyListeners();
-    try {
-      await _repository.updateStudentRecord(student);
-    } catch (_) {
-      // Optimistic update kept for demo / offline mode.
-    }
   }
 
   Future<void> deleteStudent(String studentId) async {
+    if (_repository.isConfigured) {
+      await _repository.deleteStudentRecord(studentId);
+      await loadState();
+      return;
+    }
     _state?.students.removeWhere((item) => item.id == studentId);
     notifyListeners();
-    try {
-      await _repository.deleteStudentRecord(studentId);
-    } catch (_) {
-      // Optimistic update kept for demo / offline mode.
-    }
   }
 
   Future<void> addTeacher(TeacherRecord teacher) async {
