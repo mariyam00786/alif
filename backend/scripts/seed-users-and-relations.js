@@ -101,12 +101,17 @@ async function seedUsersAndRelations() {
   if (existingTeachersErr) throw new Error(`Teachers fetch failed: ${existingTeachersErr.message}`);
 
   const existingTeacherProfileIds = new Set((existingTeachers || []).map((t) => t.profile_id));
+  const TEACHER_SUBJECTS = [
+    ['Quran', 'Tajweed', 'Islamic Studies'],
+    ['Hadith', 'Fiqh', 'Arabic'],
+  ];
   const teachersToInsert = teacherProfiles
     .filter((p) => !existingTeacherProfileIds.has(p.id))
-    .map((p) => ({
+    .map((p, idx) => ({
       profile_id: p.id,
       email: DEMO_USERS.find((u) => u.phone === p.phone).email,
       qualification: 'Islamic Studies',
+      subjects: TEACHER_SUBJECTS[idx % TEACHER_SUBJECTS.length],
       status: 'active',
     }));
 
@@ -155,7 +160,7 @@ async function seedUsersAndRelations() {
     },
     {
       profile_id: studentProfiles[2].id,
-      parent_phone: parentProfiles[1].phone,
+      parent_phone: '+919900000023',
       father_name: 'Huda Father',
       mother_name: 'Huda Mother',
       date_of_birth: '2012-12-03',

@@ -79,13 +79,16 @@ if (config.app.env !== 'test') {
 /**
  * Health check endpoint
  */
-app.get('/health', (_req: Request, res: Response) => {
+const healthHandler = (_req: Request, res: Response) => {
   res.json({
     status: 'healthy',
     timestamp: new Date().toISOString(),
     version: config.app.version,
   });
-});
+};
+
+app.get('/health', healthHandler);
+app.get('/api/health', healthHandler);
 
 /**
  * API Routes

@@ -1,43 +1,49 @@
 import 'package:flutter/material.dart';
 
+import '../shared/theme/app_colors.dart';
+
+/// Legacy color palette kept for backwards compatibility.
+///
+/// All values now delegate to [AppColors], the single source of truth.
+/// New code should import and use [AppColors] directly.
 class ColorPalette {
-  // Brand Colors — deeper, richer green with teal undertone (Ilmify-inspired)
-  static const Color primaryDark = Color(0xFF1B6B3A);
-  static const Color primaryLight = Color(0xFF4CAF7D);
-  static const Color primaryMuted = Color(0xFFE6F4EC);
+  // Brand Colors
+  static const Color primaryDark = AppColors.primary;
+  static const Color primaryLight = AppColors.primaryLight;
+  static const Color primaryMuted = AppColors.primaryMuted;
 
   // Accent Colors — warm gold
-  static const Color secondary = Color(0xFFD4A017);
-  static const Color secondaryLight = Color(0xFFF0D060);
-  static const Color secondaryMuted = Color(0xFFFFF8E1);
+  static const Color secondary = AppColors.secondary;
+  static const Color secondaryLight = AppColors.secondaryLight;
+  static const Color secondaryMuted = AppColors.secondaryMuted;
 
-  // Text Colors — slate-blue for depth
-  static const Color textPrimary = Color(0xFF0F1729);
-  static const Color textSecondary = Color(0xFF374151);
-  static const Color textTertiary = Color(0xFF6B7280);
-  static const Color textInverse = Colors.white;
+  // Text Colors
+  static const Color textPrimary = AppColors.heading;
+  static const Color textSecondary = AppColors.body;
+  static const Color textTertiary = AppColors.muted;
+  static const Color textInverse = AppColors.textInverse;
 
-  // Background Colors — warm neutrals
-  static const Color white = Colors.white;
-  static const Color backgroundLight = Color(0xFFF6F8F6);
-  static const Color backgroundMuted = Color(0xFFF1F4F1);
+  // Background Colors
+  static const Color white = AppColors.surface;
+  static const Color backgroundLight = AppColors.background;
+  static const Color backgroundMuted = AppColors.surfaceMuted;
   static const Color backgroundDark = Color(0xFF162030);
 
   // Neutral Colors
-  static const Color neutral50 = Color(0xFFF9FAFB);
-  static const Color neutral100 = Color(0xFFF3F4F6);
-  static const Color neutral200 = Color(0xFFE5E7EB);
-  static const Color neutral300 = Color(0xFFD1D5DB);
-  static const Color neutral400 = Color(0xFF9CA3AF);
-  static const Color neutral500 = Color(0xFF6B7280);
-  static const Color neutral600 = Color(0xFF4B5563);
-  static const Color neutral700 = Color(0xFF374151);
-  static const Color neutral800 = Color(0xFF1F2937);
-  static const Color neutral900 = Color(0xFF111827);
+  static const Color neutral50 = AppColors.neutral50;
+  static const Color neutral100 = AppColors.neutral100;
+  static const Color neutral200 = AppColors.neutral200;
+  static const Color neutral300 = AppColors.neutral300;
+  static const Color neutral400 = AppColors.neutral400;
+  static const Color neutral500 = AppColors.neutral500;
+  static const Color neutral600 = AppColors.neutral600;
+  static const Color neutral700 = AppColors.neutral700;
+  static const Color neutral800 = AppColors.neutral800;
+  static const Color neutral900 = AppColors.neutral900;
 
   // Semantic Rating Colors
-  static const Color ratingExcellent = Color(0xFF059669); // Emerald
-  static const Color ratingSatisfactory = Color(0xFF2563EB); // Blue
-  static const Color ratingNeedsImprovement = Color(0xFFDC2626); // Red
-  static const Color ratingNotDone = Color(0xFF9CA3AF); // Gray
+  static const Color ratingExcellent = AppColors.ratingExcellent;
+  static const Color ratingSatisfactory = AppColors.ratingSatisfactory;
+  static const Color ratingNeedsImprovement = AppColors.ratingNeedsImprovement;
+  static const Color ratingNotDone = AppColors.ratingNotDone;
 }

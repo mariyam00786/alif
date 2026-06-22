@@ -61,15 +61,15 @@ class AlifTheme {
       useMaterial3: true,
       brightness: Brightness.light,
       primaryColor: primaryDark,
-      scaffoldBackgroundColor: const Color(0xFFF5F7F5),
+      scaffoldBackgroundColor: ColorPalette.backgroundLight,
       appBarTheme: AppBarTheme(
         backgroundColor: primaryDark,
         foregroundColor: Colors.white,
         elevation: 0,
         centerTitle: true,
-        titleTextStyle: GoogleFonts.plusJakartaSans(
+        titleTextStyle: GoogleFonts.inter(
           fontSize: 18,
-          fontWeight: FontWeight.w700,
+          fontWeight: FontWeight.w600,
           color: Colors.white,
           letterSpacing: -0.2,
         ),
@@ -88,9 +88,9 @@ class AlifTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(radiusFull),
           ),
-          textStyle: GoogleFonts.plusJakartaSans(
+          textStyle: GoogleFonts.inter(
             fontSize: 15,
-            fontWeight: FontWeight.w700,
+            fontWeight: FontWeight.w600,
           ),
         ),
       ),

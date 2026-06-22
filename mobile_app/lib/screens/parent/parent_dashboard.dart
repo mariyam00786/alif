@@ -181,7 +181,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
                           : Text(
                               initial,
                               style: const TextStyle(
-                                color: Color(0xFF1B6B3A),
+                                color: Color(0xFF0F766E),
                                 fontWeight: FontWeight.w800,
                                 fontSize: 24,
                               ),
@@ -237,7 +237,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
                 trailing: Text(
                   isMalayalam ? 'മലയാളം' : 'English',
                   style: const TextStyle(
-                    color: Color(0xFF1B6B3A),
+                    color: Color(0xFF0F766E),
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -266,7 +266,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
     bool danger = false,
     VoidCallback? onTap,
   }) {
-    final color = danger ? const Color(0xFFD45555) : const Color(0xFF1B6B3A);
+    final color = danger ? const Color(0xFFD45555) : const Color(0xFF0F766E);
     return Material(
       color: Colors.white,
       borderRadius: BorderRadius.circular(14),
@@ -350,7 +350,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
                   padding: const EdgeInsets.symmetric(vertical: 8),
                   decoration: BoxDecoration(
                     color: selected
-                        ? const Color(0xFF1B6B3A).withValues(alpha: 0.1)
+                        ? const Color(0xFF0F766E).withValues(alpha: 0.1)
                         : Colors.transparent,
                     borderRadius: BorderRadius.circular(16),
                   ),
@@ -366,7 +366,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
                             height: selected ? 40 : 36,
                             decoration: BoxDecoration(
                               color: selected
-                                  ? const Color(0xFF1B6B3A)
+                                  ? const Color(0xFF0F766E)
                                   : Colors.transparent,
                               borderRadius: BorderRadius.circular(12),
                             ),
@@ -420,7 +420,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
                               ? FontWeight.w700
                               : FontWeight.w500,
                           color: selected
-                              ? const Color(0xFF1B6B3A)
+                              ? const Color(0xFF0F766E)
                               : const Color(0xFF9CA3AF),
                         ),
                       ),

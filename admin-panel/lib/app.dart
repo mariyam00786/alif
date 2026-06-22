@@ -17,6 +17,20 @@ import 'screens/reports_dashboard_screen.dart';
 import 'screens/student_management_screen.dart';
 import 'screens/teacher_management_screen.dart';
 
+/// Default subject options offered when adding a teacher, so the subject
+/// selector always has choices even before any teacher has been saved.
+const List<String> kDefaultTeacherSubjects = [
+  'Qur\'an',
+  'Tajweed',
+  'Hadith',
+  'Fiqh',
+  'Aqeedah',
+  'Akhlaq (Moral Science)',
+  'Arabic Language',
+  'Islamic History',
+  'Dua & Adhkar',
+];
+
 class AlifAdminApp extends StatelessWidget {
   const AlifAdminApp({super.key});
 
@@ -28,6 +42,33 @@ class AlifAdminApp extends StatelessWidget {
       theme: buildAlifAdminTheme(),
       home: Consumer<AdminProvider>(
         builder: (context, provider, _) {
+          final error = provider.consumeError();
+          if (error != null) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+                SnackBar(
+                  content: Text(error),
+                  backgroundColor: const Color(0xFFDC2626),
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            });
+          }
+
+          final info = provider.consumeInfo();
+          if (info != null) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+                SnackBar(
+                  content: Text(info),
+                  backgroundColor: const Color(0xFF16A34A),
+                  behavior: SnackBarBehavior.floating,
+                  duration: const Duration(seconds: 8),
+                ),
+              );
+            });
+          }
+
           if (!provider.isLoggedIn) {
             return GoogleAdminLoginScreen(
               onLoginSuccess: provider.handleLoginSuccess,
@@ -65,6 +106,7 @@ class AlifAdminApp extends StatelessWidget {
       ...state.batchClasses.map((batch) => batch.className),
     }.where((value) => value.isNotEmpty).toList()..sort();
     final availableSubjects = {
+      ...kDefaultTeacherSubjects,
       for (final teacher in state.teachers) ...teacher.subjects,
     }.where((value) => value.isNotEmpty).toList()..sort();
 

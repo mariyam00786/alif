@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../constants/app_theme.dart';
 import '../../components/portal_ui.dart';
 import '../../services/google_auth_service.dart';
+import '../../services/api_service.dart';
 import '../daily_marking_screen.dart';
 import '../leaderboard_screen.dart';
 import '../progress_view_screen.dart';
@@ -46,6 +47,24 @@ class _MobileStudentDashboardState extends State<MobileStudentDashboard> {
   bool _privacyInitialsOnly = false;
   bool _privacyHideRank = false;
 
+  // Real home-dashboard summary fetched from the backend.
+  Map<String, dynamic>? _homeSummary;
+
+  @override
+  void initState() {
+    super.initState();
+    // The home summary endpoint is student-self only; skip in parent-view mode.
+    if (widget.onExit == null) {
+      _loadHomeSummary();
+    }
+  }
+
+  Future<void> _loadHomeSummary() async {
+    final res = await MobileApiService.getHomeSummary();
+    if (!mounted || !res.success || res.data == null) return;
+    setState(() => _homeSummary = res.data);
+  }
+
   static const List<_NavItem> _navItems = [
     _NavItem(icon: Icons.home_rounded, labelEn: 'Home', labelMl: 'ഹോം'),
     _NavItem(
@@ -83,20 +102,40 @@ class _MobileStudentDashboardState extends State<MobileStudentDashboard> {
     final isMalayalam = context.isMalayalam;
     final today = DateTime.now().toIso8601String().split('T').first;
 
+    // When the student is viewing their own board (onExit == null) greet them
+    // by their real signed-in name; in parent-viewing mode keep the child name.
+    final greetingName = widget.onExit == null
+        ? (MobileGoogleAuthService.currentUser?.name?.trim().isNotEmpty == true
+              ? MobileGoogleAuthService.currentUser!.name!.trim()
+              : widget.studentName)
+        : widget.studentName;
+
     final pages = [
       StudentHomeScreen(
-        studentName: widget.studentName,
+        studentName: greetingName,
         onMarkToday: () => _goToTab(2),
         onOpenProgress: () => _goToTab(1),
         onOpenRanking: () => _goToTab(3),
         onOpenBadges: _openBadges,
+        todayDone: (_homeSummary?['today_done'] as num?)?.toInt() ?? 0,
+        todayTotal: (_homeSummary?['today_total'] as num?)?.toInt() ?? 9,
+        streakDays: (_homeSummary?['streak_days'] as num?)?.toInt() ?? 0,
+        weekPoints: (_homeSummary?['week_points'] as num?)?.toInt() ?? 0,
+        batchRank: (_homeSummary?['batch_rank'] as num?)?.toInt() ?? 0,
       ),
       ProgressViewScreen(
         studentId: widget.studentId,
         studentName: widget.studentName,
       ),
-      DailyMarkingScreen(studentId: widget.studentId, date: today),
-      const LeaderboardScreen(batchId: 'batch-001', batchName: 'My Batch'),
+      DailyMarkingScreen(
+        studentId: widget.studentId,
+        date: today,
+        onSubmitSuccess: _loadHomeSummary,
+      ),
+      LeaderboardScreen(
+        batchId: widget.studentId,
+        batchName: (_homeSummary?['batch_name'] as String?) ?? 'My Batch',
+      ),
       _buildProfile(isMalayalam),
     ];
 
@@ -125,7 +164,7 @@ class _MobileStudentDashboardState extends State<MobileStudentDashboard> {
   /// Slim bar shown above the board when a parent is viewing a child's board.
   Widget _viewingBar(bool isMalayalam) {
     return Material(
-      color: const Color(0xFF134D2A),
+      color: const Color(0xFF115E59),
       child: SafeArea(
         bottom: false,
         child: Padding(
@@ -210,7 +249,7 @@ class _MobileStudentDashboardState extends State<MobileStudentDashboard> {
                           : Text(
                               initial,
                               style: const TextStyle(
-                                color: Color(0xFF1B6B3A),
+                                color: Color(0xFF0F766E),
                                 fontWeight: FontWeight.w800,
                                 fontSize: 24,
                               ),
@@ -293,21 +332,6 @@ class _MobileStudentDashboardState extends State<MobileStudentDashboard> {
                 onTap: () => _openPrivacySettings(isMalayalam),
               ),
               const SizedBox(height: 10),
-              _profileTile(
-                icon: Icons.translate_rounded,
-                label: isMalayalam ? 'ഭാഷ' : 'Language',
-                trailing: Text(
-                  isMalayalam ? 'മലയാളം' : 'English',
-                  style: const TextStyle(
-                    color: Color(0xFF1B6B3A),
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                onTap: () => widget.onLocaleChanged(
-                  isMalayalam ? AppLocale.en : AppLocale.ml,
-                ),
-              ),
-              const SizedBox(height: 10),
               if (widget.onExit != null)
                 _profileTile(
                   icon: Icons.arrow_back_rounded,
@@ -337,7 +361,7 @@ class _MobileStudentDashboardState extends State<MobileStudentDashboard> {
     bool danger = false,
     VoidCallback? onTap,
   }) {
-    final color = danger ? const Color(0xFFD45555) : const Color(0xFF1B6B3A);
+    final color = danger ? const Color(0xFFD45555) : const Color(0xFF0F766E);
     return Material(
       color: Colors.white,
       borderRadius: BorderRadius.circular(14),
@@ -384,7 +408,7 @@ class _MobileStudentDashboardState extends State<MobileStudentDashboard> {
       padding: const EdgeInsets.symmetric(vertical: 7),
       child: Row(
         children: [
-          Icon(icon, size: 20, color: const Color(0xFF1B6B3A)),
+          Icon(icon, size: 20, color: const Color(0xFF0F766E)),
           const SizedBox(width: 12),
           Text(
             label,
@@ -419,7 +443,7 @@ class _MobileStudentDashboardState extends State<MobileStudentDashboard> {
           row(
             Icons.groups_rounded,
             isMalayalam ? 'ബാച്ച്' : 'Batch',
-            'Batch A',
+            (_homeSummary?['batch_name'] as String?) ?? '—',
           ),
           const Divider(height: 1, color: Color(0xFFEFF1F3)),
           row(
@@ -504,19 +528,35 @@ class _MobileStudentDashboardState extends State<MobileStudentDashboard> {
               width: double.infinity,
               height: 50,
               child: ElevatedButton(
-                onPressed: () {
+                onPressed: () async {
+                  final messenger = ScaffoldMessenger.of(context);
+                  final newName = nameCtrl.text.trim();
+                  final newPhone = phoneCtrl.text.trim();
                   Navigator.of(ctx).pop();
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  final res = await MobileApiService.updateMyProfile(
+                    fullName: newName.isEmpty ? null : newName,
+                    phone: newPhone.isEmpty ? null : newPhone,
+                  );
+                  if (!mounted) return;
+                  messenger.showSnackBar(
                     SnackBar(
                       content: Text(
-                        isMalayalam ? 'പ്രൊഫൈൽ സേവ് ചെയ്തു' : 'Profile saved',
+                        res.success
+                            ? (isMalayalam
+                                  ? 'പ്രൊഫൈൽ സേവ് ചെയ്തു'
+                                  : 'Profile saved')
+                            : (isMalayalam
+                                  ? 'സേവ് ചെയ്യാൻ കഴിഞ്ഞില്ല'
+                                  : 'Could not save profile'),
                       ),
-                      backgroundColor: const Color(0xFF1B6B3A),
+                      backgroundColor: res.success
+                          ? const Color(0xFF0F766E)
+                          : const Color(0xFFB91C1C),
                     ),
                   );
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF1B6B3A),
+                  backgroundColor: const Color(0xFF0F766E),
                   foregroundColor: Colors.white,
                   elevation: 0,
                   shape: RoundedRectangleBorder(
@@ -681,7 +721,7 @@ class _MobileStudentDashboardState extends State<MobileStudentDashboard> {
           ),
           Switch(
             value: value,
-            activeThumbColor: const Color(0xFF1B6B3A),
+            activeThumbColor: const Color(0xFF0F766E),
             onChanged: onChanged,
           ),
         ],
@@ -725,7 +765,7 @@ class _MobileStudentDashboardState extends State<MobileStudentDashboard> {
                   padding: const EdgeInsets.symmetric(vertical: 8),
                   decoration: BoxDecoration(
                     color: selected
-                        ? const Color(0xFF1B6B3A).withValues(alpha: 0.1)
+                        ? const Color(0xFF0F766E).withValues(alpha: 0.1)
                         : Colors.transparent,
                     borderRadius: BorderRadius.circular(16),
                   ),
@@ -738,7 +778,7 @@ class _MobileStudentDashboardState extends State<MobileStudentDashboard> {
                         height: selected ? 40 : 36,
                         decoration: BoxDecoration(
                           color: selected
-                              ? const Color(0xFF1B6B3A)
+                              ? const Color(0xFF0F766E)
                               : Colors.transparent,
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -761,7 +801,7 @@ class _MobileStudentDashboardState extends State<MobileStudentDashboard> {
                               ? FontWeight.w700
                               : FontWeight.w500,
                           color: selected
-                              ? const Color(0xFF1B6B3A)
+                              ? const Color(0xFF0F766E)
                               : const Color(0xFF9CA3AF),
                         ),
                       ),

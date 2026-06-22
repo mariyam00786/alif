@@ -124,7 +124,7 @@ class TeacherData {
       studentCount: 24,
       activeToday: 19,
       avgCompletion: 78,
-      color: Color(0xFF1B6B3A),
+      color: Color(0xFF0F766E),
     ),
     TeacherBatch(
       id: 'batch-002',
@@ -155,7 +155,7 @@ class TeacherData {
       batchName: 'Noor Batch',
       batchNameMl: 'നൂർ ബാച്ച്',
       avatar: 'A',
-      color: Color(0xFF1B6B3A),
+      color: Color(0xFF0F766E),
       todayMarks: 85,
       todayPct: 92,
       weekPct: 88,
@@ -287,7 +287,7 @@ class TeacherData {
       title: 'Prayer',
       titleMl: 'നമസ്കാരം',
       icon: Icons.mosque_rounded,
-      color: Color(0xFF1B6B3A),
+      color: Color(0xFF0F766E),
       pct: 88,
     ),
     CategoryScore(
@@ -312,7 +312,7 @@ class TeacherData {
       title: 'Prayer',
       titleMl: 'നമസ്കാരം',
       icon: Icons.mosque_rounded,
-      color: Color(0xFF1B6B3A),
+      color: Color(0xFF0F766E),
       pct: 81,
     ),
     CategoryScore(
@@ -363,7 +363,7 @@ class TeacherData {
       timeAgo: 'Yesterday',
       timeAgoMl: 'ഇന്നലെ',
       icon: Icons.insights_rounded,
-      color: Color(0xFF1B6B3A),
+      color: Color(0xFF0F766E),
     ),
   ];
 

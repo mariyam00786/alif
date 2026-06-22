@@ -749,7 +749,7 @@ class _MobileNav extends StatelessWidget {
   }
 }
 
-class _NavItem extends StatelessWidget {
+class _NavItem extends StatefulWidget {
   const _NavItem({
     required this.icon,
     required this.label,
@@ -765,68 +765,97 @@ class _NavItem extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
+  State<_NavItem> createState() => _NavItemState();
+}
+
+class _NavItemState extends State<_NavItem> {
+  bool _pressed = false;
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final activeColor = theme.colorScheme.primary;
     const inactiveColor = Color(0xFF64748B);
+    final icon = widget.icon;
+    final selected = widget.selected;
+    final isMalayalam = widget.isMalayalam;
+    final label = widget.label;
 
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 3),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
-              decoration: BoxDecoration(
-                color: selected
-                    ? activeColor.withValues(alpha: 0.12)
-                    : Colors.transparent,
-                border: Border.all(
-                  color: selected
-                      ? activeColor.withValues(alpha: 0.22)
-                      : Colors.transparent,
+    return AnimatedScale(
+      scale: _pressed ? 0.96 : 1.0,
+      duration: const Duration(milliseconds: 160),
+      curve: Curves.easeOut,
+      child: InkWell(
+        onTap: widget.onTap,
+        onHighlightChanged: (value) => setState(() => _pressed = value),
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 3),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 7,
                 ),
-                borderRadius: BorderRadius.circular(14),
+                decoration: BoxDecoration(
+                  color: selected
+                      ? activeColor.withValues(alpha: 0.16)
+                      : Colors.transparent,
+                  border: Border.all(
+                    color: selected
+                        ? activeColor.withValues(alpha: 0.45)
+                        : Colors.transparent,
+                    width: selected ? 1.5 : 1,
+                  ),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(
+                  icon,
+                  size: 22,
+                  color: selected ? activeColor : inactiveColor,
+                ),
               ),
-              child: Icon(
-                icon,
-                size: 22,
-                color: selected ? activeColor : inactiveColor,
-              ),
-            ),
-            const SizedBox(height: 2),
-            isMalayalam
-                ? Text(
-                    label,
-                    style: GoogleFonts.notoSansMalayalam(
-                      textStyle: TextStyle(
+              const SizedBox(height: 5),
+              isMalayalam
+                  ? Text(
+                      label,
+                      style: GoogleFonts.notoSansMalayalam(
+                        textStyle: TextStyle(
+                          fontSize: 11,
+                          height: 1.0,
+                          letterSpacing: 0,
+                          fontWeight: selected
+                              ? FontWeight.w700
+                              : FontWeight.w400,
+                          color: selected ? activeColor : inactiveColor,
+                        ),
+                      ),
+                      maxLines: 1,
+                      softWrap: false,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                    )
+                  : Text(
+                      label,
+                      style: TextStyle(
                         fontSize: 11,
+                        height: 1.0,
+                        letterSpacing: 0,
                         fontWeight: selected
-                            ? FontWeight.w600
+                            ? FontWeight.w700
                             : FontWeight.w400,
                         color: selected ? activeColor : inactiveColor,
                       ),
+                      maxLines: 1,
+                      softWrap: false,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
-                  )
-                : Text(
-                    label,
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-                      color: selected ? activeColor : inactiveColor,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
-                  ),
-          ],
+            ],
+          ),
         ),
       ),
     );

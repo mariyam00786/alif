@@ -41,12 +41,36 @@ class AdminProvider extends ChangeNotifier {
   bool _isLoggedIn = false;
   bool _loading = true;
   AdminSection _selectedSection = AdminSection.dashboard;
+  String? _lastError;
+  String? _lastInfo;
 
   AdminAppState? get state => _state;
   bool get isLoggedIn => _isLoggedIn;
   bool get loading => _loading;
   AdminSection get selectedSection => _selectedSection;
   List<AdminSection> get navigationSections => _navigationSections;
+
+  /// Surfaces the most recent write failure (e.g. add/update student) so the UI
+  /// can show a snackbar. Consume it via [consumeError].
+  String? get lastError => _lastError;
+
+  /// Returns and clears the pending error message.
+  String? consumeError() {
+    final error = _lastError;
+    _lastError = null;
+    return error;
+  }
+
+  /// Surfaces a success/info message (e.g. the new student's login email) so
+  /// the UI can show a confirmation snackbar. Consume it via [consumeInfo].
+  String? get lastInfo => _lastInfo;
+
+  /// Returns and clears the pending info message.
+  String? consumeInfo() {
+    final info = _lastInfo;
+    _lastInfo = null;
+    return info;
+  }
 
   void _initialize() {
     if (_forceBypassLogin) {
@@ -96,9 +120,26 @@ class AdminProvider extends ChangeNotifier {
     _state?.students.insert(0, student);
     notifyListeners();
     try {
-      await _repository.createStudent(student);
-    } catch (_) {
-      // Optimistic update kept for demo / offline mode.
+      final loginEmail = await _repository.createStudent(student);
+      // Re-sync with the backend so the locally-inserted record is replaced by
+      // the persisted row (with its real id), keeping later edits/deletes valid.
+      if (_repository.isConfigured) {
+        await loadState();
+      }
+      final email = loginEmail ?? (student.email.isNotEmpty ? student.email : null);
+      if (email != null) {
+        _lastInfo =
+            'Student added. Portal login email: $email (password: Demo@12345)';
+        notifyListeners();
+      }
+    } catch (error) {
+      _lastError = 'Could not save student: ${_describeError(error)}';
+      // Drop the optimistic insert by reloading the real backend state.
+      if (_repository.isConfigured) {
+        await loadState();
+      } else {
+        notifyListeners();
+      }
     }
   }
 
@@ -111,8 +152,16 @@ class AdminProvider extends ChangeNotifier {
     notifyListeners();
     try {
       await _repository.updateStudentRecord(student);
-    } catch (_) {
-      // Optimistic update kept for demo / offline mode.
+      if (_repository.isConfigured) {
+        await loadState();
+      }
+    } catch (error) {
+      _lastError = 'Could not update student: ${_describeError(error)}';
+      if (_repository.isConfigured) {
+        await loadState();
+      } else {
+        notifyListeners();
+      }
     }
   }
 
@@ -121,8 +170,13 @@ class AdminProvider extends ChangeNotifier {
     notifyListeners();
     try {
       await _repository.deleteStudentRecord(studentId);
-    } catch (_) {
-      // Optimistic update kept for demo / offline mode.
+    } catch (error) {
+      _lastError = 'Could not delete student: ${_describeError(error)}';
+      if (_repository.isConfigured) {
+        await loadState();
+      } else {
+        notifyListeners();
+      }
     }
   }
 
@@ -130,9 +184,24 @@ class AdminProvider extends ChangeNotifier {
     _state?.teachers.insert(0, teacher);
     notifyListeners();
     try {
-      await _repository.createTeacher(teacher);
-    } catch (_) {
-      // Optimistic update kept for demo / offline mode.
+      final loginEmail = await _repository.createTeacher(teacher);
+      if (_repository.isConfigured) {
+        await loadState();
+      }
+      final email =
+          loginEmail ?? (teacher.email.isNotEmpty ? teacher.email : null);
+      if (email != null) {
+        _lastInfo =
+            'Teacher added. Login email: $email (password: Demo@12345)';
+        notifyListeners();
+      }
+    } catch (error) {
+      _lastError = 'Could not save teacher: ${_describeError(error)}';
+      if (_repository.isConfigured) {
+        await loadState();
+      } else {
+        notifyListeners();
+      }
     }
   }
 
@@ -145,8 +214,16 @@ class AdminProvider extends ChangeNotifier {
     notifyListeners();
     try {
       await _repository.updateTeacherRecord(teacher);
-    } catch (_) {
-      // Optimistic update kept for demo / offline mode.
+      if (_repository.isConfigured) {
+        await loadState();
+      }
+    } catch (error) {
+      _lastError = 'Could not update teacher: ${_describeError(error)}';
+      if (_repository.isConfigured) {
+        await loadState();
+      } else {
+        notifyListeners();
+      }
     }
   }
 
@@ -155,8 +232,16 @@ class AdminProvider extends ChangeNotifier {
     notifyListeners();
     try {
       await _repository.deleteTeacherRecord(teacherId);
-    } catch (_) {
-      // Optimistic update kept for demo / offline mode.
+      if (_repository.isConfigured) {
+        await loadState();
+      }
+    } catch (error) {
+      _lastError = 'Could not delete teacher: ${_describeError(error)}';
+      if (_repository.isConfigured) {
+        await loadState();
+      } else {
+        notifyListeners();
+      }
     }
   }
 
@@ -268,6 +353,12 @@ class AdminProvider extends ChangeNotifier {
     for (final rule in _state?.ratingRules ?? const <RatingRule>[]) {
       if (rule.id != exceptId) rule.isDefault = false;
     }
+  }
+
+  /// Produces a concise, user-facing message from a thrown error.
+  String _describeError(Object error) {
+    final message = error is StateError ? error.message : error.toString();
+    return message.replaceFirst(RegExp(r'^Exception:\s*'), '');
   }
 
   Future<void> addNotification(NotificationCampaign campaign) async {

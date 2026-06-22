@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../constants/app_theme.dart';
 import '../components/portal_ui.dart';
+import '../services/api_service.dart';
+import '../shared/theme/theme.dart';
 
 /// Daily marking screen (Ihthisab — accountability sheet).
 ///
@@ -23,116 +25,136 @@ class DailyMarkingScreen extends StatefulWidget {
   State<DailyMarkingScreen> createState() => _DailyMarkingScreenState();
 }
 
-class _PrayerStatus {
-  static const int none = -1;
-  static const int jamaah = 0; // congregation — 10
-  static const int ada = 1; // on time, alone — 6
-  static const int missed = 2; // not prayed — 0
-  static const marks = [10, 6, 0];
-}
-
 class _DailyMarkingScreenState extends State<DailyMarkingScreen> {
   bool _isLoading = false;
   bool _submitted = false;
+  bool _confirmed = false;
+  bool _loadingStructure = true;
   DateTime? _draftSavedAt;
 
-  // 5 daily prayers with scheduled times.
-  final List<Map<String, dynamic>> _prayers = [
-    {
-      'name': 'Fajr',
-      'nameML': 'സുബ്ഹി',
-      'time': '5:12 AM',
-      'icon': Icons.wb_twilight_rounded,
-      'status': _PrayerStatus.none,
-    },
-    {
-      'name': 'Dhuhr',
-      'nameML': 'ളുഹർ',
-      'time': '12:30 PM',
-      'icon': Icons.light_mode_rounded,
-      'status': _PrayerStatus.none,
-    },
-    {
-      'name': 'Asr',
-      'nameML': 'അസർ',
-      'time': '3:45 PM',
-      'icon': Icons.wb_sunny_outlined,
-      'status': _PrayerStatus.none,
-    },
-    {
-      'name': 'Maghrib',
-      'nameML': 'മഗ്‌രിബ്',
-      'time': '6:48 PM',
-      'icon': Icons.brightness_4_rounded,
-      'status': _PrayerStatus.none,
-    },
-    {
-      'name': 'Isha',
-      'nameML': 'ഇശാ',
-      'time': '8:15 PM',
-      'icon': Icons.dark_mode_rounded,
-      'status': _PrayerStatus.none,
-    },
-  ];
+  // The full activity catalog loaded from the backend. Every category and
+  // activity shown here mirrors the admin configuration, so the student marks
+  // exactly the same items that teachers, parents and admin see.
+  //
+  // Each category: { name, nameML, icon (IconData), activities: List<Map> }
+  // Each activity: { id, name, nameML, icon, rating (-1..3), ratings: {name:id} }
+  List<Map<String, dynamic>> _cats = [];
 
-  // Other daily activities, rated 0-3.
-  final List<Map<String, dynamic>> _activities = [
-    {
-      'category': 'Quran',
-      'icon': Icons.menu_book_rounded,
-      'name': 'Daily Recitation',
-      'nameML': 'നിത്യ പാരായണം',
-      'rating': -1,
-    },
-    {
-      'category': 'Quran',
-      'icon': Icons.menu_book_rounded,
-      'name': 'Memorization (Hifz)',
-      'nameML': 'ഹിഫ്സ്',
-      'rating': -1,
-    },
-    {
-      'category': 'Character',
-      'icon': Icons.volunteer_activism_rounded,
-      'name': 'Honesty',
-      'nameML': 'സത്യസന്ധത',
-      'rating': -1,
-    },
-    {
-      'category': 'Character',
-      'icon': Icons.volunteer_activism_rounded,
-      'name': 'Helping Others',
-      'nameML': 'മറ്റുള്ളവരെ സഹായിക്കൽ',
-      'rating': -1,
-    },
-  ];
-
+  // Unified 4-band rating scale shared by every activity (matches backend).
   static const _ratingMarks = [0, 4, 7, 10];
+  static const _ratingNames = [
+    'Not Done',
+    'Needs Improvement',
+    'Good',
+    'Excellent',
+  ];
 
-  int get _completedPrayers =>
-      _prayers.where((p) => p['status'] != _PrayerStatus.none).length;
+  /// Flattened list of every activity across all categories.
+  List<Map<String, dynamic>> get _allActs => _cats
+      .expand((c) => (c['activities'] as List).cast<Map<String, dynamic>>())
+      .toList();
 
   int get _totalMarks {
     var total = 0;
-    for (final p in _prayers) {
-      final s = p['status'] as int;
-      if (s != _PrayerStatus.none) total += _PrayerStatus.marks[s];
-    }
-    for (final a in _activities) {
+    for (final a in _allActs) {
       final r = a['rating'] as int;
       if (r >= 0) total += _ratingMarks[r];
     }
     return total;
   }
 
-  int get _maxMarks => _prayers.length * 10 + _activities.length * 10;
+  int get _maxMarks => _allActs.length * 10;
+
+  /// How many activities have been marked so far.
+  int get _markedCount =>
+      _allActs.where((a) => (a['rating'] as int) >= 0).length;
 
   double get _progress {
-    final marked =
-        _completedPrayers +
-        _activities.where((a) => (a['rating'] as int) >= 0).length;
-    final total = _prayers.length + _activities.length;
-    return total == 0 ? 0 : marked / total;
+    final total = _allActs.length;
+    if (total == 0) return 0;
+    final marked = _allActs.where((a) => (a['rating'] as int) >= 0).length;
+    return marked / total;
+  }
+
+  IconData _iconForCategory(String name) {
+    final n = name.toLowerCase();
+    if (n.contains('salah') || n.contains('prayer'))
+      return Icons.mosque_rounded;
+    if (n.contains('quran')) return Icons.menu_book_rounded;
+    if (n.contains('dua') || n.contains('dhikr')) {
+      return Icons.auto_awesome_rounded;
+    }
+    if (n.contains('sunnah')) return Icons.star_rounded;
+    if (n.contains('character') || n.contains('akhlaq')) {
+      return Icons.volunteer_activism_rounded;
+    }
+    if (n.contains('health')) return Icons.fitness_center_rounded;
+    return Icons.check_circle_outline_rounded;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStructure();
+  }
+
+  /// Loads the full activity catalog from the backend and builds the marking
+  /// sheet dynamically so it always matches the admin configuration.
+  Future<void> _loadStructure() async {
+    final res = await MobileApiService.getDailyStructure();
+    if (!mounted) return;
+    if (!res.success || res.data == null) {
+      setState(() => _loadingStructure = false);
+      return;
+    }
+
+    final cats = (res.data!['categories'] as List?) ?? const [];
+    final built = <Map<String, dynamic>>[];
+
+    for (final c in cats) {
+      final cm = c as Map<String, dynamic>;
+      if ((cm['status'] ?? 'active').toString() != 'active') continue;
+      final catName = (cm['name'] ?? '').toString();
+      final icon = _iconForCategory(catName);
+
+      final builtActs = <Map<String, dynamic>>[];
+      for (final a in (cm['activities'] as List?) ?? const []) {
+        final am = a as Map<String, dynamic>;
+        if ((am['status'] ?? 'active').toString() != 'active') continue;
+        final id = (am['id'] ?? '').toString();
+        if (id.isEmpty) continue;
+
+        final ratingMap = <String, String>{};
+        for (final r in (am['ratings'] as List?) ?? const []) {
+          final rm = r as Map<String, dynamic>;
+          ratingMap[(rm['rating_name'] ?? '').toString()] = (rm['id'] ?? '')
+              .toString();
+        }
+
+        builtActs.add({
+          'id': id,
+          'name': (am['name'] ?? '').toString(),
+          'nameML': (am['name_ml'] ?? am['name'] ?? '').toString(),
+          'icon': icon,
+          'rating': -1,
+          'ratings': ratingMap,
+        });
+      }
+
+      if (builtActs.isEmpty) continue;
+      built.add({
+        'name': catName,
+        'nameML': (cm['name_ml'] ?? catName).toString(),
+        'icon': icon,
+        'activities': builtActs,
+      });
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _cats = built;
+      _loadingStructure = false;
+    });
   }
 
   @override
@@ -142,7 +164,9 @@ class _DailyMarkingScreenState extends State<DailyMarkingScreen> {
 
     return Scaffold(
       backgroundColor: kSurface,
-      floatingActionButton: _submitFab(isMalayalam),
+      bottomNavigationBar: (_loadingStructure || _cats.isEmpty)
+          ? null
+          : _submitBar(isMalayalam),
       body: Column(
         children: [
           PortalHeader(
@@ -159,56 +183,65 @@ class _DailyMarkingScreenState extends State<DailyMarkingScreen> {
             ),
           ),
           Expanded(
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 18, 16, 96),
-              children: [
-                const SectionLabel(
-                  'Prayers · നമസ്കാരം',
-                  icon: Icons.mosque_rounded,
-                ),
-                const SizedBox(height: 12),
-                ..._prayers.map(
-                  (p) => Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: _prayerCard(p, isMalayalam),
+            child: _loadingStructure
+                ? const Center(child: CircularProgressIndicator())
+                : _cats.isEmpty
+                ? _emptyState(isMalayalam)
+                : ListView(
+                    padding: const EdgeInsets.fromLTRB(16, 18, 16, 24),
+                    children: [
+                      for (final cat in _cats) ...[
+                        SectionLabel(
+                          '${cat['name']} · ${cat['nameML']}',
+                          icon: cat['icon'] as IconData,
+                        ),
+                        const SizedBox(height: 12),
+                        _categoryCard(cat, isMalayalam),
+                        const SizedBox(height: 12),
+                      ],
+                      _totalCard(isMalayalam),
+                      if (_markedCount > 0 && !_submitted) ...[
+                        const SizedBox(height: 12),
+                        _confirmTile(isMalayalam),
+                      ],
+                      const SizedBox(height: 16),
+                      _autoSaveBar(isMalayalam),
+                      const SizedBox(height: 28),
+                    ],
                   ),
-                ),
-                const SizedBox(height: 12),
-                const SectionLabel(
-                  'Quran · ഖുർആൻ',
-                  icon: Icons.menu_book_rounded,
-                ),
-                const SizedBox(height: 12),
-                ..._activities
-                    .where((a) => a['category'] == 'Quran')
-                    .map(
-                      (a) => Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: _activityCard(a, isMalayalam),
-                      ),
-                    ),
-                const SizedBox(height: 12),
-                const SectionLabel(
-                  'Character · സ്വഭാവം',
-                  icon: Icons.volunteer_activism_rounded,
-                ),
-                const SizedBox(height: 12),
-                ..._activities
-                    .where((a) => a['category'] == 'Character')
-                    .map(
-                      (a) => Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: _activityCard(a, isMalayalam),
-                      ),
-                    ),
-                const SizedBox(height: 8),
-                _totalCard(isMalayalam),
-                const SizedBox(height: 16),
-                _autoSaveBar(isMalayalam),
-              ],
-            ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _emptyState(bool isMalayalam) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.cloud_off_rounded, size: 44, color: kMuted),
+            const SizedBox(height: 12),
+            Text(
+              isMalayalam
+                  ? 'പ്രവർത്തനങ്ങൾ ലോഡ് ചെയ്യാനായില്ല'
+                  : 'Could not load activities',
+              textAlign: TextAlign.center,
+              style: AppTextStyles.cardTitle,
+            ),
+            const SizedBox(height: 12),
+            TextButton.icon(
+              onPressed: () {
+                setState(() => _loadingStructure = true);
+                _loadStructure();
+              },
+              icon: const Icon(Icons.refresh_rounded, size: 18),
+              label: Text(isMalayalam ? 'വീണ്ടും ശ്രമിക്കുക' : 'Retry'),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -247,122 +280,189 @@ class _DailyMarkingScreenState extends State<DailyMarkingScreen> {
     );
   }
 
-  Widget _prayerCard(Map<String, dynamic> p, bool isMalayalam) {
-    final status = p['status'] as int;
-    final marked = status != _PrayerStatus.none;
-    final accent = marked ? _statusColor(status) : kMuted;
-
+  Widget _categoryCard(Map<String, dynamic> cat, bool isMalayalam) {
+    final items = (cat['activities'] as List).cast<Map<String, dynamic>>();
+    final done = items.where((a) => (a['rating'] as int) >= 0).length;
     return SoftCard(
-      borderColor: marked ? accent.withValues(alpha: 0.35) : kBorder,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(10),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(
-                width: 50,
-                height: 50,
-                decoration: BoxDecoration(
-                  color: accent.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(14),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(4, 2, 4, 10),
+            child: Row(
+              children: [
+                Icon(
+                  cat['icon'] as IconData,
+                  size: 15,
+                  color: kGreen.withValues(alpha: 0.85),
                 ),
-                child: Icon(p['icon'] as IconData, color: accent, size: 27),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      isMalayalam ? p['nameML'] : p['name'],
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                        color: kHeading,
-                      ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    isMalayalam ? cat['nameML'] : cat['name'],
+                    style: AppTextStyles.labelSmall.copyWith(
+                      fontWeight: FontWeight.w700,
                     ),
-                    const SizedBox(height: 3),
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons.schedule_rounded,
-                          size: 15,
-                          color: kMuted,
-                        ),
-                        const SizedBox(width: 5),
-                        Text(
-                          p['time'],
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: kMuted,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+                  ),
                 ),
-              ),
-              if (marked)
-                Icon(Icons.check_circle_rounded, color: accent, size: 26),
-            ],
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: kGreen.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    '$done/${items.length}',
+                    style: TextStyle(
+                      color: kGreen,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 12.5,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              _statusChip(
-                p,
-                _PrayerStatus.jamaah,
-                isMalayalam ? 'ജമാഅത്ത്' : "Jama'ah",
-              ),
-              const SizedBox(width: 8),
-              _statusChip(
-                p,
-                _PrayerStatus.ada,
-                isMalayalam ? 'അദാഅ്' : 'On time',
-              ),
-              const SizedBox(width: 8),
-              _statusChip(
-                p,
-                _PrayerStatus.missed,
-                isMalayalam ? 'വിട്ടു' : 'Missed',
-              ),
-            ],
-          ),
+          for (int i = 0; i < items.length; i++) ...[
+            _activityRow(items[i], isMalayalam),
+            if (i < items.length - 1) const SizedBox(height: 8),
+          ],
         ],
       ),
     );
   }
 
-  Widget _statusChip(Map<String, dynamic> p, int value, String label) {
-    final selected = p['status'] == value;
-    final color = _statusColor(value);
+  Color _darken(Color c, [double amount = 0.16]) {
+    final hsl = HSLColor.fromColor(c);
+    return hsl
+        .withLightness((hsl.lightness - amount).clamp(0.0, 1.0))
+        .toColor();
+  }
+
+  Widget _activityRow(Map<String, dynamic> a, bool isMalayalam) {
+    final rating = a['rating'] as int;
+    final rated = rating >= 0;
+    final accent = rated ? _ratingColor(rating) : kGreen;
+
+    final iconBadge = Container(
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [accent, _darken(accent)],
+        ),
+        borderRadius: BorderRadius.circular(13),
+        boxShadow: [
+          BoxShadow(
+            color: accent.withValues(alpha: 0.32),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Icon(a['icon'] as IconData, color: Colors.white, size: 20),
+    );
+
+    final header = Row(
+      children: [
+        iconBadge,
+        const SizedBox(width: 11),
+        Expanded(
+          child: Text(
+            isMalayalam ? a['nameML'] : a['name'],
+            style: AppTextStyles.cardTitle,
+          ),
+        ),
+        if (rated) ...[
+          const SizedBox(width: 8),
+          _ratingPill(rating, isMalayalam),
+        ],
+      ],
+    );
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOut,
+      padding: EdgeInsets.fromLTRB(10, rated ? 9 : 11, 10, rated ? 9 : 11),
+      decoration: BoxDecoration(
+        color: rated ? accent.withValues(alpha: 0.07) : const Color(0xFFF6F8FA),
+        borderRadius: BorderRadius.circular(16),
+        border: rated
+            ? Border.all(color: accent.withValues(alpha: 0.30))
+            : null,
+      ),
+      child: rated
+          ? header
+          : Column(
+              children: [
+                header,
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    for (int i = 0; i < 4; i++) ...[
+                      _ratingChip(a, i, isMalayalam),
+                      if (i < 3) const SizedBox(width: 7),
+                    ],
+                  ],
+                ),
+              ],
+            ),
+    );
+  }
+
+  Widget _ratingChip(Map<String, dynamic> a, int value, bool isMalayalam) {
+    final color = _ratingColor(value);
     return Expanded(
       child: GestureDetector(
-        onTap: () {
-          setState(() => p['status'] = value);
-          _autoSaveDraft();
-        },
+        onTap: _submitted
+            ? null
+            : () {
+                setState(() => a['rating'] = value);
+                _autoSaveDraft();
+              },
         behavior: HitTestBehavior.opaque,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 160),
-          padding: const EdgeInsets.symmetric(vertical: 15),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 3),
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: selected ? color : color.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(12),
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(11),
             border: Border.all(
-              color: selected ? color : color.withValues(alpha: 0.25),
+              color: color.withValues(alpha: 0.40),
+              width: 1.3,
             ),
           ),
-          child: Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-              color: selected ? Colors.white : color,
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 6,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    color: color,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  _ratingLabel(value, isMalayalam),
+                  maxLines: 1,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: color,
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -370,108 +470,69 @@ class _DailyMarkingScreenState extends State<DailyMarkingScreen> {
     );
   }
 
-  Color _statusColor(int status) {
-    switch (status) {
-      case _PrayerStatus.jamaah:
-        return const Color(0xFF10B981);
-      case _PrayerStatus.ada:
-        return const Color(0xFFF59E0B);
-      case _PrayerStatus.missed:
-        return const Color(0xFFEF4444);
-      default:
-        return kMuted;
-    }
-  }
-
-  Widget _activityCard(Map<String, dynamic> a, bool isMalayalam) {
-    final rating = a['rating'] as int;
-    return SoftCard(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: kGreenSoft,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(a['icon'] as IconData, color: kGreen, size: 23),
-              ),
-              const SizedBox(width: 13),
-              Expanded(
-                child: Text(
-                  isMalayalam ? a['nameML'] : a['name'],
-                  style: const TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w700,
-                    color: kHeading,
-                  ),
-                ),
-              ),
-            ],
+  Widget _ratingPill(int rating, bool isMalayalam) {
+    final color = _ratingColor(rating);
+    return Container(
+      padding: const EdgeInsets.fromLTRB(8, 6, 13, 6),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [color, _darken(color)],
+        ),
+        borderRadius: BorderRadius.circular(30),
+        boxShadow: [
+          BoxShadow(
+            color: color.withValues(alpha: 0.38),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
           ),
-          const SizedBox(height: 14),
-          Row(
-            children: List.generate(4, (i) {
-              final labels = isMalayalam
-                  ? ['ഇല്ല', 'കുറവ്', 'നല്ലത്', 'ഉത്തമം']
-                  : ['None', 'Fair', 'Good', 'Best'];
-              final colors = [
-                const Color(0xFFEF4444),
-                const Color(0xFFF59E0B),
-                const Color(0xFF3B82F6),
-                const Color(0xFF10B981),
-              ];
-              final selected = rating == i;
-              return Expanded(
-                child: Padding(
-                  padding: EdgeInsets.only(right: i < 3 ? 8 : 0),
-                  child: GestureDetector(
-                    onTap: () {
-                      setState(() => a['rating'] = i);
-                      _autoSaveDraft();
-                    },
-                    behavior: HitTestBehavior.opaque,
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 160),
-                      padding: const EdgeInsets.symmetric(vertical: 13),
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: selected
-                            ? colors[i]
-                            : colors[i].withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(11),
-                        border: Border.all(
-                          color: selected
-                              ? colors[i]
-                              : colors[i].withValues(alpha: 0.22),
-                        ),
-                      ),
-                      child: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: Text(
-                          labels[i],
-                          maxLines: 1,
-                          style: TextStyle(
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.w700,
-                            color: selected ? Colors.white : colors[i],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            }),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(2),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.25),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.check_rounded,
+              color: Colors.white,
+              size: 13,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            _ratingLabel(rating, isMalayalam),
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
+              fontSize: 12.5,
+            ),
           ),
         ],
       ),
     );
+  }
+
+  Color _ratingColor(int i) {
+    const colors = [
+      Color(0xFFEF4444),
+      Color(0xFFE0A82E),
+      Color(0xFF3B82F6),
+      Color(0xFF10B981),
+    ];
+    return (i >= 0 && i < colors.length) ? colors[i] : kMuted;
+  }
+
+  String _ratingLabel(int i, bool isMalayalam) {
+    final labels = isMalayalam
+        ? ['ഇല്ല', 'കുറവ്', 'നല്ലത്', 'ഉത്തമം']
+        : ['None', 'Fair', 'Good', 'Best'];
+    return (i >= 0 && i < labels.length) ? labels[i] : '';
   }
 
   Widget _totalCard(bool isMalayalam) {
@@ -482,12 +543,12 @@ class _DailyMarkingScreenState extends State<DailyMarkingScreen> {
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF2D5A34), Color(0xFF3C7A47)],
+          colors: [Color(0xFF115E59), Color(0xFF0F766E)],
         ),
         borderRadius: BorderRadius.circular(18),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x332D5A34),
+            color: Color(0x330F766E),
             blurRadius: 16,
             offset: Offset(0, 8),
           ),
@@ -497,41 +558,41 @@ class _DailyMarkingScreenState extends State<DailyMarkingScreen> {
         children: [
           Flexible(
             child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                isMalayalam ? 'ആകെ മാർക്ക്' : 'Total Marks',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white.withValues(alpha: 0.85),
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  isMalayalam ? 'ആകെ മാർക്ക്' : 'Total Marks',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white.withValues(alpha: 0.85),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 4),
-              Text.rich(
-                TextSpan(
-                  children: [
-                    TextSpan(
-                      text: '$_totalMarks',
-                      style: const TextStyle(
-                        fontSize: 32,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
-                        height: 1,
+                const SizedBox(height: 4),
+                Text.rich(
+                  TextSpan(
+                    children: [
+                      TextSpan(
+                        text: '$_totalMarks',
+                        style: const TextStyle(
+                          fontSize: 32,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                          height: 1,
+                        ),
                       ),
-                    ),
-                    TextSpan(
-                      text: ' / $_maxMarks',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white.withValues(alpha: 0.7),
+                      TextSpan(
+                        text: ' / $_maxMarks',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white.withValues(alpha: 0.7),
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
             ),
           ),
           const Spacer(),
@@ -553,34 +614,148 @@ class _DailyMarkingScreenState extends State<DailyMarkingScreen> {
     );
   }
 
-  // Floating side action — single tap to submit. Drafts save automatically,
-  // so students no longer need a separate "Save Draft" button.
-  Widget _submitFab(bool isMalayalam) {
-    return FloatingActionButton.extended(
-      onPressed: _isLoading ? null : () => _submit(isMalayalam),
-      backgroundColor: kGreen,
-      foregroundColor: Colors.white,
-      elevation: 3,
-      icon: _isLoading
-          ? const SizedBox(
-              width: 18,
-              height: 18,
-              child: CircularProgressIndicator(
-                strokeWidth: 2.4,
-                valueColor: AlwaysStoppedAnimation(Colors.white),
-              ),
-            )
-          : Icon(
-              _submitted ? Icons.check_circle_rounded : Icons.send_rounded,
-              size: 20,
+  // Persistent bottom action bar — sits below the list so it never overlaps
+  // the rating buttons. Drafts save automatically, so there is no separate
+  // "Save Draft" button.
+  Widget _submitBar(bool isMalayalam) {
+    final locked = _markedCount == 0 || !_confirmed;
+    final disabled = _isLoading || _submitted || locked;
+    final bg = (_submitted || locked) ? kMuted : kGreen;
+
+    final label = _isLoading
+        ? (isMalayalam ? 'സമർപ്പിക്കുന്നു…' : 'Submitting…')
+        : _submitted
+        ? (isMalayalam ? 'ഇന്ന് സമർപ്പിച്ചു' : 'Submitted today')
+        : _markedCount == 0
+        ? (isMalayalam ? 'ഒന്നെങ്കിലും അടയാളപ്പെടുത്തുക' : 'Mark at least one')
+        : !_confirmed
+        ? (isMalayalam ? 'ഉറപ്പിക്കുക' : 'Confirm first')
+        : (isMalayalam
+              ? '$_markedCount/${_allActs.length} സമർപ്പിക്കുക'
+              : 'Submit $_markedCount/${_allActs.length}');
+
+    final icon = _isLoading
+        ? const SizedBox(
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(
+              strokeWidth: 2.4,
+              valueColor: AlwaysStoppedAnimation(Colors.white),
             ),
-      label: Text(
-        _isLoading
-            ? (isMalayalam ? 'സമർപ്പിക്കുന്നു…' : 'Submitting…')
-            : _submitted
-            ? (isMalayalam ? 'വീണ്ടും സമർപ്പിക്കുക' : 'Submit again')
-            : (isMalayalam ? 'സമർപ്പിക്കുക' : 'Submit'),
-        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+          )
+        : Icon(
+            _submitted
+                ? Icons.check_circle_rounded
+                : locked
+                ? Icons.lock_outline_rounded
+                : Icons.send_rounded,
+            size: 20,
+            color: Colors.white,
+          );
+
+    return SafeArea(
+      top: false,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 12,
+              offset: const Offset(0, -3),
+            ),
+          ],
+        ),
+        child: SizedBox(
+          height: 52,
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: disabled ? null : () => _submit(isMalayalam),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: bg,
+              disabledBackgroundColor: bg,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                icon,
+                const SizedBox(width: 10),
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 15,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Final confirmation tick — student verifies everything is correct before
+  // the submit button unlocks.
+  Widget _confirmTile(bool isMalayalam) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => setState(() => _confirmed = !_confirmed),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+        decoration: BoxDecoration(
+          color: _confirmed ? kGreen.withValues(alpha: 0.08) : Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: _confirmed ? kGreen : kBorder,
+            width: _confirmed ? 1.6 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              width: 26,
+              height: 26,
+              decoration: BoxDecoration(
+                color: _confirmed ? kGreen : Colors.transparent,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: _confirmed ? kGreen : kMuted,
+                  width: 1.8,
+                ),
+              ),
+              child: _confirmed
+                  ? const Icon(
+                      Icons.check_rounded,
+                      size: 18,
+                      color: Colors.white,
+                    )
+                  : null,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                isMalayalam
+                    ? 'ഇതെല്ലാം ശരിയാണ്, സമർപ്പിക്കാൻ തയ്യാർ'
+                    : 'I confirm everything is correct',
+                style: TextStyle(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w700,
+                  color: _confirmed ? kGreen : kHeading,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -625,16 +800,68 @@ class _DailyMarkingScreenState extends State<DailyMarkingScreen> {
   }
 
   Future<void> _submit(bool isMalayalam) async {
+    if (_markedCount == 0 || !_confirmed || _submitted || _isLoading) return;
     setState(() => _isLoading = true);
-    await Future.delayed(const Duration(milliseconds: 900));
+
+    var persistedAny = false;
+    var hadFailure = false;
+
+    final futures = <Future<void>>[];
+    for (final a in _allActs) {
+      final r = a['rating'] as int;
+      if (r < 0) continue;
+      final activityId = (a['id'] ?? '').toString();
+      final ratingName = _ratingNames[r];
+      final ratingId =
+          (a['ratings'] as Map<String, String>?)?[ratingName] ?? '';
+      if (activityId.isEmpty || ratingId.isEmpty) {
+        hadFailure = true;
+        continue;
+      }
+      futures.add(() async {
+        final res = await MobileApiService.submitActivityLog(
+          studentId: widget.studentId,
+          activityId: activityId,
+          logDate: widget.date,
+          ratingId: ratingId,
+        );
+        if (res.success) {
+          persistedAny = true;
+        } else {
+          hadFailure = true;
+        }
+      }());
+    }
+    await Future.wait(futures);
+
     if (!mounted) return;
+
+    if (!persistedAny) {
+      setState(() => _isLoading = false);
+      _showSnack(
+        isMalayalam
+            ? 'സമർപ്പിക്കാൻ കഴിഞ്ഞില്ല · വീണ്ടും ശ്രമിക്കുക'
+            : 'Could not submit · please try again',
+        icon: Icons.error_outline_rounded,
+      );
+      return;
+    }
+
     setState(() {
       _isLoading = false;
       _submitted = true;
     });
     _showSnack(
-      isMalayalam ? 'വിജയകരമായി സമർപ്പിച്ചു' : 'Submitted successfully',
-      icon: Icons.check_circle_rounded,
+      hadFailure
+          ? (isMalayalam
+                ? 'ഭാഗികമായി സമർപ്പിച്ചു · ചിലത് സംരക്ഷിക്കാനായില്ല'
+                : 'Partially submitted · some marks could not be saved')
+          : (isMalayalam
+                ? 'ഇന്നത്തേക്ക് സമർപ്പിച്ചു · ഒരു ദിവസം ഒരു തവണ മാത്രം'
+                : 'Submitted for today · one submission per day'),
+      icon: hadFailure
+          ? Icons.warning_amber_rounded
+          : Icons.check_circle_rounded,
     );
     widget.onSubmitSuccess?.call();
   }

@@ -28,6 +28,7 @@ class StudentRecord {
     required this.name,
     this.nameMl = '',
     this.mobile = '',
+    this.email = '',
     this.fatherName = '',
     this.motherName = '',
     this.dateOfBirth,
@@ -47,6 +48,7 @@ class StudentRecord {
   String name;
   String nameMl;
   String mobile;
+  String email;
   String fatherName;
   String motherName;
   DateTime? dateOfBirth;
@@ -145,6 +147,8 @@ class RatingRule {
     this.maxScore = 100,
     this.colorName = 'Green',
     this.isDefault = false,
+    this.activityId = '',
+    this.activityName = '',
   });
 
   final String id;
@@ -154,6 +158,8 @@ class RatingRule {
   int maxScore;
   String colorName;
   bool isDefault;
+  String activityId;
+  String activityName;
 }
 
 class ReportSnapshot {

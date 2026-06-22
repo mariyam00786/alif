@@ -189,6 +189,112 @@ class MobileApiService {
     }
   }
 
+  /// Persist a single activity log (one marked activity for a given day).
+  ///
+  /// Upserts on (student, activity, date) so re-submitting the same day
+  /// updates the existing record rather than creating duplicates.
+  static Future<ApiResponse<Map<String, dynamic>>> submitActivityLog({
+    required String studentId,
+    required String activityId,
+    required String logDate,
+    required String ratingId,
+    int? quantity,
+    String? notes,
+  }) async {
+    try {
+      final body = <String, dynamic>{
+        'studentId': studentId,
+        'activityId': activityId,
+        'logDate': logDate,
+        'ratingId': ratingId,
+      };
+      if (quantity != null) body['quantity'] = quantity;
+      if (notes != null) body['notes'] = notes;
+
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/activity-logs'),
+            headers: _buildHeaders(),
+            body: jsonEncode(body),
+          )
+          .timeout(timeout);
+      return _parseResponse(response);
+    } catch (e) {
+      return ApiResponse.error('Failed to save activity log');
+    }
+  }
+
+  /// Real dashboard summary for the authenticated student (today completion,
+  /// points, streak, batch rank).
+  static Future<ApiResponse<Map<String, dynamic>>> getHomeSummary() async {
+    try {
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/students/me/home-summary'),
+            headers: _buildHeaders(),
+          )
+          .timeout(timeout);
+      return _parseResponse(response);
+    } catch (e) {
+      return ApiResponse.error('Failed to fetch home summary');
+    }
+  }
+
+  /// Real batch leaderboard for the authenticated student across four periods
+  /// (daily / weekly / monthly / all_time).
+  static Future<ApiResponse<Map<String, dynamic>>> getMyLeaderboard() async {
+    try {
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/students/me/leaderboard'),
+            headers: _buildHeaders(),
+          )
+          .timeout(timeout);
+      return _parseResponse(response);
+    } catch (e) {
+      return ApiResponse.error('Failed to fetch leaderboard');
+    }
+  }
+
+  /// Real badge collection for the authenticated student (all active badges
+  /// with an `earned` flag).
+  static Future<ApiResponse<Map<String, dynamic>>> getBadges() async {
+    try {
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/students/me/badges'),
+            headers: _buildHeaders(),
+          )
+          .timeout(timeout);
+      return _parseResponse(response);
+    } catch (e) {
+      return ApiResponse.error('Failed to fetch badges');
+    }
+  }
+
+  /// Update the authenticated student's own profile (name + phone).
+  static Future<ApiResponse<Map<String, dynamic>>> updateMyProfile({
+    String? fullName,
+    String? phone,
+  }) async {
+    try {
+      final body = <String, dynamic>{};
+      if (fullName != null) body['full_name'] = fullName;
+      if (phone != null) body['phone'] = phone;
+
+      final response = await http
+          .put(
+            Uri.parse('$baseUrl/students/me'),
+            headers: _buildHeaders(),
+            body: jsonEncode(body),
+          )
+          .timeout(timeout);
+      return _parseResponse(response);
+    } catch (e) {
+      return ApiResponse.error('Failed to update profile');
+    }
+  }
+
   // ===== PROGRESS =====
 
   static Future<ApiResponse<Map<String, dynamic>>> getDailyProgress(

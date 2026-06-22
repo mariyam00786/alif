@@ -42,7 +42,7 @@ const List<AdminNotification> kAdminNotifications = [
     timeAgo: '15 minutes ago',
     timeAgoMl: '15 മിനിറ്റ് മുമ്പ്',
     icon: Icons.person_add_alt_1_rounded,
-    color: Color(0xFF2D5A34),
+    color: Color(0xFF0F766E),
     unread: true,
   ),
   AdminNotification(
@@ -301,7 +301,7 @@ class _AdminNotificationPanel extends StatelessWidget {
                   const SizedBox(width: 8),
                   Text(
                     isMalayalam ? 'അറിയിപ്പുകൾ' : 'Notifications',
-                    style: GoogleFonts.plusJakartaSans(
+                    style: GoogleFonts.inter(
                       fontSize: 16,
                       fontWeight: FontWeight.w800,
                       color: const Color(0xFF111827),
@@ -320,7 +320,7 @@ class _AdminNotificationPanel extends StatelessWidget {
                       ),
                       child: Text(
                         isMalayalam ? '$unread പുതിയത്' : '$unread new',
-                        style: GoogleFonts.plusJakartaSans(
+                        style: GoogleFonts.inter(
                           fontSize: 11.5,
                           fontWeight: FontWeight.w800,
                           color: primary,
@@ -384,7 +384,7 @@ class _AdminNotificationTile extends StatelessWidget {
                     Expanded(
                       child: Text(
                         isMalayalam ? n.titleMl : n.title,
-                        style: GoogleFonts.plusJakartaSans(
+                        style: GoogleFonts.inter(
                           fontSize: 14,
                           fontWeight: FontWeight.w800,
                           color: const Color(0xFF111827),
@@ -397,7 +397,7 @@ class _AdminNotificationTile extends StatelessWidget {
                         height: 8,
                         margin: const EdgeInsets.only(left: 8, top: 4),
                         decoration: const BoxDecoration(
-                          color: Color(0xFF2D5A34),
+                          color: Color(0xFF0F766E),
                           shape: BoxShape.circle,
                         ),
                       ),
@@ -406,7 +406,7 @@ class _AdminNotificationTile extends StatelessWidget {
                 const SizedBox(height: 3),
                 Text(
                   isMalayalam ? n.bodyMl : n.body,
-                  style: GoogleFonts.plusJakartaSans(
+                  style: GoogleFonts.inter(
                     fontSize: 12.8,
                     fontWeight: FontWeight.w500,
                     color: const Color(0xFF1F2937),
@@ -416,7 +416,7 @@ class _AdminNotificationTile extends StatelessWidget {
                 const SizedBox(height: 6),
                 Text(
                   isMalayalam ? n.timeAgoMl : n.timeAgo,
-                  style: GoogleFonts.plusJakartaSans(
+                  style: GoogleFonts.inter(
                     fontSize: 11.5,
                     fontWeight: FontWeight.w600,
                     color: const Color(0xFF6B7280),
@@ -474,7 +474,7 @@ class AdminProfileButton extends StatelessWidget {
           alignment: Alignment.center,
           child: Text(
             initial,
-            style: GoogleFonts.plusJakartaSans(
+            style: GoogleFonts.inter(
               color: primary,
               fontWeight: FontWeight.w800,
               fontSize: size * 0.42,
@@ -585,7 +585,7 @@ class _AdminProfilePanel extends StatelessWidget {
                   alignment: Alignment.center,
                   child: Text(
                     initial,
-                    style: GoogleFonts.plusJakartaSans(
+                    style: GoogleFonts.inter(
                       color: primary,
                       fontWeight: FontWeight.w800,
                       fontSize: 26,
@@ -595,7 +595,7 @@ class _AdminProfilePanel extends StatelessWidget {
                 const SizedBox(height: 12),
                 Text(
                   isMalayalam ? 'ലോഗിൻ ചെയ്തിരിക്കുന്നത്' : 'Signed in as',
-                  style: GoogleFonts.plusJakartaSans(
+                  style: GoogleFonts.inter(
                     fontSize: 11.5,
                     fontWeight: FontWeight.w600,
                     letterSpacing: 0.3,
@@ -606,7 +606,7 @@ class _AdminProfilePanel extends StatelessWidget {
                 Text(
                   name,
                   textAlign: TextAlign.center,
-                  style: GoogleFonts.plusJakartaSans(
+                  style: GoogleFonts.inter(
                     fontSize: 18,
                     fontWeight: FontWeight.w800,
                     color: const Color(0xFF111827),
@@ -617,7 +617,7 @@ class _AdminProfilePanel extends StatelessWidget {
                   Text(
                     email!,
                     textAlign: TextAlign.center,
-                    style: GoogleFonts.plusJakartaSans(
+                    style: GoogleFonts.inter(
                       fontSize: 12.5,
                       color: const Color(0xFF6B7280),
                     ),
@@ -644,7 +644,7 @@ class _AdminProfilePanel extends StatelessWidget {
                       const SizedBox(width: 6),
                       Text(
                         isMalayalam ? 'അഡ്മിൻ' : 'Admin',
-                        style: GoogleFonts.plusJakartaSans(
+                        style: GoogleFonts.inter(
                           fontSize: 12.5,
                           fontWeight: FontWeight.w700,
                           color: primary,

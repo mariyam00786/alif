@@ -84,7 +84,7 @@ class _ChildDetailScreenState extends State<ChildDetailScreen> {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF1B6B3A), Color(0xFF22965C)],
+          colors: [Color(0xFF115E59), Color(0xFF0F766E)],
         ),
         borderRadius: BorderRadius.vertical(bottom: Radius.circular(26)),
         boxShadow: [

@@ -362,13 +362,14 @@ class StatCard extends StatelessWidget {
                 fontSize: compact ? 13 : 14,
               ),
             ),
+            const SizedBox(height: 3),
             Text(
               malayalamLabel,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: GoogleFonts.notoSansMalayalam(
                 textStyle: theme.textTheme.labelSmall?.copyWith(
-                  color: Colors.grey[400],
+                  color: Colors.grey[700],
                   fontSize: compact ? 9 : 10,
                 ),
               ),

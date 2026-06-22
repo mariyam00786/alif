@@ -4,6 +4,7 @@ import '../../constants/app_theme.dart';
 import '../../constants/colors.dart';
 import '../../constants/dimensions.dart';
 import '../../services/google_auth_service.dart';
+import '../../shared/theme/theme.dart';
 
 /// Which portal the user is signing in to. Drives the page branding and a
 /// post-login check that the account role matches the chosen portal.
@@ -86,14 +87,13 @@ class _MobileGoogleLoginScreenState extends State<MobileGoogleLoginScreen> {
               child: Container(
                 padding: EdgeInsets.all(SpacingScale.xl),
                 decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(28),
-                  border: Border.all(color: ColorPalette.neutral200),
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(32),
                   boxShadow: [
                     BoxShadow(
-                      color: ColorPalette.primaryDark.withValues(alpha: 0.08),
-                      blurRadius: 28,
-                      offset: const Offset(0, 14),
+                      color: AppColors.primary.withValues(alpha: 0.08),
+                      blurRadius: 40,
+                      offset: const Offset(0, 18),
                     ),
                   ],
                 ),
@@ -118,8 +118,8 @@ class _MobileGoogleLoginScreenState extends State<MobileGoogleLoginScreen> {
                           width: 72,
                           height: 72,
                           decoration: BoxDecoration(
-                            color: ColorPalette.primaryDark,
-                            borderRadius: BorderRadius.circular(18),
+                            color: AppColors.primary,
+                            borderRadius: AppDecorations.brMd,
                           ),
                           child: Icon(
                             portalIcon,
@@ -132,20 +132,17 @@ class _MobileGoogleLoginScreenState extends State<MobileGoogleLoginScreen> {
                       Text(
                         portalTitle,
                         textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontSize: 30,
-                          fontWeight: FontWeight.w800,
-                          color: Color(0xFF103B2C),
+                        style: AppTextStyles.pageTitle.copyWith(
+                          color: AppColors.primary,
                         ),
                       ),
                       SizedBox(height: SpacingScale.sm),
                       Text(
                         portalSubtitle,
                         textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontSize: 15.5,
+                        style: AppTextStyles.body.copyWith(
+                          color: AppColors.muted,
                           height: 1.45,
-                          color: Color(0xFF5F6C65),
                         ),
                       ),
                       SizedBox(height: SpacingScale.xl),
@@ -153,7 +150,9 @@ class _MobileGoogleLoginScreenState extends State<MobileGoogleLoginScreen> {
                       // Username / email field
                       _FieldLabel(
                         isTeacher
-                            ? (isMalayalam ? 'യൂസർനെയിം / ഇമെയിൽ' : 'Username / Email')
+                            ? (isMalayalam
+                                  ? 'യൂസർനെയിം / ഇമെയിൽ'
+                                  : 'Username / Email')
                             : (isMalayalam ? 'ഇമെയിൽ' : 'Email'),
                       ),
                       const SizedBox(height: 8),
@@ -292,7 +291,7 @@ class _MobileGoogleLoginScreenState extends State<MobileGoogleLoginScreen> {
                         style: FilledButton.styleFrom(
                           minimumSize: const Size.fromHeight(56),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(18),
+                            borderRadius: BorderRadius.circular(40),
                           ),
                         ),
                         child: _loading
@@ -382,13 +381,13 @@ class _MobileGoogleLoginScreenState extends State<MobileGoogleLoginScreen> {
                           ),
                           style: OutlinedButton.styleFrom(
                             minimumSize: const Size.fromHeight(54),
-                            foregroundColor: const Color(0xFF103B2C),
+                            foregroundColor: AppColors.primaryDeep,
                             side: const BorderSide(
                               color: Color(0xFFD1D5DB),
                               width: 1.4,
                             ),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(18),
+                              borderRadius: BorderRadius.circular(40),
                             ),
                           ),
                         ),
@@ -418,22 +417,25 @@ class _MobileGoogleLoginScreenState extends State<MobileGoogleLoginScreen> {
       prefixIcon: Icon(icon, color: const Color(0xFF6B7280), size: 22),
       suffixIcon: suffix,
       filled: true,
-      fillColor: const Color(0xFFF9FAFB),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+      fillColor: AppColors.surface,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-        borderSide: const BorderSide(color: Color(0xFFE5E7EB), width: 1.4),
+        borderRadius: BorderRadius.circular(40),
+        borderSide: BorderSide(
+          color: ColorPalette.primaryDark.withValues(alpha: 0.45),
+          width: 1.4,
+        ),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(40),
         borderSide: BorderSide(color: ColorPalette.primaryDark, width: 1.8),
       ),
       errorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(40),
         borderSide: const BorderSide(color: Color(0xFFEF4444), width: 1.4),
       ),
       focusedErrorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(40),
         borderSide: const BorderSide(color: Color(0xFFEF4444), width: 1.8),
       ),
     );
@@ -587,7 +589,7 @@ class _PortalToggle extends StatelessWidget {
       padding: const EdgeInsets.all(5),
       decoration: BoxDecoration(
         color: const Color(0xFFF1F5F2),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(40),
         border: Border.all(color: const Color(0xFFE5E7EB)),
       ),
       child: Row(
@@ -629,8 +631,8 @@ class _PortalToggle extends StatelessWidget {
           duration: const Duration(milliseconds: 180),
           padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 4),
           decoration: BoxDecoration(
-            color: selected ? const Color(0xFF1B6B3A) : Colors.transparent,
-            borderRadius: BorderRadius.circular(10),
+            color: selected ? AppColors.primary : Colors.transparent,
+            borderRadius: BorderRadius.circular(34),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,

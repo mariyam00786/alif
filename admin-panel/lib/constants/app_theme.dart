@@ -2,16 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 ThemeData buildAlifAdminTheme() {
-  // MsgHex EXACT color scheme (extracted from msghex.com)
-  const primaryDark = Color(0xFF2D5A34); // Primary green (rgb 45,90,52)
-  const accentGreen = Color(
-    0xFF74B385,
-  ); // Accent green border (rgb 116,179,133)
-  const backgroundSlate = Color(0xFFF4F8F4); // Background (rgb 244,248,244)
+  // Alif design-system palette (teal brand)
+  const primaryDark = Color(0xFF0F766E); // Primary teal
+  const accentGreen = Color(0xFFA7C4A0); // Secondary sage green
+  const backgroundSlate = Color(0xFFFAF9F6); // Background (soft off-white)
   const surfaceWhite = Colors.white;
-  const textPrimary = Color(0xFF111827); // Heading (rgb 17,24,39)
-  const textSecondary = Color(0xFF1F2937); // Body text (rgb 31,41,55)
-  const sidebarDark = Color(0xFF14241A); // Foreground dark green
+  const textPrimary = Color(0xFF1F2937); // Text Primary
+  const textSecondary = Color(0xFF374151); // Body text
+  const sidebarDark = Color(0xFF0E3B38); // Foreground dark teal
   const borderLight = Color(0xFFE5E7EB); // Light gray border (rgb 229,231,235)
 
   final colorScheme = ColorScheme.fromSeed(
@@ -22,10 +20,10 @@ ThemeData buildAlifAdminTheme() {
     tertiary: primaryDark,
   );
 
-  // Typography - Plus Jakarta Sans (msghex's exact font)
-  final outfitTextTheme = GoogleFonts.plusJakartaSansTextTheme();
-  final interTextTheme = GoogleFonts.plusJakartaSansTextTheme();
-  final String? jakartaFont = GoogleFonts.plusJakartaSans().fontFamily;
+  // Typography - Inter (design-system brand font)
+  final outfitTextTheme = GoogleFonts.interTextTheme();
+  final interTextTheme = GoogleFonts.interTextTheme();
+  final String? jakartaFont = GoogleFonts.inter().fontFamily;
 
   return ThemeData(
     useMaterial3: true,
@@ -96,14 +94,15 @@ ThemeData buildAlifAdminTheme() {
       surfaceTintColor: Colors.transparent,
     ),
     cardTheme: CardThemeData(
-      elevation: 6,
-      shadowColor: const Color(0xFF112617).withValues(alpha: 0.10),
+      elevation: 8,
+      shadowColor: const Color(0xFF112617).withValues(alpha: 0.08),
       surfaceTintColor: Colors.transparent,
       color: surfaceWhite,
       margin: EdgeInsets.zero,
+      clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: borderLight.withValues(alpha: 0.8), width: 1),
+        borderRadius: BorderRadius.circular(18),
+        side: BorderSide(color: borderLight.withValues(alpha: 0.6), width: 1),
       ),
     ),
     dividerTheme: const DividerThemeData(
@@ -149,46 +148,68 @@ ThemeData buildAlifAdminTheme() {
       hintStyle: const TextStyle(color: Color(0xFF94A3B8), fontSize: 14),
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
-      style: ElevatedButton.styleFrom(
-        backgroundColor: primaryDark,
-        foregroundColor: Colors.white,
-        elevation: 3,
-        shadowColor: primaryDark.withValues(alpha: 0.45),
-        minimumSize: const Size(44, 44),
-        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        textStyle: TextStyle(
-          fontWeight: FontWeight.w700,
-          fontSize: 15,
-          letterSpacing: 0.1,
-          fontFamily: jakartaFont,
-        ),
-      ),
+      style:
+          ElevatedButton.styleFrom(
+            backgroundColor: primaryDark,
+            foregroundColor: Colors.white,
+            elevation: 2,
+            shadowColor: primaryDark.withValues(alpha: 0.28),
+            minimumSize: const Size(44, 48),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 15),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
+            animationDuration: const Duration(milliseconds: 180),
+            textStyle: TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 15,
+              letterSpacing: 0.1,
+              fontFamily: jakartaFont,
+            ),
+          ).copyWith(
+            elevation: WidgetStateProperty.resolveWith((states) {
+              if (states.contains(WidgetState.pressed)) return 1;
+              if (states.contains(WidgetState.hovered)) return 5;
+              return 2;
+            }),
+          ),
     ),
     filledButtonTheme: FilledButtonThemeData(
-      style: FilledButton.styleFrom(
-        backgroundColor: primaryDark,
-        foregroundColor: Colors.white,
-        elevation: 3,
-        shadowColor: primaryDark.withValues(alpha: 0.45),
-        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        textStyle: TextStyle(
-          fontWeight: FontWeight.w700,
-          fontSize: 15,
-          letterSpacing: 0.1,
-          fontFamily: jakartaFont,
-        ),
-      ),
+      style:
+          FilledButton.styleFrom(
+            backgroundColor: primaryDark,
+            foregroundColor: Colors.white,
+            elevation: 2,
+            shadowColor: primaryDark.withValues(alpha: 0.28),
+            minimumSize: const Size(44, 48),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 15),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
+            animationDuration: const Duration(milliseconds: 180),
+            textStyle: TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 15,
+              letterSpacing: 0.1,
+              fontFamily: jakartaFont,
+            ),
+          ).copyWith(
+            elevation: WidgetStateProperty.resolveWith((states) {
+              if (states.contains(WidgetState.pressed)) return 1;
+              if (states.contains(WidgetState.hovered)) return 5;
+              return 2;
+            }),
+          ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
         foregroundColor: primaryDark,
         backgroundColor: surfaceWhite,
         side: const BorderSide(color: borderLight, width: 1.4),
-        minimumSize: const Size(44, 44),
-        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        minimumSize: const Size(44, 48),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 15),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        animationDuration: const Duration(milliseconds: 180),
         textStyle: TextStyle(
           fontWeight: FontWeight.w700,
           fontSize: 15,
@@ -201,6 +222,9 @@ ThemeData buildAlifAdminTheme() {
       style: TextButton.styleFrom(
         foregroundColor: primaryDark,
         minimumSize: const Size(48, 48),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        animationDuration: const Duration(milliseconds: 180),
         textStyle: TextStyle(
           fontWeight: FontWeight.w700,
           fontFamily: jakartaFont,
@@ -242,10 +266,20 @@ ThemeData buildAlifAdminTheme() {
     snackBarTheme: SnackBarThemeData(
       behavior: SnackBarBehavior.floating,
       backgroundColor: sidebarDark,
+      elevation: 6,
       contentTextStyle: TextStyle(color: Colors.white, fontFamily: jakartaFont),
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.all(Radius.circular(12)),
+        borderRadius: BorderRadius.all(Radius.circular(14)),
       ),
+    ),
+    pageTransitionsTheme: const PageTransitionsTheme(
+      builders: <TargetPlatform, PageTransitionsBuilder>{
+        TargetPlatform.android: ZoomPageTransitionsBuilder(),
+        TargetPlatform.iOS: ZoomPageTransitionsBuilder(),
+        TargetPlatform.macOS: ZoomPageTransitionsBuilder(),
+        TargetPlatform.windows: FadeUpwardsPageTransitionsBuilder(),
+        TargetPlatform.linux: FadeUpwardsPageTransitionsBuilder(),
+      },
     ),
   );
 }

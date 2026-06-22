@@ -38,9 +38,9 @@ export class AdminDashboardService {
         studentBadgesResult,
         notificationsResult,
       ] = await Promise.all([
-        client.from('profiles').select('id, full_name, role'),
-        client.from('students').select('id, profile_id, father_name, mother_name, batch_id, status, created_at'),
-        client.from('teachers').select('id, profile_id, qualification, status, created_at'),
+        client.from('profiles').select('id, full_name, full_name_ml, phone, role'),
+        client.from('students').select('id, profile_id, father_name, mother_name, batch_id, status, created_at, email, parent_phone, gender, address, date_of_birth'),
+        client.from('teachers').select('id, profile_id, qualification, status, created_at, email, subjects'),
         client.from('batches').select('id, name, capacity, timing, status, created_at'),
         client.from('teacher_batches').select('teacher_id, batch_id'),
         client.from('activity_categories').select('id, name'),
@@ -48,7 +48,7 @@ export class AdminDashboardService {
         client.from('activity_ratings').select('id, activity_id, rating_name, marks, color, display_order'),
         client.from('activity_scoring_rules').select('id, activity_id, rule_type, min_quantity, max_quantity, marks, display_order'),
         client.from('activity_logs').select('student_id, log_date, marks_earned').order('log_date', { ascending: false }),
-        client.from('badges').select('id, name, criteria, status, created_at'),
+        client.from('badges').select('id, name, name_ml, icon, bonus_points, criteria, status, created_at'),
         client.from('student_badges').select('badge_id, student_id'),
         client.from('notifications').select('id, title, body, target_type, target_id, scheduled_at, sent_at, created_at').order('created_at', { ascending: false }),
       ]);
@@ -77,7 +77,7 @@ export class AdminDashboardService {
 
       const profiles = new Map(
         (profilesResult.data ?? []).map((profile) => {
-          const row = profile as { id: string; full_name?: string | null; role?: string | null };
+          const row = profile as { id: string; full_name?: string | null; full_name_ml?: string | null; phone?: string | null; role?: string | null };
           return [row.id, row];
         })
       );
@@ -94,9 +94,16 @@ export class AdminDashboardService {
     const teacherBatches = (teacherBatchesResult.data ?? []) as Array<{ teacher_id: string; batch_id: string }>;
     const batchTeacherMap = new Map<string, string>();
     const teacherBatchCounts = new Map<string, number>();
+    const teacherBatchNames = new Map<string, string[]>();
     for (const assignment of teacherBatches) {
       batchTeacherMap.set(assignment.batch_id, assignment.teacher_id);
       teacherBatchCounts.set(assignment.teacher_id, (teacherBatchCounts.get(assignment.teacher_id) ?? 0) + 1);
+      const batchName = batchById.get(assignment.batch_id)?.name;
+      if (batchName) {
+        const names = teacherBatchNames.get(assignment.teacher_id) ?? [];
+        names.push(batchName);
+        teacherBatchNames.set(assignment.teacher_id, names);
+      }
     }
 
     const logsByStudent = new Map<string, Array<{ logDate: string; marksEarned: number }>>();
@@ -113,6 +120,11 @@ export class AdminDashboardService {
       mother_name?: string | null;
       batch_id?: string | null;
       status?: string | null;
+      email?: string | null;
+      parent_phone?: string | null;
+      gender?: string | null;
+      address?: string | null;
+      date_of_birth?: string | null;
     }>).map((student) => {
       const profile = profiles.get(student.profile_id);
       const batch = student.batch_id ? batchById.get(student.batch_id) : undefined;
@@ -121,6 +133,12 @@ export class AdminDashboardService {
       return {
         id: student.id,
         name: profile?.full_name ?? 'Unnamed student',
+        email: student.email ?? '',
+        mobile: student.parent_phone ?? '',
+        fatherName: student.father_name ?? '',
+        motherName: student.mother_name ?? '',
+        gender: student.gender ?? 'male',
+        address: student.address ?? '',
         batch: batch?.name ?? 'Unassigned Batch',
         guardianName: student.father_name ?? student.mother_name ?? 'Guardian not set',
         score: logs.reduce((sum, item) => sum + item.marksEarned, 0),
@@ -135,13 +153,22 @@ export class AdminDashboardService {
       profile_id: string;
       qualification?: string | null;
       status?: string | null;
+      email?: string | null;
+      subjects?: string[] | null;
     }>).map((teacher) => {
       const profile = profiles.get(teacher.profile_id);
+      const subjects = teacher.subjects ?? [];
 
       return {
         id: teacher.id,
         name: profile?.full_name ?? 'Unnamed teacher',
-        subject: teacher.qualification ?? 'General Instruction',
+        nameMl: profile?.full_name_ml ?? '',
+        mobile: profile?.phone ?? '',
+        email: teacher.email ?? '',
+        qualification: teacher.qualification ?? '',
+        subjects,
+        batches: teacherBatchNames.get(teacher.id) ?? [],
+        subject: subjects[0] ?? teacher.qualification ?? 'General Instruction',
         batchCount: teacherBatchCounts.get(teacher.id) ?? 0,
         responseRate: teacher.status === 'active' ? 1 : 0,
         status: teacher.status === 'active' ? 'active' : 'review',
@@ -275,11 +302,17 @@ export class AdminDashboardService {
     const badges = ((badgesResult.data ?? []) as Array<{
       id: string;
       name?: string | null;
+      name_ml?: string | null;
+      icon?: string | null;
+      bonus_points?: number | null;
       criteria?: Record<string, unknown> | null;
       status?: string | null;
     }>).map((badge) => ({
       id: badge.id,
       name: badge.name ?? 'Unnamed Badge',
+      nameMl: badge.name_ml ?? '',
+      icon: badge.icon ?? '🏅',
+      bonusPoints: badge.bonus_points ?? 0,
       criteria: this.stringifyCriteria(badge.criteria),
       recipientCount: badgeRecipients.get(badge.id) ?? 0,
       isPublished: badge.status === 'active',
@@ -439,15 +472,16 @@ export class AdminDashboardService {
     batchById: Map<string, { name?: string | null }>
   ): string {
     if (targetType === 'batch' && targetId) {
-      return `Batch · ${batchById.get(targetId)?.name ?? targetId}`;
+      const batchName = batchById.get(targetId)?.name;
+      return `Batch · ${batchName ?? 'Selected batch'}`;
     }
 
     if (targetType === 'class' && targetId) {
-      return `Class · ${targetId}`;
+      return 'Class · Selected class';
     }
 
     if (targetType === 'student' && targetId) {
-      return `Student · ${targetId}`;
+      return 'Student · Selected student';
     }
 
     return 'All users';

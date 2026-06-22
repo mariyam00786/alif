@@ -2,75 +2,73 @@ import 'package:flutter/material.dart';
 
 import '../constants/app_theme.dart';
 import '../components/portal_ui.dart';
+import '../services/api_service.dart';
+import '../shared/theme/theme.dart';
 
 /// Student Badges & Achievements (FRD 4.2.5).
 /// Self-view of earned badges, progress toward the next badge and locked
-/// badges. Sample data with graceful fallback; embeddable in a shell.
-class StudentBadgesScreen extends StatelessWidget {
+/// badges. Fetches the real badge collection from the backend.
+class StudentBadgesScreen extends StatefulWidget {
   /// When true renders without its own Scaffold/header (for embedding).
   final bool embedded;
 
   const StudentBadgesScreen({super.key, this.embedded = false});
 
-  static const List<Map<String, dynamic>> _badges = [
-    {
-      'icon': '🌟',
-      'name': 'First Steps',
-      'nameMl': 'ആദ്യ ചുവടുകൾ',
-      'desc': 'Marked your first activity',
-      'descMl': 'ആദ്യ പ്രവർത്തനം മാർക്ക് ചെയ്തു',
-      'earned': true,
-      'date': '12 May',
-    },
-    {
-      'icon': '🔥',
-      'name': '7-Day Streak',
-      'nameMl': '7 ദിന സ്ട്രീക്ക്',
-      'desc': 'Active 7 days in a row',
-      'descMl': 'തുടർച്ചയായി 7 ദിവസം സജീവം',
-      'earned': true,
-      'date': '20 May',
-    },
-    {
-      'icon': '📖',
-      'name': 'Quran Reader',
-      'nameMl': 'ഖുർആൻ പാരായണം',
-      'desc': 'Read Quran 30 days',
-      'descMl': '30 ദിവസം ഖുർആൻ പാരായണം',
-      'earned': true,
-      'date': '2 Jun',
-    },
-    {
-      'icon': '🤝',
-      'name': 'Kind Heart',
-      'nameMl': 'ദയയുള്ള ഹൃദയം',
-      'desc': '20 acts of kindness',
-      'descMl': '20 ദയാപ്രവൃത്തികൾ',
-      'earned': false,
-      'progress': 14,
-      'target': 20,
-    },
-    {
-      'icon': '🕌',
-      'name': 'Prayer Champion',
-      'nameMl': 'നമസ്കാര ചാമ്പ്യൻ',
-      'desc': 'All 5 prayers for 30 days',
-      'descMl': '30 ദിവസം 5 നേരം നമസ്കാരം',
-      'earned': false,
-      'progress': 22,
-      'target': 30,
-    },
-    {
-      'icon': '🏆',
-      'name': 'Top of Batch',
-      'nameMl': 'ബാച്ചിലെ ഒന്നാമൻ',
-      'desc': 'Rank #1 in your batch',
-      'descMl': 'ബാച്ചിൽ ഒന്നാം റാങ്ക്',
-      'earned': false,
-      'progress': 0,
-      'target': 1,
-    },
-  ];
+  @override
+  State<StudentBadgesScreen> createState() => _StudentBadgesScreenState();
+}
+
+class _StudentBadgesScreenState extends State<StudentBadgesScreen> {
+  bool _loading = true;
+  List<Map<String, dynamic>> _badges = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchBadges();
+  }
+
+  Future<void> _fetchBadges() async {
+    final res = await MobileApiService.getBadges();
+    if (!mounted) return;
+    if (res.success && res.data != null) {
+      final list = (res.data!['badges'] as List? ?? const []);
+      _badges = list.map((e) {
+        final b = Map<String, dynamic>.from(e as Map);
+        return <String, dynamic>{
+          'icon': (b['icon'] ?? '🏅').toString(),
+          'name': (b['name'] ?? 'Badge').toString(),
+          'nameMl': (b['name_ml'] ?? b['name'] ?? 'Badge').toString(),
+          'desc': (b['description'] ?? '').toString(),
+          'descMl': (b['description'] ?? '').toString(),
+          'earned': b['earned'] == true,
+          'date': _formatDate(b['earned_at']),
+        };
+      }).toList();
+    }
+    setState(() => _loading = false);
+  }
+
+  String _formatDate(dynamic iso) {
+    if (iso == null) return '';
+    final dt = DateTime.tryParse(iso.toString());
+    if (dt == null) return '';
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    return '${dt.day} ${months[dt.month - 1]}';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -82,37 +80,45 @@ class StudentBadgesScreen extends StatelessWidget {
       orElse: () => locked.isNotEmpty ? locked.first : <String, dynamic>{},
     );
 
-    final body = ListView(
-      padding: const EdgeInsets.fromLTRB(16, 18, 16, 28),
-      children: [
-        _summaryCard(isMalayalam, earned.length, _badges.length),
-        if (nextBadge.isNotEmpty && (nextBadge['target'] as int? ?? 0) > 0) ...[
-          const SizedBox(height: 16),
-          SectionLabel(
-            isMalayalam ? 'അടുത്ത ബാഡ്ജ്' : 'Next Badge',
-            icon: Icons.trending_up_rounded,
-          ),
-          const SizedBox(height: 12),
-          _nextBadgeCard(isMalayalam, nextBadge),
-        ],
-        const SizedBox(height: 20),
-        SectionLabel(
-          isMalayalam ? 'നേടിയ ബാഡ്ജുകൾ' : 'Earned Badges',
-          icon: Icons.verified_rounded,
-        ),
-        const SizedBox(height: 12),
-        _grid(earned, isMalayalam, earnedGrid: true),
-        const SizedBox(height: 20),
-        SectionLabel(
-          isMalayalam ? 'ലോക്ക് ചെയ്തവ' : 'Locked Badges',
-          icon: Icons.lock_outline_rounded,
-        ),
-        const SizedBox(height: 12),
-        _grid(locked, isMalayalam, earnedGrid: false),
-      ],
-    );
+    final body = _loading
+        ? const Center(
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: 80),
+              child: CircularProgressIndicator(),
+            ),
+          )
+        : ListView(
+            padding: const EdgeInsets.fromLTRB(16, 18, 16, 28),
+            children: [
+              _summaryCard(isMalayalam, earned.length, _badges.length),
+              if (nextBadge.isNotEmpty &&
+                  (nextBadge['target'] as int? ?? 0) > 0) ...[
+                const SizedBox(height: 16),
+                SectionLabel(
+                  isMalayalam ? 'അടുത്ത ബാഡ്ജ്' : 'Next Badge',
+                  icon: Icons.trending_up_rounded,
+                ),
+                const SizedBox(height: 12),
+                _nextBadgeCard(isMalayalam, nextBadge),
+              ],
+              const SizedBox(height: 20),
+              SectionLabel(
+                isMalayalam ? 'നേടിയ ബാഡ്ജുകൾ' : 'Earned Badges',
+                icon: Icons.verified_rounded,
+              ),
+              const SizedBox(height: 12),
+              _grid(earned, isMalayalam, earnedGrid: true),
+              const SizedBox(height: 20),
+              SectionLabel(
+                isMalayalam ? 'ലോക്ക് ചെയ്തവ' : 'Locked Badges',
+                icon: Icons.lock_outline_rounded,
+              ),
+              const SizedBox(height: 12),
+              _grid(locked, isMalayalam, earnedGrid: false),
+            ],
+          );
 
-    if (embedded) return body;
+    if (widget.embedded) return body;
     return Scaffold(
       backgroundColor: kSurface,
       body: Column(
@@ -137,7 +143,7 @@ class StudentBadgesScreen extends StatelessWidget {
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF1B6B3A), Color(0xFF22965C)],
+          colors: [Color(0xFF115E59), Color(0xFF0F766E)],
         ),
         borderRadius: BorderRadius.circular(20),
       ),
@@ -230,11 +236,7 @@ class StudentBadgesScreen extends StatelessWidget {
               children: [
                 Text(
                   isMalayalam ? b['nameMl'] as String : b['name'] as String,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                    color: kHeading,
-                  ),
+                  style: AppTextStyles.cardTitle,
                 ),
                 const SizedBox(height: 8),
                 ClipRRect(
@@ -319,10 +321,8 @@ class StudentBadgesScreen extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 14.5,
-              fontWeight: FontWeight.w800,
-              color: earned ? kHeading : kMuted,
+            style: AppTextStyles.label.copyWith(
+              color: earned ? AppColors.heading : AppColors.muted,
             ),
           ),
           const SizedBox(height: 3),
@@ -331,12 +331,7 @@ class StudentBadgesScreen extends StatelessWidget {
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 11.5,
-              fontWeight: FontWeight.w600,
-              color: kMuted,
-              height: 1.2,
-            ),
+            style: AppTextStyles.bodySmall.copyWith(height: 1.2),
           ),
           const SizedBox(height: 6),
           if (earned)
