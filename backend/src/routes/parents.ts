@@ -189,7 +189,11 @@ async function childSummary(child: ChildRow, totalActivities: number) {
   const week = windowCompletion(logs, lastNDates(today, 7), totalActivities);
   const month = windowCompletion(logs, monthDates, totalActivities);
 
-  const pending = logs.filter((l) => !l.parent_approved).length;
+  // Count pending *days* (one approval card == one day), so the home banner
+  // matches the per-day cards shown on the approvals screen.
+  const pending = new Set(
+    logs.filter((l) => !l.parent_approved).map((l) => l.log_date)
+  ).size;
 
   const [{ count: badgeCount }, rankInfo] = await Promise.all([
     supabase.from('student_badges').select('*', { count: 'exact', head: true }).eq('student_id', child.studentId),

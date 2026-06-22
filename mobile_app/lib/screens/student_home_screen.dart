@@ -2,12 +2,34 @@ import 'package:flutter/material.dart';
 
 import '../constants/app_theme.dart';
 import '../components/portal_ui.dart';
+import '../shared/theme/theme.dart';
 
 // Redesigned dashboard palette.
-const Color _kGreenDark = Color(0xFF1B6B3A);
+const Color _kGreenDark = AppColors.primaryDeep;
 
-// Darkened muted for better WCAG AA contrast (≥4.5:1 on white).
-const Color _kLabelGray = Color(0xFF6B7280);
+/// How far the Today's Activities card overlaps below the colored top section.
+/// The card straddles the boundary — roughly half over the primary color and
+/// half below it.
+const double _kCardOverlap = 60;
+
+/// Minimal icon badge — soft tinted background with a colored icon.
+Widget _iconBadge(
+  IconData icon,
+  Color color, {
+  double size = 42,
+  double radius = 13,
+  double iconSize = 20,
+}) {
+  return Container(
+    width: size,
+    height: size,
+    decoration: BoxDecoration(
+      color: color.withValues(alpha: 0.12),
+      borderRadius: BorderRadius.circular(radius),
+    ),
+    child: Icon(icon, size: iconSize, color: color),
+  );
+}
 
 /// Student Home Dashboard (FRD 4.2.1).
 /// Shows a greeting, today's activity status, current streak, weekly points,
@@ -130,195 +152,156 @@ class StudentHomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isMalayalam = context.isMalayalam;
-    final firstName = studentName.trim().split(' ').first;
+    final fullName = studentName.trim();
     final hadith = _hadiths[DateTime.now().day % _hadiths.length];
     final pending = (todayTotal - todayDone).clamp(0, todayTotal);
 
-    return Column(
-      children: [
-        _header(isMalayalam, firstName, pending),
-        Expanded(
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
-            children: [
-              // ---- Stats row ----
-              IntrinsicHeight(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+    return ColoredBox(
+      color: kSurface,
+      child: ListView(
+        padding: EdgeInsets.zero,
+        children: [
+          _header(isMalayalam, fullName, pending),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, _kCardOverlap + 18, 16, 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // ---- Stats row ----
+                IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(
+                        child: _statCard(
+                          icon: Icons.local_fire_department_rounded,
+                          iconColor: const Color(0xFFF59E0B),
+                          value: '$streakDays',
+                          label: isMalayalam ? 'ദിന സ്ട്രീക്ക്' : 'Day streak',
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _statCard(
+                          icon: Icons.star_rounded,
+                          iconColor: _kGreenDark,
+                          value: '$weekPoints',
+                          label: isMalayalam
+                              ? 'ഈ ആഴ്ച പോയിന്റ്'
+                              : 'Points this week',
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _statCard(
+                          icon: Icons.emoji_events_rounded,
+                          iconColor: const Color(0xFF7C3AED),
+                          value: '#$batchRank',
+                          label: isMalayalam ? 'ബാച്ച് റാങ്ക്' : 'Batch rank',
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 10),
+                // ---- Quick actions ----
+                _sectionTitle(
+                  isMalayalam ? 'വേഗ പ്രവർത്തനങ്ങൾ' : 'Quick Actions',
+                ),
+                Row(
                   children: [
                     Expanded(
-                      child: _statCard(
-                        icon: Icons.local_fire_department_rounded,
-                        iconColor: const Color(0xFFF59E0B),
-                        value: '$streakDays',
-                        label: isMalayalam ? 'ദിന സ്ട്രീക്ക്' : 'Day streak',
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _statCard(
-                        icon: Icons.star_rounded,
-                        iconColor: _kGreenDark,
-                        value: '$weekPoints',
+                      child: _quickAction(
+                        icon: Icons.fact_check_rounded,
+                        iconColor: const Color(0xFF0F766E),
                         label: isMalayalam
-                            ? 'ഈ ആഴ്ച പോയിന്റ്'
-                            : 'Points this week',
+                            ? 'ഇന്ന് മാർക്ക് ചെയ്യുക'
+                            : 'Mark today',
+                        sub: pending == 0
+                            ? (isMalayalam ? 'പൂർത്തിയായി' : 'All done')
+                            : (isMalayalam
+                                  ? '$pending ബാക്കി'
+                                  : '$pending pending'),
+                        onTap: onMarkToday,
                       ),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
-                      child: _statCard(
-                        icon: Icons.emoji_events_rounded,
-                        iconColor: const Color(0xFF7C3AED),
-                        value: '#$batchRank',
-                        label: isMalayalam ? 'ബാച്ച് റാങ്ക്' : 'Batch rank',
+                      child: _quickAction(
+                        icon: Icons.insights_rounded,
+                        iconColor: const Color(0xFF3B82F6),
+                        label: isMalayalam ? 'പുരോഗതി' : 'Progress',
+                        sub: isMalayalam ? 'ഈ ആഴ്ച' : 'This week',
+                        onTap: onOpenProgress,
                       ),
                     ),
                   ],
                 ),
-              ),
-              const SizedBox(height: 14),
-              // ---- Quick actions ----
-              _sectionTitle(
-                isMalayalam ? 'വേഗ പ്രവർത്തനങ്ങൾ' : 'Quick Actions',
-              ),
-              Row(
-                children: [
-                  Expanded(
-                    child: _quickAction(
-                      icon: Icons.check_box_rounded,
-                      iconBg: const Color(0xFFE8F8F0),
-                      iconColor: const Color(0xFF1B6B3A),
-                      label: isMalayalam
-                          ? 'ഇന്ന് മാർക്ക് ചെയ്യുക'
-                          : 'Mark today',
-                      sub: pending == 0
-                          ? (isMalayalam ? 'പൂർത്തിയായി' : 'All done')
-                          : (isMalayalam
-                                ? '$pending ബാക്കി'
-                                : '$pending pending'),
-                      onTap: onMarkToday,
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _quickAction(
+                        icon: Icons.leaderboard_rounded,
+                        iconColor: const Color(0xFFF59E0B),
+                        label: isMalayalam ? 'റാങ്കിംഗ്' : 'Ranking',
+                        sub: isMalayalam
+                            ? 'ബാച്ച് #$batchRank'
+                            : 'Batch #$batchRank',
+                        onTap: onOpenRanking,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: _quickAction(
-                      icon: Icons.trending_up_rounded,
-                      iconBg: const Color(0xFFEFF6FF),
-                      iconColor: const Color(0xFF3B82F6),
-                      label: isMalayalam ? 'പുരോഗതി' : 'Progress',
-                      sub: isMalayalam ? 'ഈ ആഴ്ച' : 'This week',
-                      onTap: onOpenProgress,
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _quickAction(
+                        icon: Icons.workspace_premium_rounded,
+                        iconColor: const Color(0xFF7C3AED),
+                        label: isMalayalam ? 'ബാഡ്ജുകൾ' : 'Badges',
+                        sub: isMalayalam ? 'നേടിയവ കാണുക' : 'View earned',
+                        onTap: onOpenBadges,
+                      ),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: _quickAction(
-                      icon: Icons.bar_chart_rounded,
-                      iconBg: const Color(0xFFFEF3E2),
-                      iconColor: const Color(0xFFF59E0B),
-                      label: isMalayalam ? 'റാങ്കിംഗ്' : 'Ranking',
-                      sub: isMalayalam
-                          ? 'ബാച്ച് #$batchRank'
-                          : 'Batch #$batchRank',
-                      onTap: onOpenRanking,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: _quickAction(
-                      icon: Icons.workspace_premium_rounded,
-                      iconBg: const Color(0xFFF3F0FF),
-                      iconColor: const Color(0xFF7C3AED),
-                      label: isMalayalam ? 'ബാഡ്ജുകൾ' : 'Badges',
-                      sub: isMalayalam ? 'നേടിയവ കാണുക' : 'View earned',
-                      onTap: onOpenBadges,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-              // ---- Today's reminder ----
-              _sectionTitle(
-                isMalayalam ? 'ഇന്നത്തെ ഓർമ്മപ്പെടുത്തൽ' : "Today's Reminder",
-              ),
-              _reminderCard(isMalayalam, hadith),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _header(bool isMalayalam, String firstName, int pending) {
-    final pct = todayTotal == 0 ? 0.0 : todayDone / todayTotal;
-    return Container(
-      width: double.infinity,
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF134D2A), Color(0xFF1B7A3E), Color(0xFF22965C)],
-          stops: [0.0, 0.55, 1.0],
-        ),
-        borderRadius: BorderRadius.vertical(bottom: Radius.circular(28)),
-        boxShadow: [
-          BoxShadow(
-            color: Color(0x301B6B3A),
-            blurRadius: 20,
-            offset: Offset(0, 8),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                // ---- Today's reminder ----
+                _sectionTitle(
+                  isMalayalam ? 'ഇന്നത്തെ ഓർമ്മപ്പെടുത്തൽ' : "Today's Reminder",
+                ),
+                _reminderCard(isMalayalam, hadith),
+              ],
+            ),
           ),
         ],
       ),
-      child: SafeArea(
-        bottom: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(18, 14, 18, 20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Portal identity badge.
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.16),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.24),
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.badge_rounded,
-                      size: 12.5,
-                      color: Colors.white,
-                    ),
-                    const SizedBox(width: 5),
-                    Text(
-                      (isMalayalam ? 'വിദ്യാർത്ഥി പോർട്ടൽ' : 'Student Portal')
-                          .toUpperCase(),
-                      style: const TextStyle(
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.6,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
-              // Greeting + bell + avatar.
-              Row(
+    );
+  }
+
+  Widget _header(bool isMalayalam, String fullName, int pending) {
+    final pct = todayTotal == 0 ? 0.0 : todayDone / todayTotal;
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        // Colored top section — uses the app primary color.
+        Container(
+          width: double.infinity,
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                AppColors.primaryDeep,
+                AppColors.primary,
+                AppColors.primaryLight,
+              ],
+            ),
+            borderRadius: BorderRadius.vertical(bottom: Radius.circular(28)),
+          ),
+          child: SafeArea(
+            bottom: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(18, 12, 18, _kCardOverlap + 8),
+              child: Row(
                 children: [
                   Expanded(
                     child: Column(
@@ -329,16 +312,16 @@ class StudentHomeScreen extends StatelessWidget {
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w500,
-                            color: Colors.white.withValues(alpha: 0.7),
+                            color: Colors.white.withValues(alpha: 0.8),
                             letterSpacing: 0.2,
                           ),
                         ),
-                        const SizedBox(height: 2),
+                        const SizedBox(height: 3),
                         Text(
                           isMalayalam
-                              ? 'അസ്സലാമു അലൈകും, $firstName 👋'
-                              : 'Assalamu Alaikum, $firstName 👋',
-                          maxLines: 1,
+                              ? 'അസ്സലാമു അലൈക്കും, $fullName 👋'
+                              : 'Assalamu Alaikum, $fullName 👋',
+                          maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
                             fontSize: 19,
@@ -354,155 +337,188 @@ class StudentHomeScreen extends StatelessWidget {
                   PortalNotificationBell(
                     notifications: demoNotifications,
                     isMalayalam: isMalayalam,
+                    onDark: true,
                     size: 42,
                   ),
                   const SizedBox(width: 8),
-                  PortalProfileAvatar(fallbackName: studentName, size: 42),
+                  PortalProfileAvatar(
+                    fallbackName: studentName,
+                    onDark: true,
+                    size: 42,
+                  ),
                 ],
               ),
-              const SizedBox(height: 16),
-              // Activity progress card inside the header.
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.1),
-                  ),
+            ),
+          ),
+        ),
+        // Today's Activities card — overlaps from the middle of the colored
+        // section (half over the primary color, half below) with a soft
+        // primary-tinted shadow.
+        Positioned(
+          left: 16,
+          right: 16,
+          bottom: -_kCardOverlap,
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: AppColors.primary.withValues(alpha: 0.12),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.primary.withValues(alpha: 0.22),
+                  blurRadius: 26,
+                  spreadRadius: -4,
+                  offset: const Offset(0, 14),
                 ),
-                child: Row(
-                  children: [
-                    SizedBox(
-                      width: 52,
-                      height: 52,
-                      child: Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          SizedBox(
-                            width: 52,
-                            height: 52,
-                            child: CircularProgressIndicator(
-                              value: pct,
-                              strokeWidth: 4.5,
-                              strokeCap: StrokeCap.round,
-                              backgroundColor: Colors.white.withValues(
-                                alpha: 0.18,
-                              ),
-                              valueColor: const AlwaysStoppedAnimation(
-                                Colors.white,
-                              ),
-                            ),
-                          ),
-                          Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                '$todayDone/$todayTotal',
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w700,
-                                  color: Colors.white,
-                                  height: 1,
-                                ),
-                              ),
-                              const SizedBox(height: 1),
-                              Text(
-                                isMalayalam ? 'കഴിഞ്ഞു' : 'done',
-                                style: TextStyle(
-                                  fontSize: 8,
-                                  fontWeight: FontWeight.w500,
-                                  color: Colors.white.withValues(alpha: 0.65),
-                                  height: 1,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 54,
+                  height: 54,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      SizedBox(
+                        width: 54,
+                        height: 54,
+                        child: CircularProgressIndicator(
+                          value: pct,
+                          strokeWidth: 5,
+                          strokeCap: StrokeCap.round,
+                          backgroundColor: kGreen.withValues(alpha: 0.15),
+                          valueColor: const AlwaysStoppedAnimation(kGreen),
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
-                            isMalayalam
-                                ? 'ഇന്നത്തെ പ്രവർത്തനങ്ങൾ'
-                                : "Today's Activities",
+                            '$todayDone/$todayTotal',
                             style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              color: _kGreenDark,
+                              height: 1,
                             ),
                           ),
-                          const SizedBox(height: 2),
+                          const SizedBox(height: 1),
                           Text(
-                            pending == 0
-                                ? (isMalayalam
-                                      ? 'എല്ലാം പൂർത്തിയായി! 🎉'
-                                      : 'All done! 🎉')
-                                : (isMalayalam
-                                      ? '$pending പ്രവർത്തനങ്ങൾ ബാക്കിയുണ്ട്'
-                                      : '$pending activities left to mark'),
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w400,
-                              color: Colors.white.withValues(alpha: 0.7),
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          Align(
-                            alignment: Alignment.centerLeft,
-                            child: Material(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(22),
-                              child: InkWell(
-                                onTap: onMarkToday,
-                                borderRadius: BorderRadius.circular(22),
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 8,
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      const Icon(
-                                        Icons.edit_rounded,
-                                        size: 14,
-                                        color: _kGreenDark,
-                                      ),
-                                      const SizedBox(width: 6),
-                                      Text(
-                                        pending == 0
-                                            ? (isMalayalam ? 'കാണുക' : 'Review')
-                                            : (isMalayalam
-                                                  ? 'മാർക്ക് ചെയ്യുക'
-                                                  : 'Mark now'),
-                                        style: const TextStyle(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w700,
-                                          color: _kGreenDark,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
+                            isMalayalam ? 'കഴിഞ്ഞു' : 'done',
+                            style: const TextStyle(
+                              fontSize: 8,
+                              fontWeight: FontWeight.w500,
+                              color: kMuted,
+                              height: 1,
                             ),
                           ),
                         ],
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            ],
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        isMalayalam
+                            ? 'ഇന്നത്തെ പ്രവർത്തനങ്ങൾ'
+                            : "Today's Activities",
+                        style: const TextStyle(
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w800,
+                          color: kHeading,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        pending == 0
+                            ? (isMalayalam
+                                  ? 'എല്ലാം പൂർത്തിയായി! 🎉'
+                                  : 'All done! 🎉')
+                            : (isMalayalam
+                                  ? '$pending പ്രവർത്തനങ്ങൾ ബാക്കിയുണ്ട്'
+                                  : '$pending activities left to mark'),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w400,
+                          color: kMuted,
+                        ),
+                      ),
+                      const SizedBox(height: 11),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: _TapScale(
+                          onTap: onMarkToday,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 9,
+                            ),
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [
+                                  AppColors.primary,
+                                  AppColors.primaryDeep,
+                                ],
+                              ),
+                              borderRadius: BorderRadius.circular(12),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: kGreen.withValues(alpha: 0.35),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  pending == 0
+                                      ? Icons.visibility_rounded
+                                      : Icons.edit_rounded,
+                                  size: 15,
+                                  color: Colors.white,
+                                ),
+                                const SizedBox(width: 7),
+                                Text(
+                                  pending == 0
+                                      ? (isMalayalam ? 'കാണുക' : 'Review')
+                                      : (isMalayalam
+                                            ? 'മാർക്ക് ചെയ്യുക'
+                                            : 'Mark now'),
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
-      ),
+      ],
     );
   }
 
@@ -527,46 +543,18 @@ class StudentHomeScreen extends StatelessWidget {
     required String value,
     required String label,
   }) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x08000000),
-            blurRadius: 12,
-            offset: Offset(0, 4),
-          ),
-          BoxShadow(
-            color: Color(0x05000000),
-            blurRadius: 4,
-            offset: Offset(0, 1),
-          ),
-        ],
-      ),
+    return AppCard(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(
-              color: iconColor.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(11),
-            ),
-            child: Icon(icon, size: 20, color: iconColor),
-          ),
-          const SizedBox(height: 8),
+          _iconBadge(icon, iconColor, size: 34, radius: 11, iconSize: 18),
+          const SizedBox(height: 6),
           FittedBox(
             fit: BoxFit.scaleDown,
             child: Text(
               value,
-              style: const TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.w800,
-                color: kHeading,
-                height: 1,
-              ),
+              style: AppTextStyles.statNumber.copyWith(fontSize: 19),
             ),
           ),
           const SizedBox(height: 2),
@@ -575,11 +563,7 @@ class StudentHomeScreen extends StatelessWidget {
             textAlign: TextAlign.center,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: _kLabelGray,
-            ),
+            style: AppTextStyles.labelSmall,
           ),
         ],
       ),
@@ -588,7 +572,6 @@ class StudentHomeScreen extends StatelessWidget {
 
   Widget _quickAction({
     required IconData icon,
-    required Color iconBg,
     required Color iconColor,
     required String label,
     required String sub,
@@ -598,33 +581,10 @@ class StudentHomeScreen extends StatelessWidget {
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x08000000),
-              blurRadius: 12,
-              offset: Offset(0, 4),
-            ),
-            BoxShadow(
-              color: Color(0x05000000),
-              blurRadius: 4,
-              offset: Offset(0, 1),
-            ),
-          ],
-        ),
+        decoration: AppDecorations.card(),
         child: Row(
           children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: iconBg,
-                borderRadius: BorderRadius.circular(11),
-              ),
-              child: Icon(icon, color: iconColor, size: 20),
-            ),
+            _iconBadge(icon, iconColor, size: 46, radius: 15, iconSize: 22),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -635,22 +595,14 @@ class StudentHomeScreen extends StatelessWidget {
                     label,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: kHeading,
-                    ),
+                    style: AppTextStyles.label,
                   ),
                   const SizedBox(height: 2),
                   Text(
                     sub,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500,
-                      color: _kLabelGray,
-                    ),
+                    style: AppTextStyles.labelSmall,
                   ),
                 ],
               ),
@@ -691,18 +643,14 @@ class StudentHomeScreen extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            margin: const EdgeInsets.only(top: 2),
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: const Color(0xFFD4A017).withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(9),
-            ),
-            child: const Icon(
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: _iconBadge(
               Icons.auto_stories_rounded,
-              size: 16,
-              color: Color(0xFFD4A017),
+              const Color(0xFFD4A017),
+              size: 36,
+              radius: 11,
+              iconSize: 18,
             ),
           ),
           const SizedBox(width: 12),

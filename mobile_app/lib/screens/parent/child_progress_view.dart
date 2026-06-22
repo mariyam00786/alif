@@ -193,7 +193,7 @@ class _ChildProgressViewState extends State<ChildProgressView> {
                       gradient: const LinearGradient(
                         begin: Alignment.bottomCenter,
                         end: Alignment.topCenter,
-                        colors: [kGreen, Color(0xFF5BA968)],
+                        colors: [kGreen, Color(0xFF14B8A6)],
                       ),
                       borderRadius: BorderRadius.circular(6),
                     ),

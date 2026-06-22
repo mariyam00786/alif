@@ -57,9 +57,14 @@ class _TeacherAnalyticsScreenState extends State<TeacherAnalyticsScreen> {
 
     // Areas needing improvement = lowest category averages (live when available).
     final live = batch == null ? null : _analytics[batch.id];
-    final areas = (live != null && live.areasToImprove.isNotEmpty)
+    final sortedAreas = (live != null && live.areasToImprove.isNotEmpty)
         ? ([...live.areasToImprove]..sort((a, b) => a.pct.compareTo(b.pct)))
-        : ([...TeacherData.batchCategories]..sort((a, b) => a.pct.compareTo(b.pct)));
+        : ([...TeacherData.batchCategories]
+            ..sort((a, b) => a.pct.compareTo(b.pct)));
+    // Only show categories that genuinely need attention (below 60%), capped at 3.
+    // Fall back to the three lowest so the section is never empty.
+    final lowAreas = sortedAreas.where((a) => a.pct < 60).take(3).toList();
+    final areas = lowAreas.isNotEmpty ? lowAreas : sortedAreas.take(3).toList();
 
     return Scaffold(
       backgroundColor: kSurface,
@@ -193,7 +198,10 @@ class _TeacherAnalyticsScreenState extends State<TeacherAnalyticsScreen> {
                       ...areas.map(
                         (c) => Padding(
                           padding: const EdgeInsets.only(bottom: 10),
-                          child: _AreaRow(category: c, isMalayalam: isMalayalam),
+                          child: _AreaRow(
+                            category: c,
+                            isMalayalam: isMalayalam,
+                          ),
                         ),
                       ),
                       const SizedBox(height: 14),

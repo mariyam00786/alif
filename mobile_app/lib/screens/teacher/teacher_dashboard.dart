@@ -384,7 +384,7 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
                           : Text(
                               initial,
                               style: const TextStyle(
-                                color: Color(0xFF1B6B3A),
+                                color: Color(0xFF0F766E),
                                 fontWeight: FontWeight.w800,
                                 fontSize: 24,
                               ),
@@ -435,21 +435,6 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
               ),
               const SizedBox(height: 16),
               _profileTile(
-                icon: Icons.translate_rounded,
-                label: isMalayalam ? 'ഭാഷ' : 'Language',
-                trailing: Text(
-                  isMalayalam ? 'മലയാളം' : 'English',
-                  style: const TextStyle(
-                    color: Color(0xFF1B6B3A),
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                onTap: () => widget.onLocaleChanged(
-                  isMalayalam ? AppLocale.en : AppLocale.ml,
-                ),
-              ),
-              const SizedBox(height: 10),
-              _profileTile(
                 icon: Icons.logout_rounded,
                 label: isMalayalam ? 'ലോഗ് ഔട്ട്' : 'Log out',
                 danger: true,
@@ -469,7 +454,7 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
     bool danger = false,
     VoidCallback? onTap,
   }) {
-    final color = danger ? const Color(0xFFD45555) : const Color(0xFF1B6B3A);
+    final color = danger ? const Color(0xFFD45555) : const Color(0xFF0F766E);
     return Material(
       color: Colors.white,
       borderRadius: BorderRadius.circular(14),
@@ -547,7 +532,7 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
                   padding: const EdgeInsets.symmetric(vertical: 8),
                   decoration: BoxDecoration(
                     color: selected
-                        ? const Color(0xFF1B6B3A).withValues(alpha: 0.1)
+                        ? const Color(0xFF0F766E).withValues(alpha: 0.1)
                         : Colors.transparent,
                     borderRadius: BorderRadius.circular(16),
                   ),
@@ -560,7 +545,7 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
                         height: selected ? 40 : 36,
                         decoration: BoxDecoration(
                           color: selected
-                              ? const Color(0xFF1B6B3A)
+                              ? const Color(0xFF0F766E)
                               : Colors.transparent,
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -583,7 +568,7 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
                               ? FontWeight.w700
                               : FontWeight.w500,
                           color: selected
-                              ? const Color(0xFF1B6B3A)
+                              ? const Color(0xFF0F766E)
                               : const Color(0xFF9CA3AF),
                         ),
                       ),

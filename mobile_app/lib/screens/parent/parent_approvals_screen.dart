@@ -27,6 +27,7 @@ class _ParentApprovalsScreenState extends State<ParentApprovalsScreen> {
   bool _loading = true;
   String? _error;
   final Set<String> _busy = {};
+  final Set<String> _approved = {};
 
   @override
   void initState() {
@@ -60,7 +61,7 @@ class _ParentApprovalsScreenState extends State<ParentApprovalsScreen> {
     String outcome,
     bool isMalayalam,
   ) async {
-    if (_busy.contains(rec.id)) return;
+    if (_busy.contains(rec.id) || _approved.contains(rec.id)) return;
     setState(() => _busy.add(rec.id));
     final name = isMalayalam
         ? (rec.childNameMl ?? rec.childName ?? '')
@@ -74,7 +75,13 @@ class _ParentApprovalsScreenState extends State<ParentApprovalsScreen> {
       }
       if (!mounted) return;
       setState(() {
-        _pending = _pending.where((r) => r.id != rec.id).toList();
+        if (outcome == 'approved') {
+          // Keep the card but lock it in an "approved" state so it can never
+          // be approved a second time.
+          _approved.add(rec.id);
+        } else {
+          _pending = _pending.where((r) => r.id != rec.id).toList();
+        }
         _busy.remove(rec.id);
       });
       final msg = outcome == 'approved'
@@ -118,6 +125,7 @@ class _ParentApprovalsScreenState extends State<ParentApprovalsScreen> {
   Widget build(BuildContext context) {
     final isMalayalam = widget.isMalayalam;
     final open = _pending;
+    final pendingCount = open.where((r) => !_approved.contains(r.id)).length;
 
     return Scaffold(
       backgroundColor: kSurface,
@@ -126,8 +134,8 @@ class _ParentApprovalsScreenState extends State<ParentApprovalsScreen> {
           PortalHeader(
             title: isMalayalam ? 'അംഗീകാരം' : 'Approvals',
             subtitle: isMalayalam
-                ? '${open.length} എണ്ണം ബാക്കി'
-                : '${open.length} pending',
+                ? '$pendingCount എണ്ണം ബാക്കി'
+                : '$pendingCount pending',
             icon: Icons.fact_check_rounded,
           ),
           Expanded(
@@ -185,6 +193,7 @@ class _ParentApprovalsScreenState extends State<ParentApprovalsScreen> {
         ? (rec.childNameMl ?? rec.childName ?? '')
         : (rec.childName ?? '');
     final busy = _busy.contains(rec.id);
+    final approved = _approved.contains(rec.id);
 
     return SoftCard(
       padding: const EdgeInsets.all(16),
@@ -300,61 +309,89 @@ class _ParentApprovalsScreenState extends State<ParentApprovalsScreen> {
             ],
           ),
           const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: busy
-                      ? null
-                      : () => _resolve(rec, 'returned', isMalayalam),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFFB7791F),
-                    side: const BorderSide(color: Color(0xFFE5C07B)),
-                    padding: const EdgeInsets.symmetric(vertical: 13),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+          if (approved)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 13),
+              decoration: BoxDecoration(
+                color: kGreenSoft,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    Icons.verified_rounded,
+                    size: 18,
+                    color: kGreen,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    isMalayalam ? 'അംഗീകരിച്ചു' : 'Approved',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w800,
+                      color: kGreen,
                     ),
                   ),
-                  icon: const Icon(Icons.undo_rounded, size: 18),
-                  label: Text(
-                    isMalayalam ? 'തിരികെ' : 'Send back',
-                    style: const TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                ),
+                ],
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: busy
-                      ? null
-                      : () => _resolve(rec, 'approved', isMalayalam),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: kGreen,
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    padding: const EdgeInsets.symmetric(vertical: 13),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+            )
+          else
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: busy
+                        ? null
+                        : () => _resolve(rec, 'returned', isMalayalam),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFFB7791F),
+                      side: const BorderSide(color: Color(0xFFE5C07B)),
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    icon: const Icon(Icons.undo_rounded, size: 18),
+                    label: Text(
+                      isMalayalam ? 'തിരികെ' : 'Send back',
+                      style: const TextStyle(fontWeight: FontWeight.w700),
                     ),
                   ),
-                  icon: busy
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Icon(Icons.check_rounded, size: 18),
-                  label: Text(
-                    isMalayalam ? 'അംഗീകരിക്കുക' : 'Approve',
-                    style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: busy
+                        ? null
+                        : () => _resolve(rec, 'approved', isMalayalam),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: kGreen,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    icon: busy
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(Icons.check_rounded, size: 18),
+                    label: Text(
+                      isMalayalam ? 'അംഗീകരിക്കുക' : 'Approve',
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
                   ),
                 ),
-              ),
-            ],
-          ),
+              ],
+            ),
         ],
       ),
     );

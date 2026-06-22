@@ -214,13 +214,16 @@ interface StudentMetrics {
 
 /**
  * Computes per-student metrics from a month-window of logs, ranking each
- * student within its own batch by month marks.
+ * student within its own batch. When `rankMarks` is provided, ranking uses
+ * those all-time totals (consistent with the parent + student portals);
+ * otherwise it falls back to the month-window marks.
  */
 function computeMetrics(
   students: StudentRow[],
   logs: LogRow[],
   totalActivities: number,
-  today: string
+  today: string,
+  rankMarks?: Map<string, number>
 ): StudentMetrics[] {
   const logsByStudent = new Map<string, LogRow[]>();
   for (const s of students) logsByStudent.set(s.id, []);
@@ -253,7 +256,8 @@ function computeMetrics(
     };
   });
 
-  // Rank within each batch by month marks (desc).
+  // Rank within each batch. Prefer all-time totals for cross-portal
+  // consistency; fall back to the month window when not supplied.
   const byBatch = new Map<string, typeof base>();
   for (const m of base) {
     const key = m.batch_id ?? '_';
@@ -261,10 +265,12 @@ function computeMetrics(
     byBatch.get(key)!.push(m);
   }
   const rankMap = new Map<string, number>();
+  const markFor = (m: (typeof base)[number]) =>
+    rankMarks ? rankMarks.get(m.id) ?? 0 : m.month_marks;
   for (const group of byBatch.values()) {
     group
       .slice()
-      .sort((a, b) => b.month_marks - a.month_marks)
+      .sort((a, b) => markFor(b) - markFor(a))
       .forEach((m, idx) => rankMap.set(m.id, idx + 1));
   }
 
@@ -338,7 +344,20 @@ router.get(
     const totalActivities = await activeActivityCount();
     const today = todayUtc();
     const logs = await loadLogs(students.map((s) => s.id), lastNDates(today, 30)[0], today);
-    const metrics = computeMetrics(students, logs, totalActivities, today);
+
+    // All-time marks per student → used for cross-portal-consistent ranking.
+    const { data: allLogRows } = await getSupabaseClient()
+      .from('activity_logs')
+      .select('student_id, marks_earned')
+      .in('student_id', students.map((s) => s.id));
+    const allTimeMarks = new Map<string, number>();
+    for (const s of students) allTimeMarks.set(s.id, 0);
+    for (const r of allLogRows ?? []) {
+      const row = r as { student_id: string; marks_earned: number | null };
+      allTimeMarks.set(row.student_id, (allTimeMarks.get(row.student_id) ?? 0) + (row.marks_earned ?? 0));
+    }
+
+    const metrics = computeMetrics(students, logs, totalActivities, today, allTimeMarks);
 
     // Badge counts per student.
     const { data: badgeRows } = await getSupabaseClient()

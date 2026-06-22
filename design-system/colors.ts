@@ -80,12 +80,12 @@ export const ColorSystem = {
     disabled: '#BDBDBD',
   },
 
-  // Brand Colors (Islamic Green Theme)
+  // Brand Colors (Islamic Teal Theme)
   brand: {
-    primary: '#2E7D32',      // Deep green
-    accent: '#FFA000',       // Gold
-    light: '#E8F5E9',        // Light green background
-    dark: '#1B5E20',         // Very dark green
+    primary: '#0F766E',      // Primary teal
+    accent: '#C9A227',       // Gold
+    light: '#E6F4F2',        // Light teal background
+    dark: '#115E59',         // Very dark teal
   },
 } as const;
 
@@ -101,7 +101,7 @@ export const getRatingColor = (rating: 'excellent' | 'satisfactory' | 'needsImpr
  */
 export const getContrastTextColor = (backgroundColor: string): string => {
   // This would ideally calculate luminance, but for simplicity:
-  const darkBgs = ['#2E7D32', '#1B5E20', '#212121', '#424242'];
+  const darkBgs = ['#0F766E', '#115E59', '#2E7D32', '#1B5E20', '#212121', '#424242'];
   return darkBgs.includes(backgroundColor) ? ColorSystem.text.light : ColorSystem.text.primary;
 };
 
@@ -115,9 +115,9 @@ export const getContrastTextColor = (backgroundColor: string): string => {
  */
 export const ColorPalette = {
   // Primary Brand Colors
-  primaryDark: '#2E7D32',      // Primary dark - headings, buttons, main UI
-  primaryLight: '#4CAF50',     // Primary light - status, accents
-  primaryLightest: '#E8F5E9',  // Primary lightest - backgrounds, states
+  primaryDark: '#0F766E',      // Primary dark - headings, buttons, main UI
+  primaryLight: '#14B8A6',     // Primary light - status, accents
+  primaryLightest: '#E6F4F2',  // Primary lightest - backgrounds, states
 
   // Secondary Accent Colors
   secondaryDark: '#FFA000',    // Secondary dark - important accents

@@ -37,10 +37,12 @@ class ParentHomeScreen extends StatelessWidget {
       0,
       (sum, c) => sum + c.pendingApprovals,
     );
-    final avgWeek = children.isEmpty
+    final todayMarks = children.fold<int>(0, (s, c) => s + c.todayMarks);
+    final ranked = children.where((c) => c.rank > 0).toList();
+    final bestRank = ranked.isEmpty
         ? 0
-        : (children.fold<int>(0, (s, c) => s + c.weekPct) / children.length)
-              .round();
+        : ranked.map((c) => c.rank).reduce((a, b) => a < b ? a : b);
+    final singleChild = children.length == 1;
 
     return Scaffold(
       backgroundColor: kSurface,
@@ -56,7 +58,7 @@ class ParentHomeScreen extends StatelessWidget {
               children: [
                 PortalNotificationBellAsync(
                   source: PortalNotificationSource.parent,
-                  fallback: ParentData.notifications(),
+                  fallback: const [],
                   isMalayalam: isMalayalam,
                 ),
                 const SizedBox(width: 10),
@@ -94,18 +96,26 @@ class ParentHomeScreen extends StatelessWidget {
                           children: [
                             Expanded(
                               child: StatTile(
-                                icon: Icons.groups_rounded,
-                                value: '${children.length}',
-                                label: isMalayalam ? 'കുട്ടികൾ' : 'Children',
+                                icon: Icons.star_rounded,
+                                value: '$todayMarks',
+                                label: isMalayalam
+                                    ? 'ഇന്നത്തെ മാർക്ക്'
+                                    : "Today's marks",
                               ),
                             ),
                             const SizedBox(width: 12),
                             Expanded(
                               child: StatTile(
-                                icon: Icons.percent_rounded,
-                                value: '$avgWeek%',
-                                label: isMalayalam ? 'ശരാശരി ആഴ്ച' : 'Avg week',
-                                tint: const Color(0xFF3B82F6),
+                                icon: Icons.emoji_events_rounded,
+                                value: bestRank > 0 ? '#$bestRank' : '—',
+                                label: singleChild
+                                    ? (isMalayalam
+                                          ? 'ക്ലാസ് റാങ്ക്'
+                                          : 'Class rank')
+                                    : (isMalayalam
+                                          ? 'മികച്ച റാങ്ക്'
+                                          : 'Best rank'),
+                                tint: const Color(0xFFF59E0B),
                               ),
                             ),
                             const SizedBox(width: 12),
@@ -114,7 +124,7 @@ class ParentHomeScreen extends StatelessWidget {
                                 icon: Icons.fact_check_rounded,
                                 value: '$totalPending',
                                 label: isMalayalam ? 'അംഗീകാരം' : 'To approve',
-                                tint: const Color(0xFFF59E0B),
+                                tint: const Color(0xFF3B82F6),
                               ),
                             ),
                           ],

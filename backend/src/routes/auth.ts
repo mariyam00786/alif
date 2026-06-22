@@ -81,7 +81,7 @@ router.post('/supabase-signin', asyncHandler(async (req, res) => {
 
   res.json({
     success: true,
-    message: 'Supabase Google sign-in successful.',
+    message: 'Sign-in successful.',
     token: result.token,
     data: {
       token: result.token,

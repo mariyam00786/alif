@@ -5,18 +5,18 @@ import 'package:flutter/material.dart';
 import '../provider/app_state_provider.dart';
 import '../services/api_service.dart';
 import '../services/google_auth_service.dart';
+import '../shared/theme/theme.dart';
 
 /// Shared premium UI kit for the student/parent portal.
-/// MsgHex-inspired: soft white cards, green gradient headers,
-/// rounded segmented controls, micro labels and big bold numbers.
+/// Minimal: soft white cards, hairline borders, micro labels and bold numbers.
 
-const Color kHeading = Color(0xFF0F1729);
-const Color kBody = Color(0xFF374151);
-const Color kMuted = Color(0xFF6B7280);
-const Color kBorder = Color(0xFFE5E7EB);
-const Color kSurface = Color(0xFFF5F7F5);
-const Color kGreen = Color(0xFF1B6B3A);
-const Color kGreenSoft = Color(0xFFE6F4EC);
+const Color kHeading = AppColors.heading;
+const Color kBody = AppColors.body;
+const Color kMuted = AppColors.muted;
+const Color kBorder = AppColors.border;
+const Color kSurface = AppColors.background;
+const Color kGreen = AppColors.primary;
+const Color kGreenSoft = AppColors.primaryMuted;
 
 /// A green gradient header with rounded bottom corners.
 class PortalHeader extends StatelessWidget {
@@ -49,15 +49,15 @@ class PortalHeader extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF134D2A), Color(0xFF1B7A3E), Color(0xFF22965C)],
+          colors: [Color(0xFF115E59), Color(0xFF0F766E), Color(0xFF14B8A6)],
           stops: [0.0, 0.55, 1.0],
         ),
         borderRadius: BorderRadius.vertical(bottom: Radius.circular(24)),
         boxShadow: [
           BoxShadow(
-            color: Color(0x301B6B3A),
-            blurRadius: 18,
-            offset: Offset(0, 6),
+            color: Color(0x300F766E),
+            blurRadius: 20,
+            offset: Offset(0, 8),
           ),
         ],
       ),
@@ -454,21 +454,9 @@ class SoftCard extends StatelessWidget {
       width: double.infinity,
       padding: padding,
       decoration: BoxDecoration(
-        color: color ?? Colors.white,
+        color: color ?? AppColors.surface,
         borderRadius: BorderRadius.circular(radius),
-        border: Border.all(color: borderColor ?? const Color(0xFFEEF0EE)),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x08000000),
-            blurRadius: 12,
-            offset: Offset(0, 4),
-          ),
-          BoxShadow(
-            color: Color(0x05000000),
-            blurRadius: 4,
-            offset: Offset(0, 1),
-          ),
-        ],
+        border: Border.all(color: borderColor ?? AppColors.border),
       ),
       child: child,
     );
@@ -576,18 +564,10 @@ class SectionLabel extends StatelessWidget {
     return Row(
       children: [
         if (icon != null) ...[
-          Icon(icon, size: 19, color: kGreen),
+          Icon(icon, size: 18, color: kGreen),
           const SizedBox(width: 8),
         ],
-        Text(
-          text,
-          style: const TextStyle(
-            fontSize: 17,
-            fontWeight: FontWeight.w800,
-            letterSpacing: -0.2,
-            color: kHeading,
-          ),
-        ),
+        Text(text, style: AppTextStyles.sectionTitle),
       ],
     );
   }

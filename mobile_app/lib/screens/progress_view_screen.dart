@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../constants/app_theme.dart';
 import '../components/portal_ui.dart';
+import '../shared/theme/theme.dart';
 
 /// Student progress view with daily, weekly and monthly summaries.
 class ProgressViewScreen extends StatefulWidget {
@@ -239,11 +240,7 @@ class _ProgressViewScreenState extends State<ProgressViewScreen> {
               children: [
                 Text(
                   isMalayalam ? d['dateML'] : d['date'],
-                  style: const TextStyle(
-                    fontSize: 16.5,
-                    fontWeight: FontWeight.w700,
-                    color: kHeading,
-                  ),
+                  style: AppTextStyles.cardTitle,
                 ),
                 const SizedBox(height: 8),
                 ClipRRect(
@@ -264,20 +261,9 @@ class _ProgressViewScreenState extends State<ProgressViewScreen> {
             children: [
               Text(
                 '${d['marks']}',
-                style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
-                  color: kGreen,
-                ),
+                style: AppTextStyles.statNumber.copyWith(color: kGreen),
               ),
-              Text(
-                '$pct%',
-                style: const TextStyle(
-                  fontSize: 13.5,
-                  fontWeight: FontWeight.w600,
-                  color: kMuted,
-                ),
-              ),
+              Text('$pct%', style: AppTextStyles.labelSmall),
             ],
           ),
         ],
@@ -445,7 +431,7 @@ class _ProgressViewScreenState extends State<ProgressViewScreen> {
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF2D5A34), Color(0xFF3C7A47)],
+          colors: [Color(0xFF115E59), Color(0xFF0F766E)],
         ),
         borderRadius: BorderRadius.circular(20),
         boxShadow: const [
@@ -557,8 +543,8 @@ class _ProgressViewScreenState extends State<ProgressViewScreen> {
   }
 
   Color _pctColor(int pct) {
-    if (pct >= 85) return const Color(0xFF10B981);
-    if (pct >= 60) return const Color(0xFF3B82F6);
-    return const Color(0xFFEF4444);
+    if (pct >= 80) return const Color(0xFF10B981); // strong — green
+    if (pct >= 50) return const Color(0xFFE0A82E); // fair — amber
+    return const Color(0xFFEF4444); // low — red
   }
 }

@@ -44,19 +44,25 @@ class AdminRepository {
     'full_name': s.name,
     'full_name_ml': s.nameMl,
     'parent_phone': s.mobile,
+    'email': s.email,
     'father_name': s.fatherName,
     'mother_name': s.motherName,
     'date_of_birth': s.dateOfBirth?.toIso8601String(),
     'gender': s.gender.name,
     'address': s.address,
-    'status': s.status.name,
     'batch': s.batch,
+    'status': s.status.name,
     'class': s.className,
   };
 
-  Future<void> createStudent(StudentRecord student) async {
-    if (!_client.isConfigured) return;
-    await _client.postJson('/api/students/', body: studentPayload(student));
+  Future<String?> createStudent(StudentRecord student) async {
+    if (!_client.isConfigured) return null;
+    final response = await _client.postJson(
+      '/api/students/',
+      body: studentPayload(student),
+    );
+    final loginEmail = response['login_email'];
+    return loginEmail is String ? loginEmail : null;
   }
 
   Future<void> updateStudentRecord(StudentRecord student) async {
@@ -83,9 +89,14 @@ class AdminRepository {
     'status': t.status.name,
   };
 
-  Future<void> createTeacher(TeacherRecord teacher) async {
-    if (!_client.isConfigured) return;
-    await _client.postJson('/api/teachers/', body: teacherPayload(teacher));
+  Future<String?> createTeacher(TeacherRecord teacher) async {
+    if (!_client.isConfigured) return null;
+    final response = await _client.postJson(
+      '/api/teachers/',
+      body: teacherPayload(teacher),
+    );
+    final loginEmail = response['login_email'];
+    return loginEmail is String ? loginEmail : null;
   }
 
   Future<void> updateTeacherRecord(TeacherRecord teacher) async {
@@ -255,6 +266,7 @@ class AdminRepository {
       nameMl: data['nameMl']?.toString() ?? '',
       mobile:
           data['mobile']?.toString() ?? data['parentPhone']?.toString() ?? '',
+      email: data['email']?.toString() ?? '',
       fatherName: data['fatherName']?.toString() ?? '',
       motherName: data['motherName']?.toString() ?? '',
       gender: data['gender']?.toString() == 'female'
@@ -347,6 +359,8 @@ class AdminRepository {
       maxScore: (data['maxScore'] as num?)?.toInt() ?? 0,
       colorName: data['colorName']?.toString() ?? 'Green',
       isDefault: data['isPrimary'] == true || data['isDefault'] == true,
+      activityId: data['activityId']?.toString() ?? '',
+      activityName: data['activityName']?.toString() ?? '',
     );
   }).toList();
 

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../constants/app_theme.dart';
 import '../components/portal_ui.dart';
+import '../services/api_service.dart';
+import '../shared/theme/theme.dart';
 
 /// Leaderboard / ranking screen for a batch.
 class LeaderboardScreen extends StatefulWidget {
@@ -25,8 +27,38 @@ class LeaderboardScreen extends StatefulWidget {
 class _LeaderboardScreenState extends State<LeaderboardScreen> {
   int _tab = 0; // 0=Daily, 1=Weekly, 2=Monthly, 3=All-time
   bool _initialsOnly = false; // privacy: show initials instead of full names
+  bool _loading = true;
 
-  final List<Map<String, dynamic>> _daily = [
+  @override
+  void initState() {
+    super.initState();
+    _fetchLeaderboard();
+  }
+
+  Future<void> _fetchLeaderboard() async {
+    final res = await MobileApiService.getMyLeaderboard();
+    if (!mounted) return;
+    List<Map<String, dynamic>> conv(dynamic raw) => (raw as List? ?? const [])
+        .map((e) => Map<String, dynamic>.from(e as Map))
+        .toList();
+    setState(() {
+      if (res.success && res.data != null) {
+        final d = res.data!;
+        _daily = conv(d['daily']);
+        _weekly = conv(d['weekly']);
+        _monthly = conv(d['monthly']);
+        _allTime = conv(d['all_time']);
+      } else {
+        _daily = [];
+        _weekly = [];
+        _monthly = [];
+        _allTime = [];
+      }
+      _loading = false;
+    });
+  }
+
+  List<Map<String, dynamic>> _daily = [
     {
       'rank': 1,
       'name': 'Ahmed Ali',
@@ -83,7 +115,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
     },
   ];
 
-  final List<Map<String, dynamic>> _weekly = [
+  List<Map<String, dynamic>> _weekly = [
     {
       'rank': 1,
       'name': 'Fatima Khan',
@@ -131,7 +163,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
     },
   ];
 
-  final List<Map<String, dynamic>> _monthly = [
+  List<Map<String, dynamic>> _monthly = [
     {
       'rank': 1,
       'name': 'Ahmed Ali',
@@ -179,7 +211,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
     },
   ];
 
-  final List<Map<String, dynamic>> _allTime = [
+  List<Map<String, dynamic>> _allTime = [
     {
       'rank': 1,
       'name': 'Fatima Khan',
@@ -262,7 +294,14 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
         ? const ['ദിനം', 'ആഴ്ച', 'മാസം', 'എല്ലാം']
         : const ['Daily', 'Weekly', 'Monthly', 'All-time'];
 
-    final content = list.isEmpty
+    final content = _loading
+        ? const Center(
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: 80),
+              child: CircularProgressIndicator(),
+            ),
+          )
+        : list.isEmpty
         ? EmptyState(
             icon: Icons.leaderboard_rounded,
             title: isMalayalam ? 'റാങ്കിംഗ് ഇല്ല' : 'No rankings yet',
@@ -327,8 +366,9 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
     return Scaffold(backgroundColor: kSurface, body: body);
   }
 
-  // ---- Podium ----
+  // ---- Podium hero ----
   Widget _podium(List<Map<String, dynamic>> top3, bool isMalayalam) {
+    if (top3.isEmpty) return const SizedBox.shrink();
     if (top3.length < 3) {
       return Column(
         children: top3
@@ -341,64 +381,152 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
             .toList(),
       );
     }
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        Expanded(child: _podiumCol(top3[1], 2, isMalayalam)), // 2nd
-        const SizedBox(width: 10),
-        Expanded(child: _podiumCol(top3[0], 1, isMalayalam)), // 1st
-        const SizedBox(width: 10),
-        Expanded(child: _podiumCol(top3[2], 3, isMalayalam)), // 3rd
-      ],
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 16, 12, 0),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF115E59), Color(0xFF0F766E), Color(0xFF14B8A6)],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: kGreen.withValues(alpha: 0.35),
+            blurRadius: 26,
+            offset: const Offset(0, 14),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text('🏆', style: TextStyle(fontSize: 17)),
+              const SizedBox(width: 8),
+              Text(
+                isMalayalam ? 'മികച്ച പ്രകടനക്കാർ' : 'Top Performers',
+                style: const TextStyle(
+                  fontSize: 14.5,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                  letterSpacing: 0.2,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Expanded(child: _podiumCol(top3[1], 2, isMalayalam)), // 2nd
+              const SizedBox(width: 8),
+              Expanded(child: _podiumCol(top3[0], 1, isMalayalam)), // 1st
+              const SizedBox(width: 8),
+              Expanded(child: _podiumCol(top3[2], 3, isMalayalam)), // 3rd
+            ],
+          ),
+        ],
+      ),
     );
   }
 
   Widget _podiumCol(Map<String, dynamic> s, int place, bool isMalayalam) {
     final cfg = {
-      1: {'medal': '🥇', 'color': kGreen, 'h': 92.0},
-      2: {'medal': '🥈', 'color': const Color(0xFF94A3B8), 'h': 74.0},
-      3: {'medal': '🥉', 'color': const Color(0xFFCD7F32), 'h': 58.0},
+      1: {'color': const Color(0xFFFFD54A), 'h': 102.0},
+      2: {'color': const Color(0xFFE2E8F0), 'h': 82.0},
+      3: {'color': const Color(0xFFF0B27A), 'h': 68.0},
     }[place]!;
     final color = cfg['color'] as Color;
     final me = s['me'] == true;
 
     return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Text(cfg['medal'] as String, style: const TextStyle(fontSize: 26)),
-        const SizedBox(height: 6),
-        Container(
-          padding: const EdgeInsets.all(2.5),
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(color: color, width: 2.5),
-          ),
-          child: CircleAvatar(
-            radius: place == 1 ? 26 : 22,
-            backgroundColor: color.withValues(alpha: 0.15),
-            child: Text(
-              s['avatar'],
-              style: TextStyle(
-                color: color,
-                fontWeight: FontWeight.w800,
-                fontSize: place == 1 ? 20 : 17,
+        SizedBox(
+          height: 24,
+          child: place == 1
+              ? const Text('👑', style: TextStyle(fontSize: 22))
+              : null,
+        ),
+        const SizedBox(height: 2),
+        Stack(
+          clipBehavior: Clip.none,
+          alignment: Alignment.bottomCenter,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(3),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(
+                  colors: [color, color.withValues(alpha: 0.6)],
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: color.withValues(alpha: 0.55),
+                    blurRadius: 14,
+                    spreadRadius: 1,
+                  ),
+                ],
+              ),
+              child: CircleAvatar(
+                radius: place == 1 ? 28 : 23,
+                backgroundColor: Colors.white,
+                child: Text(
+                  s['avatar'],
+                  style: TextStyle(
+                    color: const Color(0xFF115E59),
+                    fontWeight: FontWeight.w800,
+                    fontSize: place == 1 ? 22 : 18,
+                  ),
+                ),
               ),
             ),
-          ),
+            Positioned(
+              bottom: -6,
+              child: Container(
+                width: 22,
+                height: 22,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(colors: [color, _darken(color)]),
+                  border: Border.all(color: const Color(0xFF0F766E), width: 2),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  '$place',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF115E59),
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 14),
         Text(
-          _initialsOnly && s['me'] != true
-              ? _displayName(s)
-              : _firstName(s['name']),
+          _initialsOnly && !me ? _displayName(s) : _firstName(s['name']),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           textAlign: TextAlign.center,
-          style: TextStyle(
+          style: const TextStyle(
             fontSize: 12.5,
             fontWeight: FontWeight.w700,
-            color: me ? kGreen : kHeading,
+            color: Colors.white,
           ),
         ),
+        if (me)
+          Text(
+            isMalayalam ? '(ഞാൻ)' : '(You)',
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              color: Colors.white.withValues(alpha: 0.85),
+            ),
+          ),
         const SizedBox(height: 8),
         Container(
           width: double.infinity,
@@ -407,13 +535,19 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
             gradient: LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
-              colors: [color.withValues(alpha: 0.9), color],
+              colors: [
+                Colors.white.withValues(alpha: 0.30),
+                Colors.white.withValues(alpha: 0.08),
+              ],
             ),
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
           ),
-          alignment: Alignment.topCenter,
-          padding: const EdgeInsets.only(top: 8),
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(vertical: 8),
           child: Column(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text(
                 '${s['marks']}',
@@ -426,9 +560,9 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
               Text(
                 isMalayalam ? 'പോയിന്റ്' : 'pts',
                 style: TextStyle(
-                  fontSize: 10,
+                  fontSize: 9.5,
                   fontWeight: FontWeight.w600,
-                  color: Colors.white.withValues(alpha: 0.85),
+                  color: Colors.white.withValues(alpha: 0.8),
                 ),
               ),
             ],
@@ -441,38 +575,65 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
   // ---- List row ----
   Widget _row(Map<String, dynamic> s, bool isMalayalam) {
     final me = s['me'] == true;
-    return SoftCard(
-      padding: const EdgeInsets.all(14),
-      color: me ? kGreenSoft : Colors.white,
-      borderColor: me ? kGreen.withValues(alpha: 0.4) : kBorder,
+    final rank = s['rank'] as int;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+      decoration: BoxDecoration(
+        color: me ? kGreenSoft : Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: me ? kGreen.withValues(alpha: 0.45) : kBorder,
+          width: me ? 1.4 : 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: (me ? kGreen : Colors.black).withValues(
+              alpha: me ? 0.10 : 0.03,
+            ),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
       child: Row(
         children: [
-          SizedBox(
-            width: 30,
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: me
+                    ? [kGreen, _darken(kGreen)]
+                    : [const Color(0xFFEEF2F4), const Color(0xFFE2E8EC)],
+              ),
+              borderRadius: BorderRadius.circular(11),
+            ),
+            alignment: Alignment.center,
             child: Text(
-              '${s['rank']}',
-              textAlign: TextAlign.center,
+              '$rank',
               style: TextStyle(
-                fontSize: 18,
+                fontSize: 15,
                 fontWeight: FontWeight.w800,
-                color: me ? kGreen : kMuted,
+                color: me ? Colors.white : kMuted,
               ),
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 11),
           CircleAvatar(
-            radius: 23,
-            backgroundColor: (me ? kGreen : kMuted).withValues(alpha: 0.15),
+            radius: 21,
+            backgroundColor: (me ? kGreen : kMuted).withValues(alpha: 0.14),
             child: Text(
               s['avatar'],
               style: TextStyle(
                 color: me ? kGreen : kBody,
                 fontWeight: FontWeight.w800,
-                fontSize: 17,
+                fontSize: 16,
               ),
             ),
           ),
-          const SizedBox(width: 13),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -483,64 +644,86 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                       : _displayName(s),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: me ? kGreen : kHeading,
+                  style: AppTextStyles.cardTitle.copyWith(
+                    color: me ? kGreen : AppColors.heading,
                   ),
                 ),
                 const SizedBox(height: 3),
-                Text(
-                  '${s['activities']} ${isMalayalam ? 'പ്രവർത്തനങ്ങൾ' : 'activities'}',
-                  style: const TextStyle(
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w600,
-                    color: kMuted,
-                  ),
+                Row(
+                  children: [
+                    const Icon(Icons.bolt_rounded, size: 13, color: kMuted),
+                    const SizedBox(width: 3),
+                    Flexible(
+                      child: Text(
+                        '${s['activities']} ${isMalayalam ? 'പ്രവർത്തനങ്ങൾ' : 'activities'}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTextStyles.labelSmall,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
+          const SizedBox(width: 6),
+          _trendChip(s['trend'] as String? ?? 'flat'),
           const SizedBox(width: 8),
-          _trendArrow(s['trend'] as String? ?? 'flat'),
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            decoration: BoxDecoration(
-              color: me ? kGreen : kGreenSoft,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(
-              '${s['marks']}',
-              style: TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.w800,
-                color: me ? Colors.white : kGreen,
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                '${s['marks']}',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: me ? kGreen : kHeading,
+                ),
               ),
-            ),
+              Text(
+                isMalayalam ? 'പോയിന്റ്' : 'pts',
+                style: AppTextStyles.labelSmall,
+              ),
+            ],
           ),
         ],
       ),
     );
   }
 
-  Widget _trendArrow(String trend) {
+  Widget _trendChip(String trend) {
     late IconData icon;
     late Color color;
     switch (trend) {
       case 'up':
-        icon = Icons.arrow_upward_rounded;
-        color = const Color(0xFF059669);
+        icon = Icons.trending_up_rounded;
+        color = const Color(0xFF10B981);
         break;
       case 'down':
-        icon = Icons.arrow_downward_rounded;
-        color = const Color(0xFFDC2626);
+        icon = Icons.trending_down_rounded;
+        color = const Color(0xFFEF4444);
         break;
       default:
-        icon = Icons.remove_rounded;
-        color = const Color(0xFF9CA3AF);
+        icon = Icons.trending_flat_rounded;
+        color = const Color(0xFF94A3B8);
     }
-    return Icon(icon, size: 18, color: color);
+    return Container(
+      width: 26,
+      height: 26,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(9),
+      ),
+      child: Icon(icon, size: 16, color: color),
+    );
+  }
+
+  Color _darken(Color c, [double amount = 0.14]) {
+    final hsl = HSLColor.fromColor(c);
+    return hsl
+        .withLightness((hsl.lightness - amount).clamp(0.0, 1.0))
+        .toColor();
   }
 
   Widget _privacyToggle(bool isMalayalam) {

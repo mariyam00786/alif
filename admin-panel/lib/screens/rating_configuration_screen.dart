@@ -84,8 +84,18 @@ class _RatingConfigurationScreenState extends State<RatingConfigurationScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final sorted = [...widget.ratingRules]
-      ..sort((a, b) => b.maxScore.compareTo(a.maxScore));
+    // Group bands by activity so identical scales no longer look like dozens
+    // of duplicate rows. Activities are listed alphabetically; bands within
+    // each activity are ordered by descending score.
+    final groups = <String, List<RatingRule>>{};
+    for (final rule in widget.ratingRules) {
+      final key = rule.activityName.isNotEmpty ? rule.activityName : 'General';
+      (groups[key] ??= []).add(rule);
+    }
+    for (final list in groups.values) {
+      list.sort((a, b) => b.maxScore.compareTo(a.maxScore));
+    }
+    final groupNames = groups.keys.toList()..sort();
 
     return AdminPageFrame(
       title: 'Rating & Scoring',
@@ -101,6 +111,11 @@ class _RatingConfigurationScreenState extends State<RatingConfigurationScreen> {
         StatGrid(
           items: [
             StatItem(
+              value: '${groupNames.length}',
+              label: 'Activities',
+              icon: Icons.list_alt,
+            ),
+            StatItem(
               value: '${widget.ratingRules.length}',
               label: 'Score bands',
               icon: Icons.straighten,
@@ -112,25 +127,35 @@ class _RatingConfigurationScreenState extends State<RatingConfigurationScreen> {
             ),
           ],
         ),
-        if (sorted.isEmpty)
+        if (groupNames.isEmpty)
           const _EmptyState()
         else
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                children: [
-                  for (final rule in sorted)
-                    _RatingTile(
-                      rule: rule,
-                      color: _colorFor(rule.colorName),
-                      onEdit: () => _openForm(existing: rule),
-                      onDelete: () => _confirmDelete(rule),
+          for (final activity in groupNames)
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(4, 4, 4, 8),
+                      child: Text(
+                        activity,
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w700),
+                      ),
                     ),
-                ],
+                    for (final rule in groups[activity]!)
+                      _RatingTile(
+                        rule: rule,
+                        color: _colorFor(rule.colorName),
+                        onEdit: () => _openForm(existing: rule),
+                        onDelete: () => _confirmDelete(rule),
+                      ),
+                  ],
+                ),
               ),
             ),
-          ),
       ],
     );
   }
@@ -203,7 +228,9 @@ class _RatingTile extends StatelessWidget {
                   ),
                 const SizedBox(height: 2),
                 Text(
-                  'Score ${rule.minScore} – ${rule.maxScore} · ${rule.colorName}',
+                  rule.minScore == rule.maxScore
+                      ? '${rule.maxScore} marks · ${rule.colorName}'
+                      : 'Score ${rule.minScore} – ${rule.maxScore} · ${rule.colorName}',
                   style: theme.textTheme.bodySmall,
                 ),
               ],

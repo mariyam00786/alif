@@ -416,6 +416,7 @@ class _StudentFormSheetState extends State<StudentFormSheet> {
   late final TextEditingController _name;
   late final TextEditingController _nameMl;
   late final TextEditingController _mobile;
+  late final TextEditingController _email;
   late final TextEditingController _father;
   late final TextEditingController _mother;
   late final TextEditingController _address;
@@ -432,6 +433,7 @@ class _StudentFormSheetState extends State<StudentFormSheet> {
     _name = TextEditingController(text: e?.name ?? '');
     _nameMl = TextEditingController(text: e?.nameMl ?? '');
     _mobile = TextEditingController(text: e?.mobile ?? '');
+    _email = TextEditingController(text: e?.email ?? '');
     _father = TextEditingController(text: e?.fatherName ?? '');
     _mother = TextEditingController(text: e?.motherName ?? '');
     _address = TextEditingController(text: e?.address ?? '');
@@ -447,6 +449,7 @@ class _StudentFormSheetState extends State<StudentFormSheet> {
     _name.dispose();
     _nameMl.dispose();
     _mobile.dispose();
+    _email.dispose();
     _father.dispose();
     _mother.dispose();
     _address.dispose();
@@ -465,10 +468,10 @@ class _StudentFormSheetState extends State<StudentFormSheet> {
 
   void _submit() {
     if (!_formKey.currentState!.validate()) return;
-    if (_batch == null || _className == null || _dob == null) {
+    if (_batch == null || _dob == null) {
       showInlineMessage(
         context,
-        'Please complete batch, class and date of birth.',
+        'Please complete batch and date of birth.',
       );
       return;
     }
@@ -478,12 +481,13 @@ class _StudentFormSheetState extends State<StudentFormSheet> {
       name: _name.text.trim(),
       nameMl: _nameMl.text.trim(),
       mobile: _mobile.text.trim(),
+      email: _email.text.trim(),
       fatherName: _father.text.trim(),
       motherName: _mother.text.trim(),
       dateOfBirth: _dob,
       gender: _gender,
       batch: _batch!,
-      className: _className!,
+      className: _className ?? '',
       address: _address.text.trim(),
       guardianName: _father.text.trim(),
       score: e?.score ?? 0,
@@ -578,6 +582,14 @@ class _StudentFormSheetState extends State<StudentFormSheet> {
                           ),
                           field(
                             _text(
+                              _email,
+                              'Login Email (for student portal)',
+                              keyboardType: TextInputType.emailAddress,
+                              validator: _optionalEmail,
+                            ),
+                          ),
+                          field(
+                            _text(
                               _father,
                               "Father's Name *",
                               validator: _required,
@@ -602,7 +614,7 @@ class _StudentFormSheetState extends State<StudentFormSheet> {
                           ),
                           field(
                             _dropdown(
-                              'Class *',
+                              'Class',
                               _className,
                               widget.classes,
                               (v) => setState(() => _className = v),
@@ -651,6 +663,14 @@ class _StudentFormSheetState extends State<StudentFormSheet> {
 
   String? _required(String? value) =>
       (value == null || value.trim().isEmpty) ? 'Required' : null;
+
+  /// Optional email: blank is allowed, but a non-empty value must look valid.
+  String? _optionalEmail(String? value) {
+    final text = value?.trim() ?? '';
+    if (text.isEmpty) return null;
+    final isValid = RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(text);
+    return isValid ? null : 'Enter a valid email';
+  }
 
   Widget _text(
     TextEditingController controller,
