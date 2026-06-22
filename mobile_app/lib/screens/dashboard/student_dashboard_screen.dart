@@ -747,89 +747,18 @@ class _MobileStudentDashboardState extends State<MobileStudentDashboard> {
   }
 
   Widget _buildBottomNav(bool isMalayalam) {
-    return SafeArea(
-      top: false,
-      child: Container(
-        margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(22),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x14000000),
-              blurRadius: 20,
-              offset: Offset(0, 4),
-            ),
-            BoxShadow(
-              color: Color(0x08000000),
-              blurRadius: 6,
-              offset: Offset(0, 1),
-            ),
-          ],
-        ),
-        child: Row(
-          children: List.generate(_navItems.length, (index) {
-            final item = _navItems[index];
-            final selected = _selectedIndex == index;
-            return Expanded(
-              child: GestureDetector(
-                onTap: () => setState(() => _selectedIndex = index),
-                behavior: HitTestBehavior.opaque,
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 220),
-                  curve: Curves.easeOutCubic,
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  decoration: BoxDecoration(
-                    color: selected
-                        ? const Color(0xFF0F766E).withValues(alpha: 0.1)
-                        : Colors.transparent,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      AnimatedContainer(
-                        duration: const Duration(milliseconds: 220),
-                        width: selected ? 40 : 36,
-                        height: selected ? 40 : 36,
-                        decoration: BoxDecoration(
-                          color: selected
-                              ? const Color(0xFF0F766E)
-                              : Colors.transparent,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Icon(
-                          item.icon,
-                          size: 20,
-                          color: selected
-                              ? Colors.white
-                              : const Color(0xFF9CA3AF),
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        isMalayalam ? item.labelMl : item.labelEn,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: selected
-                              ? FontWeight.w700
-                              : FontWeight.w500,
-                          color: selected
-                              ? const Color(0xFF0F766E)
-                              : const Color(0xFF9CA3AF),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          }),
-        ),
-      ),
+    return AppBottomNavBar(
+      isMalayalam: isMalayalam,
+      currentIndex: _selectedIndex,
+      onTap: (index) => setState(() => _selectedIndex = index),
+      items: [
+        for (final item in _navItems)
+          AppNavItem(
+            icon: item.icon,
+            labelEn: item.labelEn,
+            labelMl: item.labelMl,
+          ),
+      ],
     );
   }
 }

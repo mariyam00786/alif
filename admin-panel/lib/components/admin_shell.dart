@@ -687,60 +687,61 @@ class _MobileNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isMoreActive = !primarySections.contains(selectedSection);
-    final theme = Theme.of(context);
 
     return Container(
-      color: const Color(0xFFF8FAFC),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        border: Border(top: BorderSide(color: Color(0xFFEEF0F2), width: 1)),
+        boxShadow: [
+          BoxShadow(
+            color: Color(0x14000000),
+            blurRadius: 24,
+            offset: Offset(0, -6),
+          ),
+          BoxShadow(
+            color: Color(0x08000000),
+            blurRadius: 4,
+            offset: Offset(0, -1),
+          ),
+        ],
+      ),
       child: SafeArea(
         top: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(10, 6, 10, 10),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
-              boxShadow: [
-                BoxShadow(
-                  color: theme.colorScheme.primary.withValues(alpha: 0.06),
-                  blurRadius: 18,
-                  offset: const Offset(0, -2),
+        child: SizedBox(
+          height: 66,
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Row(
+              children: [
+                ...primarySections.map((section) {
+                  final copy =
+                      _sectionCopy[section] ?? const _SectionCopy('', '');
+                  final icon = _sectionIcons[section] ?? Icons.circle;
+
+                  return SizedBox(
+                    width: 84,
+                    child: _NavItem(
+                      icon: icon,
+                      label: isMalayalam ? copy.malayalam : copy.english,
+                      selected: section == selectedSection,
+                      isMalayalam: isMalayalam,
+                      onTap: () => onSectionSelected(section),
+                    ),
+                  );
+                }),
+                SizedBox(
+                  width: 84,
+                  child: _NavItem(
+                    icon: Icons.more_horiz,
+                    label: isMalayalam ? 'കൂടുതൽ' : 'More',
+                    selected: isMoreActive,
+                    isMalayalam: isMalayalam,
+                    onTap: onMoreTapped,
+                  ),
                 ),
               ],
-            ),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  ...primarySections.map((section) {
-                    final copy =
-                        _sectionCopy[section] ?? const _SectionCopy('', '');
-                    final icon = _sectionIcons[section] ?? Icons.circle;
-
-                    return SizedBox(
-                      width: 92,
-                      child: _NavItem(
-                        icon: icon,
-                        label: isMalayalam ? copy.malayalam : copy.english,
-                        selected: section == selectedSection,
-                        isMalayalam: isMalayalam,
-                        onTap: () => onSectionSelected(section),
-                      ),
-                    );
-                  }),
-                  SizedBox(
-                    width: 92,
-                    child: _NavItem(
-                      icon: Icons.more_horiz,
-                      label: isMalayalam ? 'കൂടുതൽ' : 'More',
-                      selected: isMoreActive,
-                      isMalayalam: isMalayalam,
-                      onTap: onMoreTapped,
-                    ),
-                  ),
-                ],
-              ),
             ),
           ),
         ),
@@ -775,11 +776,12 @@ class _NavItemState extends State<_NavItem> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final activeColor = theme.colorScheme.primary;
-    const inactiveColor = Color(0xFF64748B);
+    const inactiveColor = Color(0xFF9CA3AF);
     final icon = widget.icon;
     final selected = widget.selected;
     final isMalayalam = widget.isMalayalam;
     final label = widget.label;
+    final color = selected ? activeColor : inactiveColor;
 
     return AnimatedScale(
       scale: _pressed ? 0.96 : 1.0,
@@ -792,31 +794,14 @@ class _NavItemState extends State<_NavItem> {
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 3),
           child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
             mainAxisSize: MainAxisSize.min,
             children: [
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 7,
-                ),
-                decoration: BoxDecoration(
-                  color: selected
-                      ? activeColor.withValues(alpha: 0.16)
-                      : Colors.transparent,
-                  border: Border.all(
-                    color: selected
-                        ? activeColor.withValues(alpha: 0.45)
-                        : Colors.transparent,
-                    width: selected ? 1.5 : 1,
-                  ),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Icon(
-                  icon,
-                  size: 22,
-                  color: selected ? activeColor : inactiveColor,
-                ),
+              AnimatedScale(
+                scale: selected ? 1.0 : 0.94,
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeOutCubic,
+                child: Icon(icon, size: 25, color: color),
               ),
               const SizedBox(height: 5),
               isMalayalam
@@ -829,8 +814,8 @@ class _NavItemState extends State<_NavItem> {
                           letterSpacing: 0,
                           fontWeight: selected
                               ? FontWeight.w700
-                              : FontWeight.w400,
-                          color: selected ? activeColor : inactiveColor,
+                              : FontWeight.w500,
+                          color: color,
                         ),
                       ),
                       maxLines: 1,
@@ -846,8 +831,8 @@ class _NavItemState extends State<_NavItem> {
                         letterSpacing: 0,
                         fontWeight: selected
                             ? FontWeight.w700
-                            : FontWeight.w400,
-                        color: selected ? activeColor : inactiveColor,
+                            : FontWeight.w500,
+                        color: color,
                       ),
                       maxLines: 1,
                       softWrap: false,

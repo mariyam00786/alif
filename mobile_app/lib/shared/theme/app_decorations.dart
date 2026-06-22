@@ -11,9 +11,9 @@ class AppDecorations {
   AppDecorations._();
 
   // ── Radii ────────────────────────────────────────────────────────────────
-  static const double radiusSm = 10;
-  static const double radiusMd = 14;
-  static const double radiusLg = 18;
+  static const double radiusSm = 12;
+  static const double radiusMd = 16;
+  static const double radiusLg = 20;
   static const double radiusFull = 28;
 
   static BorderRadius get brSm => BorderRadius.circular(radiusSm);
@@ -26,15 +26,32 @@ class AppDecorations {
   static Border get hairlineSoft =>
       Border.all(color: AppColors.borderSoft, width: 1);
 
-  // ── Shadows (kept subtle for a minimal look) ─────────────────────────────
+  // ── Shadows (soft, airy floating-card look) ──────────────────────────────
   static const List<BoxShadow> none = <BoxShadow>[];
 
-  static const List<BoxShadow> soft = [
-    BoxShadow(color: Color(0x08101729), blurRadius: 12, offset: Offset(0, 4)),
-    BoxShadow(color: Color(0x05101729), blurRadius: 4, offset: Offset(0, 1)),
+  /// Whisper-soft ambient shadow for bordered "flat" cards so they lift
+  /// gently off the background instead of looking pasted on.
+  static const List<BoxShadow> ambient = [
+    BoxShadow(
+      color: Color(0x0A14110D),
+      blurRadius: 14,
+      offset: Offset(0, 6),
+      spreadRadius: -6,
+    ),
   ];
 
-  /// Flat minimal card: white surface, hairline border, no shadow.
+  /// Soft diffuse elevation used by floating cards (StatTiles, summaries).
+  static const List<BoxShadow> soft = [
+    BoxShadow(
+      color: Color(0x12101729),
+      blurRadius: 24,
+      offset: Offset(0, 12),
+      spreadRadius: -10,
+    ),
+    BoxShadow(color: Color(0x0A101729), blurRadius: 6, offset: Offset(0, 2)),
+  ];
+
+  /// Flat minimal card: white surface, hairline border + whisper shadow.
   static BoxDecoration card({
     Color color = AppColors.surface,
     double radius = radiusLg,
@@ -42,7 +59,8 @@ class AppDecorations {
     return BoxDecoration(
       color: color,
       borderRadius: BorderRadius.circular(radius),
-      border: Border.all(color: AppColors.border, width: 1),
+      border: Border.all(color: AppColors.borderSoft, width: 1),
+      boxShadow: ambient,
     );
   }
 

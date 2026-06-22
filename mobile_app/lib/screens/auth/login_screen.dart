@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../components/button.dart';
-import '../../components/input.dart';
 import '../../components/otp_box_field.dart';
 import '../../constants/app_theme.dart';
 import '../../constants/colors.dart';
 import '../../constants/dimensions.dart';
 import '../../services/api_service.dart';
 import '../../services/google_auth_service.dart';
+
+/// Soft neutral page background used behind the login card (reference design).
+const Color _kLoginPageBg = Color(0xFFEDEFF1);
+const Color _kLoginShadow = Color(0xFF0F172A);
 
 enum LoginStep { phone, otp }
 
@@ -65,34 +69,10 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
     final isMalayalam = context.isMalayalam;
 
     return Scaffold(
-      backgroundColor: ColorPalette.backgroundLight,
+      backgroundColor: _kLoginPageBg,
       body: SafeArea(
         child: Stack(
           children: [
-            Positioned(
-              top: -100,
-              left: -80,
-              child: Container(
-                width: 240,
-                height: 240,
-                decoration: BoxDecoration(
-                  color: ColorPalette.primaryMuted.withValues(alpha: 0.35),
-                  shape: BoxShape.circle,
-                ),
-              ),
-            ),
-            Positioned(
-              bottom: -110,
-              right: -90,
-              child: Container(
-                width: 260,
-                height: 260,
-                decoration: BoxDecoration(
-                  color: ColorPalette.secondaryMuted.withValues(alpha: 0.32),
-                  shape: BoxShape.circle,
-                ),
-              ),
-            ),
             Center(
               child: SingleChildScrollView(
                 child: Padding(
@@ -103,18 +83,15 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
                   child: ConstrainedBox(
                     constraints: BoxConstraints(maxWidth: 460),
                     child: Container(
-                      padding: EdgeInsets.all(SpacingScale.lg),
+                      padding: EdgeInsets.all(SpacingScale.lg + 4),
                       decoration: BoxDecoration(
-                        color: ColorPalette.white.withValues(alpha: 0.96),
-                        borderRadius: BorderRadius.circular(28),
-                        border: Border.all(color: ColorPalette.neutral200),
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(32),
                         boxShadow: [
                           BoxShadow(
-                            color: ColorPalette.primaryDark.withValues(
-                              alpha: 0.08,
-                            ),
-                            blurRadius: 30,
-                            offset: Offset(0, 14),
+                            color: _kLoginShadow.withValues(alpha: 0.08),
+                            blurRadius: 40,
+                            offset: const Offset(0, 20),
                           ),
                         ],
                       ),
@@ -162,7 +139,7 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
                             variant: ButtonVariant.primary,
                             size: ButtonSize.large,
                             width: double.infinity,
-                            borderRadius: BorderRadius.circular(14),
+                            borderRadius: BorderRadius.circular(30),
                             isMalayalam: isMalayalam,
                           ),
                           if (_step == LoginStep.otp && !_useEmail) ...[
@@ -231,11 +208,10 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
 
   Widget _buildPortalSelector(bool isMalayalam) {
     return Container(
-      padding: const EdgeInsets.all(4),
+      padding: const EdgeInsets.all(5),
       decoration: BoxDecoration(
-        color: ColorPalette.neutral100,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: ColorPalette.neutral200),
+        color: const Color(0xFFE9ECEF),
+        borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
         children: [
@@ -318,38 +294,16 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
     return Column(
       children: [
         Container(
-          padding: EdgeInsets.symmetric(
-            horizontal: SpacingScale.md,
-            vertical: SpacingScale.xs,
-          ),
-          decoration: BoxDecoration(
-            color: ColorPalette.primaryMuted,
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(
-              color: ColorPalette.primaryLight.withValues(alpha: 0.3),
-            ),
-          ),
-          child: Text(
-            isMalayalam ? 'സുരക്ഷിത പ്രവേശനം' : 'Secure Sign In',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: ColorPalette.primaryDark,
-            ),
-          ),
-        ),
-        SizedBox(height: SpacingScale.sm),
-        Container(
-          width: 56,
-          height: 56,
+          width: 60,
+          height: 60,
           decoration: BoxDecoration(
             color: ColorPalette.primaryDark,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(18),
             boxShadow: [
               BoxShadow(
                 color: ColorPalette.primaryDark.withValues(alpha: 0.28),
-                blurRadius: 14,
-                offset: Offset(0, 6),
+                blurRadius: 18,
+                offset: const Offset(0, 8),
               ),
             ],
           ),
@@ -358,21 +312,21 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
         SizedBox(height: SpacingScale.md),
         Text(
           _portalTitle(isMalayalam),
-          style: TextStyle(
-            fontSize: 24,
+          style: const TextStyle(
+            fontSize: 26,
             height: 1.15,
             fontWeight: FontWeight.w800,
-            color: ColorPalette.primaryDark,
+            color: Color(0xFF1F2937),
           ),
           textAlign: TextAlign.center,
         ),
         SizedBox(height: SpacingScale.xs),
         Text(
           subtitle,
-          style: TextStyle(
+          style: const TextStyle(
             fontSize: 14,
-            height: 1.35,
-            color: ColorPalette.neutral600,
+            height: 1.4,
+            color: Color(0xFF6B7280),
           ),
           textAlign: TextAlign.center,
         ),
@@ -394,17 +348,17 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
               textAlign: TextAlign.center,
             ),
             SizedBox(height: SpacingScale.md),
-            AlifInput(
-              label: isMalayalam ? 'ഫോൺ നമ്പർ' : 'Phone Number',
-              placeholder: '+966...',
-              type: InputType.phone,
+            _loginField(
+              icon: Icons.phone_iphone_rounded,
+              hint: isMalayalam ? 'ഫോൺ നമ്പർ' : 'Phone number',
               controller: _phoneController,
-              onChanged: (value) {
-                setState(() => _phone = value);
-              },
-              required: true,
+              keyboardType: TextInputType.phone,
+              formatters: [
+                FilteringTextInputFormatter.digitsOnly,
+                LengthLimitingTextInputFormatter(15),
+              ],
               validator: _validatePhone,
-              isMalayalam: isMalayalam,
+              onChanged: (value) => setState(() => _phone = value),
               helperText: isMalayalam
                   ? 'ദേശ കോഡ് സഹിതം'
                   : 'Include country code',
@@ -454,26 +408,20 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
         icon: Icons.alternate_email,
         child: Column(
           children: [
-            AlifInput(
-              label: isMalayalam ? 'ഇമെയിൽ' : 'Email',
-              placeholder: 'you@example.com',
-              type: InputType.email,
+            _loginField(
+              icon: Icons.alternate_email_rounded,
+              hint: isMalayalam ? 'ഇമെയിൽ' : 'Email address',
               controller: _emailController,
-              required: true,
+              keyboardType: TextInputType.emailAddress,
               validator: _validateEmail,
-              isMalayalam: isMalayalam,
             ),
             SizedBox(height: SpacingScale.md),
-            AlifInput(
-              label: isMalayalam ? 'പാസ്‌വേഡ്' : 'Password',
-              placeholder: isMalayalam
-                  ? 'നിങ്ങളുടെ പാസ്‌വേഡ്'
-                  : 'Your password',
-              type: InputType.password,
+            _loginField(
+              icon: Icons.lock_outline_rounded,
+              hint: isMalayalam ? 'പാസ്‌വേഡ്' : 'Password',
               controller: _passwordController,
-              required: true,
+              isPassword: true,
               validator: _validatePassword,
-              isMalayalam: isMalayalam,
             ),
           ],
         ),
@@ -509,29 +457,33 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
     required IconData icon,
     required Widget child,
   }) {
-    return Container(
-      width: double.infinity,
-      padding: EdgeInsets.all(SpacingScale.md),
-      decoration: BoxDecoration(
-        color: accent.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: accent.withValues(alpha: 0.32)),
-      ),
-      child: Column(
-        children: [
-          Container(
-            width: 46,
-            height: 46,
-            decoration: BoxDecoration(
-              color: ColorPalette.white,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, color: accent, size: 24),
-          ),
-          SizedBox(height: SpacingScale.md),
-          child,
-        ],
-      ),
+    return SizedBox(width: double.infinity, child: child);
+  }
+
+  /// Pill-shaped login input matching the reference design: a white field with
+  /// a soft shadow, a leading icon and (for passwords) a visibility toggle.
+  Widget _loginField({
+    required IconData icon,
+    required String hint,
+    required TextEditingController controller,
+    TextInputType keyboardType = TextInputType.text,
+    List<TextInputFormatter> formatters = const [],
+    bool isPassword = false,
+    String? Function(String?)? validator,
+    ValueChanged<String>? onChanged,
+    String? helperText,
+  }) {
+    return _LoginField(
+      icon: icon,
+      hint: hint,
+      controller: controller,
+      keyboardType: keyboardType,
+      formatters: formatters,
+      isPassword: isPassword,
+      validator: validator,
+      onChanged: onChanged,
+      helperText: helperText,
+      enabled: !_isLoading,
     );
   }
 
@@ -763,5 +715,107 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
         _error = error.toString().replaceFirst('Bad state: ', '');
       });
     }
+  }
+}
+
+/// Private pill-style text field used only by the login screen. Mirrors the
+/// reference design: white rounded field with a soft shadow, a leading icon and
+/// an optional password visibility toggle. Validation/formatting behaviour is
+/// preserved by forwarding the controller, validator and input formatters.
+class _LoginField extends StatefulWidget {
+  const _LoginField({
+    required this.icon,
+    required this.hint,
+    required this.controller,
+    this.keyboardType = TextInputType.text,
+    this.formatters = const [],
+    this.isPassword = false,
+    this.validator,
+    this.onChanged,
+    this.helperText,
+    this.enabled = true,
+  });
+
+  final IconData icon;
+  final String hint;
+  final TextEditingController controller;
+  final TextInputType keyboardType;
+  final List<TextInputFormatter> formatters;
+  final bool isPassword;
+  final String? Function(String?)? validator;
+  final ValueChanged<String>? onChanged;
+  final String? helperText;
+  final bool enabled;
+
+  @override
+  State<_LoginField> createState() => _LoginFieldState();
+}
+
+class _LoginFieldState extends State<_LoginField> {
+  bool _obscure = true;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFEDEFF2)),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.06),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: TextFormField(
+        controller: widget.controller,
+        enabled: widget.enabled,
+        keyboardType: widget.keyboardType,
+        inputFormatters: widget.formatters,
+        obscureText: widget.isPassword && _obscure,
+        validator: widget.validator,
+        onChanged: widget.onChanged,
+        textDirection: TextDirection.ltr,
+        style: const TextStyle(fontSize: 15, color: Color(0xFF1F2937)),
+        decoration: InputDecoration(
+          hintText: widget.hint,
+          hintStyle: const TextStyle(color: Color(0xFF9CA3AF), fontSize: 15),
+          helperText: widget.helperText,
+          helperStyle: const TextStyle(color: Color(0xFF9CA3AF), fontSize: 12),
+          prefixIcon: Icon(
+            widget.icon,
+            color: const Color(0xFF6B7280),
+            size: 22,
+          ),
+          suffixIcon: widget.isPassword
+              ? IconButton(
+                  icon: Icon(
+                    _obscure
+                        ? Icons.visibility_off_rounded
+                        : Icons.visibility_rounded,
+                    color: const Color(0xFF9CA3AF),
+                    size: 22,
+                  ),
+                  onPressed: () => setState(() => _obscure = !_obscure),
+                )
+              : null,
+          filled: true,
+          fillColor: Colors.transparent,
+          isDense: true,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 8,
+            vertical: 18,
+          ),
+          border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
+          disabledBorder: InputBorder.none,
+          errorBorder: InputBorder.none,
+          focusedErrorBorder: InputBorder.none,
+        ),
+      ),
+    );
   }
 }

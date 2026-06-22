@@ -297,7 +297,22 @@ class StudentHomeScreen extends StatelessWidget {
             ),
             borderRadius: BorderRadius.vertical(bottom: Radius.circular(28)),
           ),
-          child: SafeArea(
+          child: ClipRRect(
+            borderRadius: const BorderRadius.vertical(
+              bottom: Radius.circular(28),
+            ),
+            child: Stack(
+              children: [
+                Positioned(
+                  right: -22,
+                  top: -20,
+                  child: Icon(
+                    Icons.mosque_rounded,
+                    size: 150,
+                    color: Colors.white.withValues(alpha: 0.07),
+                  ),
+                ),
+                SafeArea(
             bottom: false,
             child: Padding(
               padding: const EdgeInsets.fromLTRB(18, 12, 18, _kCardOverlap + 8),
@@ -348,6 +363,10 @@ class StudentHomeScreen extends StatelessWidget {
                   ),
                 ],
               ),
+            ),
+          ),
+                ),
+              ],
             ),
           ),
         ),
@@ -544,7 +563,8 @@ class StudentHomeScreen extends StatelessWidget {
     required String label,
   }) {
     return AppCard(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
+      elevated: true,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -581,7 +601,7 @@ class StudentHomeScreen extends StatelessWidget {
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.all(14),
-        decoration: AppDecorations.card(),
+        decoration: AppDecorations.softCard(),
         child: Row(
           children: [
             _iconBadge(icon, iconColor, size: 46, radius: 15, iconSize: 22),

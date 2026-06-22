@@ -445,7 +445,7 @@ class SoftCard extends StatelessWidget {
     this.color,
     this.onTap,
     this.borderColor,
-    this.radius = 16,
+    this.radius = 18,
   });
 
   @override
@@ -456,7 +456,8 @@ class SoftCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: color ?? AppColors.surface,
         borderRadius: BorderRadius.circular(radius),
-        border: Border.all(color: borderColor ?? AppColors.border),
+        border: Border.all(color: borderColor ?? AppColors.borderSoft),
+        boxShadow: AppDecorations.soft,
       ),
       child: child,
     );
@@ -1199,6 +1200,149 @@ class _NotificationTile extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// A single tab in [AppBottomNavBar].
+class AppNavItem {
+  final IconData icon;
+  final String labelEn;
+  final String labelMl;
+
+  /// Optional unread/pending count shown as a red badge over the icon.
+  final int badgeCount;
+
+  const AppNavItem({
+    required this.icon,
+    required this.labelEn,
+    required this.labelMl,
+    this.badgeCount = 0,
+  });
+}
+
+/// Unified bottom navigation bar shared across the student, parent and teacher
+/// portals (and mirrored in the admin panel).
+///
+/// Flat tab style matching the app reference design: a white bar with softly
+/// rounded top corners, an upward shadow and a hairline top border. The active
+/// tab shows a brand-teal icon + label; inactive tabs are muted grey. There is
+/// intentionally no filled pill behind the active icon.
+class AppBottomNavBar extends StatelessWidget {
+  final List<AppNavItem> items;
+  final int currentIndex;
+  final ValueChanged<int> onTap;
+  final bool isMalayalam;
+
+  const AppBottomNavBar({
+    super.key,
+    required this.items,
+    required this.currentIndex,
+    required this.onTap,
+    required this.isMalayalam,
+  });
+
+  static const Color _inactive = Color(0xFF9CA3AF);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        border: Border(top: BorderSide(color: Color(0xFFEEF0F2), width: 1)),
+        boxShadow: [
+          BoxShadow(
+            color: Color(0x14000000),
+            blurRadius: 24,
+            offset: Offset(0, -6),
+          ),
+          BoxShadow(
+            color: Color(0x08000000),
+            blurRadius: 4,
+            offset: Offset(0, -1),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: SizedBox(
+          height: 66,
+          child: Row(
+            children: List.generate(items.length, (index) {
+              final item = items[index];
+              final selected = index == currentIndex;
+              final color = selected ? kGreen : _inactive;
+              return Expanded(
+                child: GestureDetector(
+                  onTap: () => onTap(index),
+                  behavior: HitTestBehavior.opaque,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          AnimatedScale(
+                            scale: selected ? 1.0 : 0.94,
+                            duration: const Duration(milliseconds: 200),
+                            curve: Curves.easeOutCubic,
+                            child: Icon(item.icon, size: 25, color: color),
+                          ),
+                          if (item.badgeCount > 0)
+                            Positioned(
+                              right: -8,
+                              top: -5,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 5,
+                                  vertical: 1,
+                                ),
+                                constraints: const BoxConstraints(minWidth: 16),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFDC2626),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: Colors.white,
+                                    width: 1.5,
+                                  ),
+                                ),
+                                child: Text(
+                                  item.badgeCount > 99
+                                      ? '99+'
+                                      : '${item.badgeCount}',
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        isMalayalam ? item.labelMl : item.labelEn,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 11,
+                          height: 1.0,
+                          fontWeight:
+                              selected ? FontWeight.w700 : FontWeight.w500,
+                          color: color,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }),
+          ),
+        ),
       ),
     );
   }

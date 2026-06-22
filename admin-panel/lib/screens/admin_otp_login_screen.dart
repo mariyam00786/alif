@@ -141,13 +141,7 @@ class _AdminOtpLoginScreenState extends State<AdminOtpLoginScreen> {
 
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF0F172A), Color(0xFF1E293B), Color(0xFF0F766E)],
-          ),
-        ),
+        color: const Color(0xFFEDEFF1),
         child: SafeArea(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(24),
@@ -155,9 +149,12 @@ class _AdminOtpLoginScreenState extends State<AdminOtpLoginScreen> {
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 440),
                 child: Card(
-                  elevation: 12,
+                  elevation: 18,
+                  color: Colors.white,
+                  surfaceTintColor: Colors.white,
+                  shadowColor: const Color(0xFF0F172A).withValues(alpha: 0.10),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(28),
+                    borderRadius: BorderRadius.circular(32),
                   ),
                   child: Padding(
                     padding: const EdgeInsets.all(28),
@@ -167,13 +164,16 @@ class _AdminOtpLoginScreenState extends State<AdminOtpLoginScreen> {
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          const Center(child: AlifLogo(height: 88)),
-                          const SizedBox(height: 18),
-                          Text(
+                          const Center(child: AlifLogo(height: 84)),
+                          const SizedBox(height: 20),
+                          const Text(
                             'Admin Sign In',
                             textAlign: TextAlign.center,
-                            style: Theme.of(context).textTheme.headlineSmall
-                                ?.copyWith(fontWeight: FontWeight.w700),
+                            style: TextStyle(
+                              fontSize: 26,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF1F2937),
+                            ),
                           ),
                           const SizedBox(height: 10),
                           Text(
@@ -181,27 +181,62 @@ class _AdminOtpLoginScreenState extends State<AdminOtpLoginScreen> {
                                 ? 'Enter the one-time code sent to $_phone on WhatsApp.'
                                 : 'Sign in with your registered phone number. A one-time code will be sent to your WhatsApp.',
                             textAlign: TextAlign.center,
-                            style: Theme.of(context).textTheme.bodyMedium,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              height: 1.4,
+                              color: Color(0xFF6B7280),
+                            ),
                           ),
-                          const SizedBox(height: 24),
+                          const SizedBox(height: 26),
                           if (!isOtpStep)
-                            TextFormField(
-                              controller: _phoneController,
-                              keyboardType: TextInputType.phone,
-                              enabled: !_isBusy,
-                              autofillHints: const [
-                                AutofillHints.telephoneNumber,
-                              ],
-                              decoration: InputDecoration(
-                                labelText: 'Phone Number',
-                                hintText: '+9198XXXXXXXX',
-                                prefixIcon: const Icon(Icons.phone_iphone),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(18),
+                            Container(
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(18),
+                                border: Border.all(
+                                  color: const Color(0xFFEDEFF2),
                                 ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(
+                                      0xFF0F172A,
+                                    ).withValues(alpha: 0.06),
+                                    blurRadius: 18,
+                                    offset: const Offset(0, 8),
+                                  ),
+                                ],
                               ),
-                              validator: _validatePhone,
-                              onFieldSubmitted: (_) => _handleSendOtp(),
+                              child: TextFormField(
+                                controller: _phoneController,
+                                keyboardType: TextInputType.phone,
+                                enabled: !_isBusy,
+                                autofillHints: const [
+                                  AutofillHints.telephoneNumber,
+                                ],
+                                decoration: InputDecoration(
+                                  hintText: '+9198XXXXXXXX',
+                                  hintStyle: const TextStyle(
+                                    color: Color(0xFF9CA3AF),
+                                  ),
+                                  prefixIcon: const Icon(
+                                    Icons.phone_iphone_rounded,
+                                    color: Color(0xFF6B7280),
+                                  ),
+                                  filled: true,
+                                  fillColor: Colors.transparent,
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 18,
+                                  ),
+                                  border: InputBorder.none,
+                                  enabledBorder: InputBorder.none,
+                                  focusedBorder: InputBorder.none,
+                                  errorBorder: InputBorder.none,
+                                  focusedErrorBorder: InputBorder.none,
+                                ),
+                                validator: _validatePhone,
+                                onFieldSubmitted: (_) => _handleSendOtp(),
+                              ),
                             )
                           else
                             OtpBoxField(
@@ -241,9 +276,11 @@ class _AdminOtpLoginScreenState extends State<AdminOtpLoginScreen> {
                                   : (isOtpStep ? 'Verify & Sign In' : 'Send OTP'),
                             ),
                             style: FilledButton.styleFrom(
+                              backgroundColor: const Color(0xFF0F766E),
+                              foregroundColor: Colors.white,
                               padding: const EdgeInsets.symmetric(vertical: 18),
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(18),
+                                borderRadius: BorderRadius.circular(30),
                               ),
                             ),
                           ),

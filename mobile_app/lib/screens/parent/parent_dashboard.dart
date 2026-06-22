@@ -330,124 +330,19 @@ class _ParentDashboardState extends State<ParentDashboard> {
       (sum, c) => sum + c.pendingApprovals,
     );
 
-    return SafeArea(
-      top: false,
-      child: Container(
-        margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(22),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x14000000),
-              blurRadius: 20,
-              offset: Offset(0, 4),
-            ),
-            BoxShadow(
-              color: Color(0x08000000),
-              blurRadius: 6,
-              offset: Offset(0, 1),
-            ),
-          ],
-        ),
-        child: Row(
-          children: List.generate(_navItems.length, (index) {
-            final item = _navItems[index];
-            final selected = _selectedIndex == index;
-            final showBadge = index == 1 && totalPending > 0;
-            return Expanded(
-              child: GestureDetector(
-                onTap: () => _select(index),
-                behavior: HitTestBehavior.opaque,
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 220),
-                  curve: Curves.easeOutCubic,
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  decoration: BoxDecoration(
-                    color: selected
-                        ? const Color(0xFF0F766E).withValues(alpha: 0.1)
-                        : Colors.transparent,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Stack(
-                        clipBehavior: Clip.none,
-                        children: [
-                          AnimatedContainer(
-                            duration: const Duration(milliseconds: 220),
-                            width: selected ? 40 : 36,
-                            height: selected ? 40 : 36,
-                            decoration: BoxDecoration(
-                              color: selected
-                                  ? const Color(0xFF0F766E)
-                                  : Colors.transparent,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Icon(
-                              item.icon,
-                              size: 20,
-                              color: selected
-                                  ? Colors.white
-                                  : const Color(0xFF9CA3AF),
-                            ),
-                          ),
-                          if (showBadge)
-                            Positioned(
-                              right: -6,
-                              top: -4,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 5,
-                                  vertical: 1,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFDC2626),
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(
-                                    color: Colors.white,
-                                    width: 1.5,
-                                  ),
-                                ),
-                                constraints: const BoxConstraints(minWidth: 16),
-                                child: Text(
-                                  '$totalPending',
-                                  textAlign: TextAlign.center,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        isMalayalam ? item.labelMl : item.labelEn,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: selected
-                              ? FontWeight.w700
-                              : FontWeight.w500,
-                          color: selected
-                              ? const Color(0xFF0F766E)
-                              : const Color(0xFF9CA3AF),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          }),
-        ),
-      ),
+    return AppBottomNavBar(
+      isMalayalam: isMalayalam,
+      currentIndex: _selectedIndex,
+      onTap: _select,
+      items: [
+        for (var i = 0; i < _navItems.length; i++)
+          AppNavItem(
+            icon: _navItems[i].icon,
+            labelEn: _navItems[i].labelEn,
+            labelMl: _navItems[i].labelMl,
+            badgeCount: i == 1 ? totalPending : 0,
+          ),
+      ],
     );
   }
 }
