@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'constants/app_theme.dart';
-import 'screens/auth/google_login_screen.dart';
+import 'screens/auth/login_screen.dart';
 import 'screens/dashboard/student_dashboard_screen.dart';
 import 'screens/parent/parent_dashboard.dart';
 import 'screens/teacher/teacher_dashboard.dart';
@@ -42,9 +42,20 @@ class AlifMobileApp extends StatelessWidget {
               minScaleFactor: 0.85,
               maxScaleFactor: 1.30,
             );
+            // Keep the app at a single phone-sized column and centre it, so on
+            // tablets / desktop / web it still reads as one mobile screen
+            // instead of stretching edge to edge.
             return MediaQuery(
               data: media.copyWith(textScaler: clamped),
-              child: child ?? const SizedBox.shrink(),
+              child: ColoredBox(
+                color: const Color(0xFFDDE3DD),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 480),
+                    child: child ?? const SizedBox.shrink(),
+                  ),
+                ),
+              ),
             );
           },
           home: _resolveHome(context, appState),
@@ -55,21 +66,28 @@ class AlifMobileApp extends StatelessWidget {
 
   Widget _resolveHome(BuildContext context, AppStateProvider appState) {
     if (!appState.isLoggedIn) {
-      return MobileGoogleLoginScreen(
-        onLoginSuccess: (role) => context.read<AppStateProvider>().login(role),
+      return MobileLoginScreen(
+        onLoginSuccess: (role, {bool hasParentAccess = false}) => context
+            .read<AppStateProvider>()
+            .login(role, hasParentAccess: hasParentAccess),
       );
     }
 
-    if (appState.activeRole == 'parent') {
+    final view = appState.activeView;
+
+    if (view == 'parent') {
       return ParentDashboard(
         locale: appState.locale,
         onLocaleChanged: (locale) =>
             context.read<AppStateProvider>().setLocale(locale),
         onLogout: () => context.read<AppStateProvider>().logout(),
+        onSwitchToStudent: appState.canSwitchToStudent
+            ? () => context.read<AppStateProvider>().switchToStudentView()
+            : null,
       );
     }
 
-    if (appState.activeRole == 'teacher') {
+    if (view == 'teacher') {
       return TeacherDashboard(
         locale: appState.locale,
         onLocaleChanged: (locale) =>
@@ -85,6 +103,9 @@ class AlifMobileApp extends StatelessWidget {
       onLogout: () => context.read<AppStateProvider>().logout(),
       studentId: appState.effectiveStudentId,
       studentName: 'My Progress',
+      onSwitchToParent: appState.canSwitchToParent
+          ? () => context.read<AppStateProvider>().switchToParentView()
+          : null,
     );
   }
 }

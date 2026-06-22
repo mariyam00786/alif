@@ -3,14 +3,15 @@ import 'package:provider/provider.dart';
 
 import 'components/admin_shell.dart';
 import 'components/admin_top_actions.dart';
+import 'components/whatsapp_alert_banner.dart';
 import 'constants/app_theme.dart';
 import 'model/app_models.dart';
 import 'provider/admin_provider.dart';
 import 'screens/activity_configuration_screen.dart';
 import 'screens/admin_dashboard_screen.dart';
+import 'screens/admin_otp_login_screen.dart';
 import 'screens/badge_management_screen.dart';
 import 'screens/batch_management_screen.dart';
-import 'screens/google_admin_login_screen.dart';
 import 'screens/notification_management_screen.dart';
 import 'screens/rating_configuration_screen.dart';
 import 'screens/reports_dashboard_screen.dart';
@@ -70,7 +71,7 @@ class AlifAdminApp extends StatelessWidget {
           }
 
           if (!provider.isLoggedIn) {
-            return GoogleAdminLoginScreen(
+            return AdminOtpLoginScreen(
               onLoginSuccess: provider.handleLoginSuccess,
             );
           }
@@ -83,7 +84,16 @@ class AlifAdminApp extends StatelessWidget {
             notifications: _bellNotifications(provider),
             child: provider.loading || provider.state == null
                 ? const Center(child: CircularProgressIndicator())
-                : _buildScreen(provider),
+                : Column(
+                    children: [
+                      if (provider.showWhatsAppAlert)
+                        WhatsAppAlertBanner(
+                          message: provider.whatsAppMessage,
+                          onRetry: provider.refreshWhatsAppStatus,
+                        ),
+                      Expanded(child: _buildScreen(provider)),
+                    ],
+                  ),
           );
         },
       ),
@@ -102,6 +112,7 @@ class AlifAdminApp extends StatelessWidget {
   Widget _buildScreen(AdminProvider provider) {
     final state = provider.state!;
     final availableClasses = {
+      ...state.classes,
       ...state.students.map((student) => student.className),
       ...state.batchClasses.map((batch) => batch.className),
     }.where((value) => value.isNotEmpty).toList()..sort();

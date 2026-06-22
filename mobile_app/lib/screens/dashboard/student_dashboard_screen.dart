@@ -23,6 +23,11 @@ class MobileStudentDashboard extends StatefulWidget {
   /// action instead of logging out. Defaults to null (the student's own board).
   final VoidCallback? onExit;
 
+  /// When provided, the profile tab offers a "switch to parent" action for a
+  /// dual student/parent account (single sign-in, no re-login). Defaults to
+  /// null for accounts that are not linked to any children.
+  final VoidCallback? onSwitchToParent;
+
   const MobileStudentDashboard({
     super.key,
     required this.locale,
@@ -31,6 +36,7 @@ class MobileStudentDashboard extends StatefulWidget {
     this.studentId = 'self',
     this.studentName = 'My Progress',
     this.onExit,
+    this.onSwitchToParent,
   });
 
   @override
@@ -340,13 +346,24 @@ class _MobileStudentDashboardState extends State<MobileStudentDashboard> {
                       : 'Back to parent board',
                   onTap: widget.onExit,
                 )
-              else
+              else ...[
+                if (widget.onSwitchToParent != null) ...[
+                  _profileTile(
+                    icon: Icons.family_restroom_rounded,
+                    label: isMalayalam
+                        ? 'രക്ഷിതാവ് കാഴ്ചയിലേക്ക് മാറുക'
+                        : 'Switch to parent view',
+                    onTap: widget.onSwitchToParent,
+                  ),
+                  const SizedBox(height: 10),
+                ],
                 _profileTile(
                   icon: Icons.logout_rounded,
                   label: isMalayalam ? 'ലോഗ് ഔട്ട്' : 'Log out',
                   danger: true,
                   onTap: widget.onLogout,
                 ),
+              ],
             ],
           ),
         ),

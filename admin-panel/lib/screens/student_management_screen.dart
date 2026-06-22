@@ -22,9 +22,9 @@ class StudentManagementScreen extends StatefulWidget {
   final List<StudentRecord> students;
   final List<String> availableBatches;
   final List<String> availableClasses;
-  final ValueChanged<StudentRecord> onAdd;
-  final ValueChanged<StudentRecord> onUpdate;
-  final ValueChanged<String> onDelete;
+  final Future<void> Function(StudentRecord) onAdd;
+  final Future<void> Function(StudentRecord) onUpdate;
+  final Future<void> Function(String) onDelete;
 
   @override
   State<StudentManagementScreen> createState() =>
@@ -81,12 +81,18 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
       ),
     );
     if (result == null) return;
-    if (existing == null) {
-      widget.onAdd(result);
-      if (mounted) showInlineMessage(context, 'Student added successfully.');
-    } else {
-      widget.onUpdate(result);
-      if (mounted) showInlineMessage(context, 'Student updated successfully.');
+    try {
+      if (existing == null) {
+        await widget.onAdd(result);
+        if (mounted) showInlineMessage(context, 'Student added successfully.');
+      } else {
+        await widget.onUpdate(result);
+        if (mounted) showInlineMessage(context, 'Student updated successfully.');
+      }
+    } catch (error) {
+      if (mounted) {
+        showInlineMessage(context, 'Could not save student: $error');
+      }
     }
   }
 
@@ -110,8 +116,14 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
       ),
     );
     if (confirmed == true) {
-      widget.onDelete(student.id);
-      if (mounted) showInlineMessage(context, 'Student removed.');
+      try {
+        await widget.onDelete(student.id);
+        if (mounted) showInlineMessage(context, 'Student removed.');
+      } catch (error) {
+        if (mounted) {
+          showInlineMessage(context, 'Could not remove student: $error');
+        }
+      }
     }
   }
 

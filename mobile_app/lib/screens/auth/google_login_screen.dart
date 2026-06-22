@@ -6,14 +6,16 @@ import '../../constants/dimensions.dart';
 import '../../services/google_auth_service.dart';
 import '../../shared/theme/theme.dart';
 
-/// Which portal the user is signing in to. Drives the page branding and a
-/// post-login check that the account role matches the chosen portal.
-enum LoginPortal { student, parent, teacher }
+/// Which portal the user is signing in to. Student and parent share a single
+/// account sign-in ([LoginPortal.account]); the actual role is resolved by the
+/// backend and a parent-capable account can switch views from inside the app.
+/// Teachers authenticate separately with a username + password.
+enum LoginPortal { account, teacher }
 
 class MobileGoogleLoginScreen extends StatefulWidget {
   const MobileGoogleLoginScreen({super.key, required this.onLoginSuccess});
 
-  final ValueChanged<String> onLoginSuccess;
+  final void Function(String role, {bool hasParentAccess}) onLoginSuccess;
 
   @override
   State<MobileGoogleLoginScreen> createState() =>
@@ -25,7 +27,7 @@ class _MobileGoogleLoginScreenState extends State<MobileGoogleLoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
 
-  LoginPortal _portal = LoginPortal.student;
+  LoginPortal _portal = LoginPortal.account;
   bool _loading = false;
   bool _googleLoading = false;
   bool _obscurePassword = true;
@@ -48,30 +50,19 @@ class _MobileGoogleLoginScreenState extends State<MobileGoogleLoginScreen> {
   Widget build(BuildContext context) {
     final isMalayalam = context.isMalayalam;
     final busy = _loading || _googleLoading;
-    final isParent = _portal == LoginPortal.parent;
     final isTeacher = _portal == LoginPortal.teacher;
 
     final portalTitle = isTeacher
         ? (isMalayalam ? 'അലിഫ് ടീച്ചർ പോർട്ടൽ' : 'Alif Teacher Portal')
-        : isParent
-        ? (isMalayalam ? 'അലിഫ് പേരന്റ് പോർട്ടൽ' : 'Alif Parent Portal')
-        : (isMalayalam ? 'അലിഫ് സ്റ്റുഡന്റ് പോർട്ടൽ' : 'Alif Student Portal');
+        : (isMalayalam ? 'അലിഫ് പോർട്ടൽ' : 'Alif Portal');
     final portalSubtitle = isTeacher
         ? (isMalayalam
               ? 'യൂസർനെയിമും പാസ്‌വേഡും നൽകി സൈൻ ഇൻ ചെയ്യുക.'
               : 'Sign in with your username and password.')
-        : isParent
-        ? (isMalayalam
-              ? 'കുട്ടിയുടെ പുരോഗതി കാണാൻ സൈൻ ഇൻ ചെയ്യുക.'
-              : "Sign in to follow your child's progress.")
         : (isMalayalam
-              ? 'ഇമെയിലും പാസ്‌വേഡും നൽകി സൈൻ ഇൻ ചെയ്യുക.'
-              : 'Sign in with your email and password.');
-    final portalIcon = isTeacher
-        ? Icons.co_present_rounded
-        : isParent
-        ? Icons.family_restroom_rounded
-        : Icons.school;
+              ? 'ഇമെയിലും പാസ്‌വേഡും നൽകി സൈൻ ഇൻ ചെയ്യുക. രക്ഷിതാവിലേക്ക് ആപ്പിനുള്ളിൽ മാറാം.'
+              : 'Sign in with your email and password. Switch to parent inside the app.');
+    final portalIcon = isTeacher ? Icons.co_present_rounded : Icons.school;
 
     return Scaffold(
       backgroundColor: ColorPalette.backgroundLight,
@@ -115,20 +106,20 @@ class _MobileGoogleLoginScreenState extends State<MobileGoogleLoginScreen> {
                       SizedBox(height: SpacingScale.lg),
                       Center(
                         child: Container(
-                          width: 72,
-                          height: 72,
+                          width: 60,
+                          height: 60,
                           decoration: BoxDecoration(
                             color: AppColors.primary,
                             borderRadius: AppDecorations.brMd,
                           ),
                           child: Icon(
                             portalIcon,
-                            size: 40,
+                            size: 30,
                             color: Colors.white,
                           ),
                         ),
                       ),
-                      SizedBox(height: SpacingScale.lg),
+                      SizedBox(height: SpacingScale.md),
                       Text(
                         portalTitle,
                         textAlign: TextAlign.center,
@@ -136,7 +127,7 @@ class _MobileGoogleLoginScreenState extends State<MobileGoogleLoginScreen> {
                           color: AppColors.primary,
                         ),
                       ),
-                      SizedBox(height: SpacingScale.sm),
+                      SizedBox(height: SpacingScale.xs),
                       Text(
                         portalSubtitle,
                         textAlign: TextAlign.center,
@@ -447,8 +438,6 @@ class _MobileGoogleLoginScreenState extends State<MobileGoogleLoginScreen> {
       return;
     }
 
-    final isMalayalam = context.appState.isMalayalam;
-
     setState(() {
       _loading = true;
       _error = null;
@@ -464,11 +453,12 @@ class _MobileGoogleLoginScreenState extends State<MobileGoogleLoginScreen> {
         if (!mounted) {
           return;
         }
-        widget.onLoginSuccess(result.role);
+        widget.onLoginSuccess(result.role, hasParentAccess: false);
         return;
       }
 
-      final wantedRole = _portal == LoginPortal.parent ? 'parent' : 'student';
+      // Student and parent share one sign-in: the backend resolves the actual
+      // role, and a parent-capable account can switch views inside the app.
       final result = await MobileGoogleAuthService.signInWithEmailPassword(
         email: _emailController.text,
         password: _passwordController.text,
@@ -476,23 +466,10 @@ class _MobileGoogleLoginScreenState extends State<MobileGoogleLoginScreen> {
       if (!mounted) {
         return;
       }
-      if (result.role != wantedRole) {
-        await MobileGoogleAuthService.signOut();
-        if (!mounted) {
-          return;
-        }
-        setState(() {
-          _error = _portal == LoginPortal.parent
-              ? (isMalayalam
-                    ? 'ഈ അക്കൗണ്ട് രക്ഷിതാവ് പോർട്ടലിന് ഉള്ളതല്ല. വിദ്യാർഥി പോർട്ടൽ തിരഞ്ഞെടുക്ക.'
-                    : 'This account is not a parent account. Switch to the Student portal.')
-              : (isMalayalam
-                    ? 'ഈ അക്കൗണ്ട് വിദ്യാർഥി പോർട്ടലിന് ഉള്ളതല്ല. രക്ഷിതാവ് പോർട്ടൽ തിരഞ്ഞെടുക്ക.'
-                    : 'This account is not a student account. Switch to the Parent portal.');
-        });
-        return;
-      }
-      widget.onLoginSuccess(result.role);
+      widget.onLoginSuccess(
+        result.role,
+        hasParentAccess: result.hasParentAccess,
+      );
     } catch (error) {
       if (!mounted) {
         return;
@@ -536,7 +513,10 @@ class _MobileGoogleLoginScreenState extends State<MobileGoogleLoginScreen> {
       if (!mounted || result == null) {
         return;
       }
-      widget.onLoginSuccess(result.role);
+      widget.onLoginSuccess(
+        result.role,
+        hasParentAccess: result.hasParentAccess,
+      );
     } catch (error) {
       if (!mounted) {
         return;
@@ -568,8 +548,9 @@ class _FieldLabel extends StatelessWidget {
   }
 }
 
-/// Segmented Student / Parent / Teacher selector that switches the login page
-/// branding and the credential mode (teachers use a username + password).
+/// Segmented selector switching the login page between the shared
+/// student/parent account sign-in and the teacher sign-in (teachers use a
+/// username + password).
 class _PortalToggle extends StatelessWidget {
   const _PortalToggle({
     required this.portal,
@@ -586,7 +567,7 @@ class _PortalToggle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(5),
+      padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
         color: const Color(0xFFF1F5F2),
         borderRadius: BorderRadius.circular(40),
@@ -595,16 +576,10 @@ class _PortalToggle extends StatelessWidget {
       child: Row(
         children: [
           _segment(
-            label: isMalayalam ? 'വിദ്യാർഥി' : 'Student',
+            label: isMalayalam ? 'വിദ്യാർഥി / രക്ഷിതാവ്' : 'Student / Parent',
             icon: Icons.school_rounded,
-            selected: portal == LoginPortal.student,
-            onTap: enabled ? () => onChanged(LoginPortal.student) : null,
-          ),
-          _segment(
-            label: isMalayalam ? 'രക്ഷിതാവ്' : 'Parent',
-            icon: Icons.family_restroom_rounded,
-            selected: portal == LoginPortal.parent,
-            onTap: enabled ? () => onChanged(LoginPortal.parent) : null,
+            selected: portal == LoginPortal.account,
+            onTap: enabled ? () => onChanged(LoginPortal.account) : null,
           ),
           _segment(
             label: isMalayalam ? 'അധ്യാപകൻ' : 'Teacher',
@@ -629,7 +604,7 @@ class _PortalToggle extends StatelessWidget {
         behavior: HitTestBehavior.opaque,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
-          padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 4),
+          padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 4),
           decoration: BoxDecoration(
             color: selected ? AppColors.primary : Colors.transparent,
             borderRadius: BorderRadius.circular(34),
@@ -639,18 +614,18 @@ class _PortalToggle extends StatelessWidget {
             children: [
               Icon(
                 icon,
-                size: 19,
+                size: 16,
                 color: selected ? Colors.white : const Color(0xFF6B7280),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 3),
               FittedBox(
                 fit: BoxFit.scaleDown,
                 child: Text(
                   label,
                   maxLines: 1,
                   style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w600,
                     color: selected ? Colors.white : const Color(0xFF6B7280),
                   ),
                 ),

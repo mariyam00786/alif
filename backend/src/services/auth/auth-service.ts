@@ -169,6 +169,7 @@ export class AuthService {
       role: profile.role,
       name: profile.full_name,
       profile_id: profile.id,
+      has_parent_access: await this.profileHasChildren(profile.id),
     };
 
     return {
@@ -198,6 +199,7 @@ export class AuthService {
       role: profile.role,
       name: profile.full_name,
       profile_id: profile.id,
+      has_parent_access: await this.profileHasChildren(profile.id),
     };
 
     return {
@@ -205,6 +207,21 @@ export class AuthService {
       user,
       profile,
     };
+  }
+
+  /**
+   * Returns true when the given profile is linked to at least one student via
+   * the parent_students table. This is independent of the profile's primary
+   * `role`, so a student account that is also a parent can switch into the
+   * parent view from a single sign-in.
+   */
+  private async profileHasChildren(profileId: string): Promise<boolean> {
+    const { count, error } = await getSupabaseClient()
+      .from('parent_students')
+      .select('student_id', { count: 'exact', head: true })
+      .eq('parent_profile_id', profileId);
+    if (error) return false;
+    return (count ?? 0) > 0;
   }
 
   private async getProfileForSupabaseUser(authUser: User): Promise<Profile> {

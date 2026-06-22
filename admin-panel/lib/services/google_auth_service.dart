@@ -65,6 +65,72 @@ class AdminAuthService {
     );
   }
 
+  /// Requests a phone OTP (delivered via WhatsApp) for admin sign-in.
+  static Future<void> requestOtp(String phone) async {
+    final response = await http
+        .post(
+          Uri.parse('$_apiBaseUrl/auth/request-otp'),
+          headers: const {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          body: jsonEncode({'phone': phone}),
+        )
+        .timeout(const Duration(seconds: 20));
+
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    if (response.statusCode < 200 ||
+        response.statusCode >= 300 ||
+        body['success'] != true) {
+      throw StateError(body['message']?.toString() ?? 'Failed to send OTP.');
+    }
+  }
+
+  /// Verifies the phone OTP and exchanges it for an app token. Only the
+  /// `admin` role is permitted to access the admin panel.
+  static Future<AdminAuthResult> verifyOtp({
+    required String phone,
+    required String otp,
+  }) async {
+    final response = await http
+        .post(
+          Uri.parse('$_apiBaseUrl/auth/verify-otp'),
+          headers: const {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          body: jsonEncode({'phone': phone, 'otp': otp}),
+        )
+        .timeout(const Duration(seconds: 20));
+
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    if (response.statusCode < 200 ||
+        response.statusCode >= 300 ||
+        body['success'] != true) {
+      throw StateError(
+        body['message']?.toString() ?? 'OTP verification failed.',
+      );
+    }
+
+    final data = body['data'] as Map<String, dynamic>? ?? <String, dynamic>{};
+    final user = data['user'] as Map<String, dynamic>? ?? <String, dynamic>{};
+    final role = user['role']?.toString() ?? '';
+    if (role != 'admin') {
+      throw StateError(
+        'This phone number is not authorised for the admin panel.',
+      );
+    }
+
+    final token = data['token']?.toString() ?? body['token']?.toString() ?? '';
+    if (token.isEmpty) {
+      throw StateError(
+        'Sign-in succeeded but the backend did not return an app token.',
+      );
+    }
+
+    return AdminAuthResult(token: token, role: role);
+  }
+
   static Future<AdminAuthResult?> restoreSession() async {
     await SupabaseBootstrap.ensureInitialized();
 

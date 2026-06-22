@@ -1,10 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import '../model/app_models.dart';
 import '../services/admin_api_client.dart';
 import '../services/admin_repository.dart';
 import '../services/google_auth_service.dart';
-
 /// Central application state for the Alif admin panel.
 ///
 /// Wraps the [AdminRepository] and exposes the loaded [AdminAppState] together
@@ -44,6 +45,10 @@ class AdminProvider extends ChangeNotifier {
   String? _lastError;
   String? _lastInfo;
 
+  bool _whatsAppChecked = false;
+  bool _whatsAppConnected = true;
+  String _whatsAppMessage = '';
+
   AdminAppState? get state => _state;
   bool get isLoggedIn => _isLoggedIn;
   bool get loading => _loading;
@@ -71,6 +76,16 @@ class AdminProvider extends ChangeNotifier {
     _lastInfo = null;
     return info;
   }
+
+  /// Whether the WhatsApp sender (used to deliver OTPs) is currently online.
+  bool get whatsAppConnected => _whatsAppConnected;
+
+  /// Human-readable detail about the WhatsApp sender state.
+  String get whatsAppMessage => _whatsAppMessage;
+
+  /// True only when a check has completed and the sender is NOT connected, so
+  /// the admin should be warned that OTP delivery will fail.
+  bool get showWhatsAppAlert => _whatsAppChecked && !_whatsAppConnected;
 
   void _initialize() {
     if (_forceBypassLogin) {
@@ -114,6 +129,24 @@ class AdminProvider extends ChangeNotifier {
     _state = state;
     _loading = false;
     notifyListeners();
+    // Check the WhatsApp sender connection in the background so the dashboard
+    // can warn the admin if OTP delivery is currently broken.
+    unawaited(refreshWhatsAppStatus());
+  }
+
+  /// Fetches the live WhatsApp sender status from the backend. Failures are
+  /// swallowed so a status hiccup never blocks the dashboard.
+  Future<void> refreshWhatsAppStatus() async {
+    try {
+      final response = await _apiClient.getJson('/api/admin/whatsapp-status');
+      final data = response['data'] as Map<String, dynamic>? ?? const {};
+      _whatsAppConnected = data['connected'] == true;
+      _whatsAppMessage = data['message']?.toString() ?? '';
+      _whatsAppChecked = true;
+      notifyListeners();
+    } catch (_) {
+      // Ignore: do not disrupt the dashboard if the status endpoint is down.
+    }
   }
 
   Future<void> addStudent(StudentRecord student) async {

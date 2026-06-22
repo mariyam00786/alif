@@ -258,7 +258,11 @@ async function computeRank(child: ChildRow): Promise<{ rank: number; batchSize: 
 
 // ===== Routes =====
 
-const parentOnly = requireRoles('parent', 'admin');
+// Students are allowed here too: every query below is scoped to the caller's
+// own profile id via the parent_students table, so a student account that is
+// also linked to children (dual student/parent account) can read its parent
+// data, while a regular student simply sees an empty children list.
+const parentOnly = requireRoles('parent', 'admin', 'student');
 
 /** GET /me/children — overview dashboard data. */
 router.get(

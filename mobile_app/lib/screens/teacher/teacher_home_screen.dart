@@ -37,6 +37,7 @@ class TeacherHomeScreen extends StatelessWidget {
             title: isMalayalam ? 'നമസ്കാരം' : 'Welcome',
             subtitle: teacherName,
             icon: Icons.co_present_rounded,
+            portalLabel: isMalayalam ? 'ടീച്ചർ പോർട്ടൽ' : 'Teacher Portal',
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
               children: [

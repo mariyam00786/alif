@@ -13,8 +13,11 @@
  * - Session management
  */
 
+import { randomInt, timingSafeEqual } from 'crypto';
 import * as jwt from 'jsonwebtoken';
 import config from '../config/config';
+import { getSupabaseClient } from '../config/supabase';
+import { sendWhatsAppMessage } from './msghex/msghex-service';
 import { Profile } from '../types/database';
 
 /**
@@ -36,6 +39,12 @@ export interface AuthUser {
   role: 'student' | 'parent' | 'teacher' | 'admin';
   name: string;
   profile_id: string;
+  /**
+   * True when this account is also linked to one or more children via the
+   * parent_students table, regardless of its primary `role`. Lets a single
+   * sign-in switch into the parent view from inside the student portal.
+   */
+  has_parent_access?: boolean;
 }
 
 interface AppJwtPayload extends jwt.JwtPayload {
@@ -67,15 +76,53 @@ export interface OTPVerificationResponse {
 }
 
 /**
- * Mock implementation of Supabase Auth
- * In production, replace with actual Supabase client
+ * Phone login uses MsgHex (WhatsApp) for OTP delivery and Supabase for the
+ * user/profile store.
  */
+
+/**
+ * Server-side record of an OTP that has been issued to a phone number.
+ */
+interface OtpRecord {
+  otp: string;
+  expiresAt: number;
+  attempts: number;
+}
+
+/**
+ * In-memory store of pending OTPs keyed by phone number. Suitable for a single
+ * backend instance; back this with a shared cache (e.g. Redis) when scaling
+ * horizontally.
+ */
+const otpStore = new Map<string, OtpRecord>();
+
+/**
+ * Constant-time comparison of an expected and a supplied OTP code.
+ */
+function isOtpMatch(expected: string, supplied: string): boolean {
+  const expectedBuffer = Buffer.from(expected, 'utf8');
+  const suppliedBuffer = Buffer.from(supplied, 'utf8');
+
+  if (expectedBuffer.length !== suppliedBuffer.length) {
+    return false;
+  }
+
+  return timingSafeEqual(expectedBuffer, suppliedBuffer);
+}
+
+/**
+ * Generates a numeric OTP of the configured length (e.g. "4821").
+ */
+function generateOtp(length: number): string {
+  const digits = Math.max(4, Math.min(8, length));
+  const max = 10 ** digits;
+  return randomInt(0, max).toString().padStart(digits, '0');
+}
 
 /**
  * Request OTP for phone number
  * 
- * Calls Supabase to send OTP to the phone
- * In production: Use supabase.auth.signInWithOtp({ phone })
+ * Sends a one-time password to the user's WhatsApp number via MsgHex.
  * 
  * @param phone - Phone number in format +91XXXXXXXXXX
  * @returns OTP request response with session ID
@@ -93,22 +140,41 @@ export async function requestOTP(phone: string): Promise<OTPRequestResponse> {
         message: 'Invalid phone number format. Use +CCCXXXXXXXXX',
       };
     }
-    
-    // In production:
-    // const { data, error } = await supabaseClient.auth.signInWithOtp({
-    //   phone: phone,
-    // });
-    // if (error) throw error;
-    
-    // Mock: Generate session ID
-    const sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
-    console.log(`[MOCK] OTP sent to ${phone}. Session: ${sessionId}`);
-    
+
+    // Only registered students/parents/teachers/admins may log in.
+    const profile = await getUserByPhone(phone);
+    if (!profile) {
+      return {
+        success: false,
+        message: 'No account is registered with this phone number.',
+      };
+    }
+
+    // Generate a short OTP server-side and deliver it through MsgHex (WhatsApp)
+    // as a plain text message, so we control the code length and format.
+    const otp = generateOtp(config.msghex.otpLength);
+    const message = config.msghex.messageTemplate.replace(/\{\{\s*otp\s*\}\}/g, otp);
+
+    const result = await sendWhatsAppMessage(phone, message);
+    if (!result.success) {
+      return {
+        success: false,
+        message: result.message,
+      };
+    }
+
+    // Bind the issued OTP to this phone number so verification is recipient
+    // specific.
+    otpStore.set(phone, {
+      otp,
+      expiresAt: Date.now() + config.msghex.otpTtlSeconds * 1000,
+      attempts: 0,
+    });
+
     return {
       success: true,
-      message: 'OTP sent to your phone. Valid for 10 minutes.',
-      session_id: sessionId,
+      message: 'OTP sent to your WhatsApp number.',
+      session_id: result.messageId ?? `msghex_${Date.now()}`,
     };
   } catch (error) {
     return {
@@ -122,7 +188,7 @@ export async function requestOTP(phone: string): Promise<OTPRequestResponse> {
  * Verify OTP and authenticate user
  * 
  * @param phone - Phone number that received OTP
- * @param code - OTP code (6 digits)
+ * @param code - OTP code
  * @returns Verification response with user and token if successful
  * 
  * @example
@@ -145,54 +211,77 @@ export async function verifyOTP(
         error: 'INVALID_PHONE',
       };
     }
-    
-    if (!code.match(/^\d{6}$/)) {
+
+    if (!code.match(/^\d{4,8}$/)) {
       return {
         success: false,
-        message: 'OTP must be 6 digits',
+        message: 'Invalid OTP format',
         error: 'INVALID_OTP_FORMAT',
       };
     }
-    
-    // In production:
-    // const { data, error } = await supabaseClient.auth.verifyOtp({
-    //   phone: phone,
-    //   token: code,
-    //   type: 'sms',
-    // });
-    // if (error) throw error;
-    // const user = data.user;
-    
-    // Mock: Verify against hardcoded test OTP
-    if (code !== '000000') {
+
+    const record = otpStore.get(phone);
+
+    if (!record) {
+      return {
+        success: false,
+        message: 'OTP has expired. Please request a new one.',
+        error: 'OTP_EXPIRED',
+      };
+    }
+
+    // Enforce expiry, attempt limits and constant-time comparison so the check
+    // is bound to this specific phone number.
+    if (Date.now() > record.expiresAt) {
+      otpStore.delete(phone);
+      return {
+        success: false,
+        message: 'OTP has expired. Please request a new one.',
+        error: 'OTP_EXPIRED',
+      };
+    }
+
+    record.attempts += 1;
+    if (record.attempts > config.msghex.maxVerifyAttempts) {
+      otpStore.delete(phone);
+      return {
+        success: false,
+        message: 'Too many invalid attempts. Please request a new OTP.',
+        error: 'TOO_MANY_ATTEMPTS',
+      };
+    }
+
+    if (!isOtpMatch(record.otp, code)) {
       return {
         success: false,
         message: 'Invalid OTP',
         error: 'INVALID_OTP',
       };
     }
-    
-    // Mock: Get user from database (fetch profile by phone)
-    const mockUser = await getUserByPhone(phone);
-    
-    if (!mockUser) {
+
+    otpStore.delete(phone);
+
+    // OTP verified — load the user profile and issue an app session token.
+    const profile = await getUserByPhone(phone);
+
+    if (!profile) {
       return {
         success: false,
         message: 'User not found',
         error: 'USER_NOT_FOUND',
       };
     }
-    
-    // Create JWT token
+
     const authenticatedUser: AuthUser = {
-      id: mockUser.id,
-      phone: mockUser.phone,
-      role: mockUser.role,
-      name: mockUser.full_name,
-      profile_id: mockUser.id,
+      id: profile.id,
+      phone: profile.phone,
+      role: profile.role,
+      name: profile.full_name,
+      profile_id: profile.id,
+      has_parent_access: await profileHasChildren(profile.id),
     };
     const token = createToken(authenticatedUser);
-    
+
     return {
       success: true,
       message: 'Authentication successful',
@@ -209,50 +298,40 @@ export async function verifyOTP(
 }
 
 /**
- * Mock: Gets user profile by phone
- * In production: Query Supabase profiles table
+ * Gets a user profile by phone number from Supabase.
+ *
+ * Profiles may store the phone with or without the leading '+', so both forms
+ * are queried.
  */
 async function getUserByPhone(phone: string): Promise<Profile | null> {
-  // In production:
-  // const { data } = await supabaseClient
-  //   .from('profiles')
-  //   .select('*')
-  //   .eq('phone', phone)
-  //   .single();
-  // return data;
-  
-  // Mock users
-  const mockUsers: Record<string, Profile> = {
-    '+919876543210': {
-      id: 'user-001',
-      phone: '+919876543210',
-      full_name: 'Amir Ahmed',
-      full_name_ml: 'അമീർ അഹമ്മദ്',
-      role: 'student',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-    '+919876543211': {
-      id: 'user-002',
-      phone: '+919876543211',
-      full_name: 'Fatima Khan',
-      full_name_ml: 'ഫാത്തിമ ഖാൻ',
-      role: 'parent',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-    '+966501234567': {
-      id: 'user-admin-001',
-      phone: '+966501234567',
-      full_name: 'Admin User',
-      full_name_ml: 'അഡ്മിൻ ഉപയോഗിക്കുന്നു',
-      role: 'admin',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-  };
-  
-  return mockUsers[phone] || null;
+  const normalized = phone.startsWith('+') ? phone : `+${phone}`;
+  const withoutPlus = normalized.slice(1);
+
+  const { data, error } = await getSupabaseClient()
+    .from('profiles')
+    .select('*')
+    .in('phone', [normalized, withoutPlus])
+    .limit(1);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return (data?.[0] as Profile) ?? null;
+}
+
+/**
+ * Returns true when the profile is linked to at least one child via the
+ * parent_students table, so a single sign-in can open the parent (multi-child)
+ * view. Independent of the profile's primary role.
+ */
+async function profileHasChildren(profileId: string): Promise<boolean> {
+  const { count, error } = await getSupabaseClient()
+    .from('parent_students')
+    .select('student_id', { count: 'exact', head: true })
+    .eq('parent_profile_id', profileId);
+  if (error) return false;
+  return (count ?? 0) > 0;
 }
 
 /**

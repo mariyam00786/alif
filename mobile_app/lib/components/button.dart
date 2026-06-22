@@ -243,9 +243,7 @@ class _AlifButtonState extends State<AlifButton> {
         Text(
           widget.label,
           style: _getTextStyle(),
-          textDirection: widget.isMalayalam
-              ? TextDirection.rtl
-              : TextDirection.ltr,
+          textDirection: TextDirection.ltr,
         ),
         if (widget.trailing != null) ...[
           SizedBox(width: SpacingScale.sm),

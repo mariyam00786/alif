@@ -9,6 +9,7 @@ export interface AdminDashboardSnapshot {
   students: DatabaseRow[];
   teachers: DatabaseRow[];
   batchClasses: DatabaseRow[];
+  classes: DatabaseRow[];
   activities: DatabaseRow[];
   ratingRules: DatabaseRow[];
   reports: DatabaseRow[];
@@ -28,6 +29,7 @@ export class AdminDashboardService {
         studentsResult,
         teachersResult,
         batchesResult,
+        classesResult,
         teacherBatchesResult,
         categoriesResult,
         activitiesResult,
@@ -39,16 +41,17 @@ export class AdminDashboardService {
         notificationsResult,
       ] = await Promise.all([
         client.from('profiles').select('id, full_name, full_name_ml, phone, role'),
-        client.from('students').select('id, profile_id, father_name, mother_name, batch_id, status, created_at, email, parent_phone, gender, address, date_of_birth'),
-        client.from('teachers').select('id, profile_id, qualification, status, created_at, email, subjects'),
+        client.from('students').select('id, profile_id, parent_phone, father_name, mother_name, date_of_birth, gender, address, batch_id, class_id, status, created_at'),
+        client.from('teachers').select('id, profile_id, qualification, status, created_at'),
         client.from('batches').select('id, name, capacity, timing, status, created_at'),
+        client.from('classes').select('id, name, batch_id'),
         client.from('teacher_batches').select('teacher_id, batch_id'),
         client.from('activity_categories').select('id, name'),
         client.from('activities').select('id, category_id, name, has_quantity, status, display_order'),
         client.from('activity_ratings').select('id, activity_id, rating_name, marks, color, display_order'),
         client.from('activity_scoring_rules').select('id, activity_id, rule_type, min_quantity, max_quantity, marks, display_order'),
         client.from('activity_logs').select('student_id, log_date, marks_earned').order('log_date', { ascending: false }),
-        client.from('badges').select('id, name, name_ml, icon, bonus_points, criteria, status, created_at'),
+        client.from('badges').select('id, name, criteria, status, created_at'),
         client.from('student_badges').select('badge_id, student_id'),
         client.from('notifications').select('id, title, body, target_type, target_id, scheduled_at, sent_at, created_at').order('created_at', { ascending: false }),
       ]);
@@ -58,6 +61,7 @@ export class AdminDashboardService {
         studentsResult,
         teachersResult,
         batchesResult,
+        classesResult,
         teacherBatchesResult,
         categoriesResult,
         activitiesResult,
@@ -77,7 +81,13 @@ export class AdminDashboardService {
 
       const profiles = new Map(
         (profilesResult.data ?? []).map((profile) => {
-          const row = profile as { id: string; full_name?: string | null; full_name_ml?: string | null; phone?: string | null; role?: string | null };
+          const row = profile as {
+            id: string;
+            full_name?: string | null;
+            full_name_ml?: string | null;
+            phone?: string | null;
+            role?: string | null;
+          };
           return [row.id, row];
         })
       );
@@ -91,19 +101,24 @@ export class AdminDashboardService {
     }>;
     const batchById = new Map(batches.map((batch) => [batch.id, batch]));
 
+    const classRows = (classesResult.data ?? []) as Array<{
+      id: string;
+      name?: string | null;
+      batch_id?: string | null;
+    }>;
+    const classById = new Map(classRows.map((cls) => [cls.id, cls]));
+    const classList = classRows.map((cls) => ({
+      id: cls.id,
+      name: cls.name ?? 'Unnamed Class',
+      batchId: cls.batch_id ?? null,
+    } satisfies DatabaseRow));
+
     const teacherBatches = (teacherBatchesResult.data ?? []) as Array<{ teacher_id: string; batch_id: string }>;
     const batchTeacherMap = new Map<string, string>();
     const teacherBatchCounts = new Map<string, number>();
-    const teacherBatchNames = new Map<string, string[]>();
     for (const assignment of teacherBatches) {
       batchTeacherMap.set(assignment.batch_id, assignment.teacher_id);
       teacherBatchCounts.set(assignment.teacher_id, (teacherBatchCounts.get(assignment.teacher_id) ?? 0) + 1);
-      const batchName = batchById.get(assignment.batch_id)?.name;
-      if (batchName) {
-        const names = teacherBatchNames.get(assignment.teacher_id) ?? [];
-        names.push(batchName);
-        teacherBatchNames.set(assignment.teacher_id, names);
-      }
     }
 
     const logsByStudent = new Map<string, Array<{ logDate: string; marksEarned: number }>>();
@@ -116,30 +131,35 @@ export class AdminDashboardService {
     const students = ((studentsResult.data ?? []) as Array<{
       id: string;
       profile_id: string;
+      parent_phone?: string | null;
       father_name?: string | null;
       mother_name?: string | null;
-      batch_id?: string | null;
-      status?: string | null;
-      email?: string | null;
-      parent_phone?: string | null;
+      date_of_birth?: string | null;
       gender?: string | null;
       address?: string | null;
-      date_of_birth?: string | null;
+      batch_id?: string | null;
+      class_id?: string | null;
+      status?: string | null;
     }>).map((student) => {
       const profile = profiles.get(student.profile_id);
       const batch = student.batch_id ? batchById.get(student.batch_id) : undefined;
+      const cls = student.class_id ? classById.get(student.class_id) : undefined;
       const logs = logsByStudent.get(student.id) ?? [];
 
       return {
         id: student.id,
         name: profile?.full_name ?? 'Unnamed student',
-        email: student.email ?? '',
-        mobile: student.parent_phone ?? '',
+        nameMl: profile?.full_name_ml ?? '',
+        mobile: student.parent_phone ?? profile?.phone ?? '',
+        batch: batch?.name ?? 'Unassigned Batch',
+        batchId: student.batch_id ?? null,
+        className: cls?.name ?? '',
+        classId: student.class_id ?? null,
         fatherName: student.father_name ?? '',
         motherName: student.mother_name ?? '',
+        dateOfBirth: student.date_of_birth ?? null,
         gender: student.gender ?? 'male',
         address: student.address ?? '',
-        batch: batch?.name ?? 'Unassigned Batch',
         guardianName: student.father_name ?? student.mother_name ?? 'Guardian not set',
         score: logs.reduce((sum, item) => sum + item.marksEarned, 0),
         streak: this.calculateStreak(logs.map((item) => item.logDate)),
@@ -153,22 +173,13 @@ export class AdminDashboardService {
       profile_id: string;
       qualification?: string | null;
       status?: string | null;
-      email?: string | null;
-      subjects?: string[] | null;
     }>).map((teacher) => {
       const profile = profiles.get(teacher.profile_id);
-      const subjects = teacher.subjects ?? [];
 
       return {
         id: teacher.id,
         name: profile?.full_name ?? 'Unnamed teacher',
-        nameMl: profile?.full_name_ml ?? '',
-        mobile: profile?.phone ?? '',
-        email: teacher.email ?? '',
-        qualification: teacher.qualification ?? '',
-        subjects,
-        batches: teacherBatchNames.get(teacher.id) ?? [],
-        subject: subjects[0] ?? teacher.qualification ?? 'General Instruction',
+        subject: teacher.qualification ?? 'General Instruction',
         batchCount: teacherBatchCounts.get(teacher.id) ?? 0,
         responseRate: teacher.status === 'active' ? 1 : 0,
         status: teacher.status === 'active' ? 'active' : 'review',
@@ -302,17 +313,11 @@ export class AdminDashboardService {
     const badges = ((badgesResult.data ?? []) as Array<{
       id: string;
       name?: string | null;
-      name_ml?: string | null;
-      icon?: string | null;
-      bonus_points?: number | null;
       criteria?: Record<string, unknown> | null;
       status?: string | null;
     }>).map((badge) => ({
       id: badge.id,
       name: badge.name ?? 'Unnamed Badge',
-      nameMl: badge.name_ml ?? '',
-      icon: badge.icon ?? '🏅',
-      bonusPoints: badge.bonus_points ?? 0,
       criteria: this.stringifyCriteria(badge.criteria),
       recipientCount: badgeRecipients.get(badge.id) ?? 0,
       isPublished: badge.status === 'active',
@@ -342,6 +347,7 @@ export class AdminDashboardService {
       students,
       teachers,
       batchClasses,
+      classes: classList,
       activities,
       ratingRules,
       reports,
@@ -472,16 +478,15 @@ export class AdminDashboardService {
     batchById: Map<string, { name?: string | null }>
   ): string {
     if (targetType === 'batch' && targetId) {
-      const batchName = batchById.get(targetId)?.name;
-      return `Batch · ${batchName ?? 'Selected batch'}`;
+      return `Batch · ${batchById.get(targetId)?.name ?? targetId}`;
     }
 
     if (targetType === 'class' && targetId) {
-      return 'Class · Selected class';
+      return `Class · ${targetId}`;
     }
 
     if (targetType === 'student' && targetId) {
-      return 'Student · Selected student';
+      return `Student · ${targetId}`;
     }
 
     return 'All users';
@@ -597,6 +602,11 @@ export class AdminDashboardService {
           teacher: 'Zainab Saleh',
           status: 'active',
         },
+      ],
+      classes: [
+        { id: 'class-001', name: 'Qaida', batchId: 'batch-001' },
+        { id: 'class-002', name: 'Nazrah', batchId: 'batch-001' },
+        { id: 'class-003', name: 'Hifz', batchId: 'batch-002' },
       ],
       activities: [
         {

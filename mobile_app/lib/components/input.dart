@@ -126,9 +126,7 @@ class _AlifInputState extends State<AlifInput> {
                   fontWeight: FontWeight.w600,
                   color: ColorPalette.textPrimary,
                 ),
-                textDirection: widget.isMalayalam
-                    ? TextDirection.rtl
-                    : TextDirection.ltr,
+                textDirection: TextDirection.ltr,
               ),
               if (widget.required) ...[
                 SizedBox(width: SpacingScale.xs),
@@ -164,9 +162,7 @@ class _AlifInputState extends State<AlifInput> {
             minLines:
                 widget.minLines ?? (widget.type == InputType.multiline ? 4 : 1),
             textInputAction: widget.textInputAction,
-            textDirection: widget.isMalayalam
-                ? TextDirection.rtl
-                : TextDirection.ltr,
+            textDirection: TextDirection.ltr,
             style:
                 widget.textStyle ??
                 TypographySystem.bodyText.copyWith(

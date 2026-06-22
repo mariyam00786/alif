@@ -229,6 +229,7 @@ class AdminAppState {
     required this.reports,
     required this.notifications,
     required this.badges,
+    this.classes = const [],
   });
 
   final List<StudentRecord> students;
@@ -239,4 +240,7 @@ class AdminAppState {
   final List<ReportSnapshot> reports;
   final List<NotificationCampaign> notifications;
   final List<BadgeDefinition> badges;
+
+  /// Distinct class names available for assignment (Add/Edit Student form).
+  final List<String> classes;
 }
