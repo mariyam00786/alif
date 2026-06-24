@@ -127,6 +127,9 @@ class _StudentBadgesScreenState extends State<StudentBadgesScreen> {
             title: isMalayalam ? 'ബാഡ്ജുകൾ' : 'Badges',
             subtitle: isMalayalam ? 'നിങ്ങളുടെ നേട്ടങ്ങൾ' : 'Your achievements',
             icon: Icons.military_tech_rounded,
+            onBack: Navigator.of(context).canPop()
+                ? () => Navigator.of(context).maybePop()
+                : null,
           ),
           Expanded(child: body),
         ],

@@ -38,6 +38,17 @@ exports.config = {
         provider: 'supabase',
         expirationTime: parseInt(process.env.OTP_EXPIRATION_TIME || '600', 10), // 10 minutes
     },
+    // MsgHex WhatsApp OTP provider
+    msghex: {
+        apiUrl: process.env.MSGHEX_API_URL || 'https://api.msghex.com',
+        secret: process.env.MSGHEX_API_SECRET || '',
+        account: process.env.MSGHEX_SESSION_ID || '',
+        messageTemplate: process.env.MSGHEX_OTP_TEMPLATE ||
+            'Your Alif School verification code is {{otp}}. Valid for 5 minutes.',
+        otpTtlSeconds: parseInt(process.env.MSGHEX_OTP_TTL || '300', 10), // 5 minutes
+        maxVerifyAttempts: parseInt(process.env.OTP_MAX_ATTEMPTS || '5', 10),
+        otpLength: parseInt(process.env.OTP_LENGTH || '4', 10),
+    },
     // Email Configuration (handled by Supabase Auth)
     email: {
         fromEmail: process.env.EMAIL_FROM || 'noreply@alifschool.com',

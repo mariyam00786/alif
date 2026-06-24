@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../services/google_auth_service.dart';
-import '../components/alif_logo.dart';
 import '../components/otp_box_field.dart';
 
 /// Phone + OTP sign-in screen for the admin panel.
@@ -10,6 +9,10 @@ import '../components/otp_box_field.dart';
 /// Admins enter their registered phone number, receive a one-time password via
 /// WhatsApp, and verify it to obtain an app session token. Only profiles with
 /// the `admin` role are allowed through.
+///
+/// The visual style is intentionally minimal: a soft parchment background, a
+/// thin mihrab-arch mark, the Alif wordmark, two underline tabs (Phone /
+/// Verify) and a single primary action.
 class AdminOtpLoginScreen extends StatefulWidget {
   const AdminOtpLoginScreen({super.key, required this.onLoginSuccess});
 
@@ -25,6 +28,16 @@ class _AdminOtpLoginScreenState extends State<AdminOtpLoginScreen> {
   /// Country code automatically prepended to the 10-digit local number.
   static const String _countryCode = '+91';
 
+  // Minimal palette tuned to the reference design.
+  static const Color _background = Color(0xFFFFFFFF);
+  static const Color _teal = Color(0xFF14635B);
+  static const Color _tealSoft = Color(0xFF6E8A85);
+  static const Color _muted = Color(0xFF9AA6A1);
+  static const Color _gold = Color(0xFFD9A441);
+  static const Color _disabledFill = Color(0xFFE7E3D7);
+  static const Color _line = Color(0xFFD9D4C6);
+  static const Color _danger = Color(0xFFB3261E);
+
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _otpController = TextEditingController();
@@ -34,6 +47,12 @@ class _AdminOtpLoginScreenState extends State<AdminOtpLoginScreen> {
   String? _error;
   String _phone = '';
   String _otp = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _phoneController.addListener(() => setState(() {}));
+  }
 
   @override
   void dispose() {
@@ -139,321 +158,336 @@ class _AdminOtpLoginScreenState extends State<AdminOtpLoginScreen> {
     });
   }
 
-  static const _gradient = LinearGradient(
-    begin: Alignment.topLeft,
-    end: Alignment.bottomRight,
-    colors: [Color(0xFF0F172A), Color(0xFF1E293B), Color(0xFF0F766E)],
-  );
+  bool get _isOtpStep => _step == _OtpStep.otp;
+
+  bool get _canContinue {
+    if (_isBusy) return false;
+    if (_isOtpStep) return _otp.trim().length >= 4;
+    return _normalizePhone(_phoneController.text) != null;
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          final isWide = constraints.maxWidth >= 900;
-          return isWide
-              ? _buildWideLayout(context)
-              : _buildCompactLayout(context);
-        },
-      ),
-    );
-  }
-
-  /// Desktop / large-screen: split-screen with branding on the left and the
-  /// sign-in form on a clean surface to the right.
-  Widget _buildWideLayout(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(flex: 5, child: _buildBrandPanel(context)),
-        Expanded(
-          flex: 4,
-          child: ColoredBox(
-            color: Theme.of(context).colorScheme.surface,
-            child: SafeArea(
-              child: Center(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 48,
-                    vertical: 32,
-                  ),
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 420),
-                    child: _buildForm(context, showLogo: false),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  /// Phone / narrow-screen: branding gradient background with a floating card.
-  ///
-  /// The gradient fills the entire viewport and the card is vertically centred,
-  /// while still scrolling on very short screens (or when the keyboard opens).
-  Widget _buildCompactLayout(BuildContext context) {
-    return SizedBox.expand(
-      child: DecoratedBox(
-        decoration: const BoxDecoration(gradient: _gradient),
-        child: SafeArea(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              return SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 24,
-                ),
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                  child: Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 440),
-                      child: Card(
-                        elevation: 12,
-                        shadowColor: Colors.black54,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(28),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(24),
-                          child: _buildForm(context, showLogo: true),
+      backgroundColor: _background,
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 32),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 360),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const SizedBox(height: 8),
+                    Center(child: _buildArchMark()),
+                    const SizedBox(height: 18),
+                    const Center(
+                      child: Text(
+                        'Alif',
+                        style: TextStyle(
+                          fontSize: 38,
+                          height: 1.0,
+                          fontWeight: FontWeight.w600,
+                          color: _teal,
+                          letterSpacing: 0.5,
                         ),
                       ),
                     ),
-                  ),
+                    const SizedBox(height: 8),
+                    const Center(
+                      child: Text(
+                        'ADMIN PORTAL',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: _tealSoft,
+                          letterSpacing: 4,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 40),
+                    _buildTabs(),
+                    const SizedBox(height: 28),
+                    if (!_isOtpStep) _buildPhoneField() else _buildOtpField(),
+                    const SizedBox(height: 14),
+                    Text(
+                      _isOtpStep
+                          ? "Enter the code we sent to $_phone via WhatsApp"
+                          : "We'll send a one-time code to this number via WhatsApp",
+                      style: const TextStyle(
+                        fontSize: 13.5,
+                        height: 1.4,
+                        color: _tealSoft,
+                      ),
+                    ),
+                    if (_error != null) ...[
+                      const SizedBox(height: 14),
+                      Text(
+                        _error!,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: _danger,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 28),
+                    _buildContinueButton(),
+                    const SizedBox(height: 22),
+                    Center(
+                      child: TextButton(
+                        onPressed: _isBusy
+                            ? null
+                            : (_isOtpStep ? _backToPhone : _showHelp),
+                        style: TextButton.styleFrom(
+                          foregroundColor: _teal,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                        ),
+                        child: Text(
+                          _isOtpStep
+                              ? 'Use a different number'
+                              : 'Need help signing in?',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: _teal,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
                 ),
-              );
-            },
+              ),
+            ),
           ),
         ),
       ),
     );
   }
 
-  /// Left branding panel shown on wide screens.
-  Widget _buildBrandPanel(BuildContext context) {
-    return DecoratedBox(
-      decoration: const BoxDecoration(gradient: _gradient),
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(56),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const AlifLogo(height: 96),
-              const SizedBox(height: 28),
-              Text(
-                'Alif Admin Console',
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 14),
-              Text(
-                'Secure phone-based access for administrators. '
-                'Manage students, parents, and activities from one place.',
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: Colors.white70,
-                  height: 1.5,
-                ),
-              ),
-              const SizedBox(height: 36),
-              _buildBrandPoint(
-                context,
-                Icons.shield_outlined,
-                'One-time passcode via WhatsApp',
-              ),
-              const SizedBox(height: 16),
-              _buildBrandPoint(
-                context,
-                Icons.verified_user_outlined,
-                'Admin-only role verification',
-              ),
-              const SizedBox(height: 16),
-              _buildBrandPoint(
-                context,
-                Icons.devices_outlined,
-                'Works across web and desktop',
-              ),
-            ],
-          ),
-        ),
-      ),
+  /// Thin mihrab-arch mark with a small gold dot at the apex.
+  Widget _buildArchMark() {
+    return const SizedBox(
+      width: 56,
+      height: 64,
+      child: CustomPaint(painter: _ArchPainter(stroke: _teal, dot: _gold)),
     );
   }
 
-  Widget _buildBrandPoint(BuildContext context, IconData icon, String text) {
+  Widget _buildTabs() {
     return Row(
       children: [
-        Icon(icon, color: Colors.white, size: 22),
-        const SizedBox(width: 14),
-        Expanded(
-          child: Text(
-            text,
-            style: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(color: Colors.white70),
-          ),
-        ),
+        Expanded(child: _buildTab('PHONE', active: !_isOtpStep)),
+        Expanded(child: _buildTab('VERIFY', active: _isOtpStep)),
       ],
     );
   }
 
-  /// Step progress indicator (Phone -> Verify).
-  Widget _buildStepIndicator(BuildContext context) {
-    final isOtpStep = _step == _OtpStep.otp;
-    return Row(
-      children: [
-        _buildStepChip(context, label: '1  Phone', active: !isOtpStep),
-        Expanded(
-          child: Container(
-            height: 2,
-            margin: const EdgeInsets.symmetric(horizontal: 8),
-            color: Theme.of(context).colorScheme.outlineVariant,
-          ),
-        ),
-        _buildStepChip(context, label: '2  Verify', active: isOtpStep),
-      ],
-    );
-  }
-
-  Widget _buildStepChip(
-    BuildContext context, {
-    required String label,
-    required bool active,
-  }) {
-    final scheme = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: active
-            ? scheme.primaryContainer
-            : scheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w700,
-          color: active ? scheme.onPrimaryContainer : scheme.onSurfaceVariant,
-        ),
-      ),
-    );
-  }
-
-  /// Shared sign-in form used by both layouts.
-  Widget _buildForm(BuildContext context, {required bool showLogo}) {
-    final isOtpStep = _step == _OtpStep.otp;
-
-    return Form(
-      key: _formKey,
+  Widget _buildTab(String label, {required bool active}) {
+    return GestureDetector(
+      onTap: () {
+        // Only allow jumping back to the phone tab; verify requires an OTP
+        // request first.
+        if (!active && label == 'PHONE') _backToPhone();
+      },
+      behavior: HitTestBehavior.opaque,
       child: Column(
-        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (showLogo) ...[
-            const Center(child: AlifLogo(height: 88)),
-            const SizedBox(height: 18),
-          ],
-          _buildStepIndicator(context),
-          const SizedBox(height: 22),
-          Text(
-            'Admin Sign In',
-            textAlign: showLogo ? TextAlign.center : TextAlign.left,
-            style: Theme.of(
-              context,
-            ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            isOtpStep
-                ? 'Enter the one-time code sent to $_phone on WhatsApp.'
-                : 'Sign in with your registered phone number. A one-time code will be sent to your WhatsApp.',
-            textAlign: showLogo ? TextAlign.center : TextAlign.left,
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-          const SizedBox(height: 24),
-          if (!isOtpStep)
-            TextFormField(
-              controller: _phoneController,
-              keyboardType: TextInputType.phone,
-              enabled: !_isBusy,
-              autofillHints: const [AutofillHints.telephoneNumber],
-              inputFormatters: [
-                FilteringTextInputFormatter.digitsOnly,
-                LengthLimitingTextInputFormatter(10),
-              ],
-              decoration: InputDecoration(
-                labelText: 'Phone Number',
-                hintText: '98XXXXXXXX',
-                prefixText: '$_countryCode ',
-                prefixIcon: const Icon(Icons.phone_iphone),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(18),
-                ),
-              ),
-              validator: _validatePhone,
-              onFieldSubmitted: (_) => _handleSendOtp(),
-            )
-          else
-            OtpBoxField(
-              length: 4,
-              enabled: !_isBusy,
-              onChanged: (value) => _otp = value,
-              onCompleted: (value) {
-                _otp = value;
-                _handleVerifyOtp();
-              },
-            ),
-          const SizedBox(height: 18),
-          FilledButton.icon(
-            onPressed: _isBusy
-                ? null
-                : (isOtpStep ? _handleVerifyOtp : _handleSendOtp),
-            icon: _isBusy
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : Icon(isOtpStep ? Icons.login_rounded : Icons.sms_rounded),
-            label: Text(
-              _isBusy
-                  ? (isOtpStep ? 'Verifying...' : 'Sending code...')
-                  : (isOtpStep ? 'Verify & Sign In' : 'Send OTP'),
-            ),
-            style: FilledButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 18),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(18),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.5,
+                color: active ? _teal : _muted,
               ),
             ),
           ),
-          if (isOtpStep) ...[
-            const SizedBox(height: 8),
-            TextButton(
-              onPressed: _isBusy ? null : _backToPhone,
-              child: const Text('Use a different number'),
-            ),
-          ],
-          if (_error != null) ...[
-            const SizedBox(height: 16),
-            Text(
-              _error!,
-              textAlign: showLogo ? TextAlign.center : TextAlign.left,
-              style: const TextStyle(
-                color: Color(0xFFB91C1C),
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
+          Container(height: 2, color: active ? _teal : _line),
         ],
       ),
     );
   }
+
+  Widget _buildPhoneField() {
+    return TextFormField(
+      controller: _phoneController,
+      keyboardType: TextInputType.phone,
+      enabled: !_isBusy,
+      autofillHints: const [AutofillHints.telephoneNumber],
+      inputFormatters: [
+        FilteringTextInputFormatter.digitsOnly,
+        LengthLimitingTextInputFormatter(10),
+      ],
+      style: const TextStyle(
+        fontSize: 22,
+        fontWeight: FontWeight.w500,
+        color: Color(0xFF24302D),
+      ),
+      cursorColor: _teal,
+      decoration: const InputDecoration(
+        hintText: 'Phone number',
+        hintStyle: TextStyle(
+          fontSize: 22,
+          fontWeight: FontWeight.w400,
+          color: _muted,
+        ),
+        prefixIcon: Padding(
+          padding: EdgeInsets.only(right: 8, bottom: 2),
+          child: Text(
+            '$_countryCode ',
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w500,
+              color: Color(0xFF24302D),
+            ),
+          ),
+        ),
+        prefixIconConstraints: BoxConstraints(minWidth: 0, minHeight: 0),
+        filled: false,
+        isDense: true,
+        contentPadding: EdgeInsets.only(bottom: 10),
+        enabledBorder: UnderlineInputBorder(
+          borderSide: BorderSide(color: _line, width: 1.4),
+        ),
+        focusedBorder: UnderlineInputBorder(
+          borderSide: BorderSide(color: _teal, width: 1.6),
+        ),
+        errorBorder: UnderlineInputBorder(
+          borderSide: BorderSide(color: _danger, width: 1.4),
+        ),
+        focusedErrorBorder: UnderlineInputBorder(
+          borderSide: BorderSide(color: _danger, width: 1.6),
+        ),
+        errorStyle: TextStyle(fontSize: 12, color: _danger),
+      ),
+      validator: _validatePhone,
+      onFieldSubmitted: (_) => _handleSendOtp(),
+    );
+  }
+
+  Widget _buildOtpField() {
+    return OtpBoxField(
+      length: 4,
+      enabled: !_isBusy,
+      onChanged: (value) => setState(() => _otp = value),
+      onCompleted: (value) {
+        _otp = value;
+        _handleVerifyOtp();
+      },
+    );
+  }
+
+  Widget _buildContinueButton() {
+    final enabled = _canContinue;
+    return SizedBox(
+      height: 54,
+      child: FilledButton(
+        onPressed: enabled
+            ? (_isOtpStep ? _handleVerifyOtp : _handleSendOtp)
+            : null,
+        style: FilledButton.styleFrom(
+          backgroundColor: _teal,
+          foregroundColor: Colors.white,
+          disabledBackgroundColor: _disabledFill,
+          disabledForegroundColor: _muted,
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+          textStyle: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        child: _isBusy
+            ? const SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.4,
+                  valueColor: AlwaysStoppedAnimation(Colors.white),
+                ),
+              )
+            : Text(_isOtpStep ? 'Verify & Sign In' : 'Continue'),
+      ),
+    );
+  }
+
+  void _showHelp() {
+    showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: _background,
+        title: const Text('Need help signing in?'),
+        content: const Text(
+          'Admin access uses your registered phone number. A one-time code is '
+          'sent to that number on WhatsApp.\n\nIf you cannot sign in, contact '
+          'your Alif system administrator to confirm your number and admin role.',
+          style: TextStyle(height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            style: TextButton.styleFrom(foregroundColor: _teal),
+            child: const Text('Got it'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Draws a thin mihrab-style arch (two uprights joined by a rounded crown) with
+/// a small filled dot floating above the apex.
+class _ArchPainter extends CustomPainter {
+  const _ArchPainter({required this.stroke, required this.dot});
+
+  final Color stroke;
+  final Color dot;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = stroke
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.4
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+
+    final w = size.width;
+    final h = size.height;
+    final dotR = w * 0.07;
+    final top = dotR * 2 + 4; // leave room for the dot above the arch
+
+    final path = Path()
+      ..moveTo(w * 0.12, h)
+      ..lineTo(w * 0.12, top + h * 0.18)
+      // sweep up to the apex
+      ..quadraticBezierTo(w * 0.12, top, w * 0.5, top)
+      ..quadraticBezierTo(w * 0.88, top, w * 0.88, top + h * 0.18)
+      ..lineTo(w * 0.88, h);
+
+    canvas.drawPath(path, paint);
+
+    final dotPaint = Paint()
+      ..color = dot
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(Offset(w * 0.5, dotR + 1), dotR, dotPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _ArchPainter oldDelegate) =>
+      oldDelegate.stroke != stroke || oldDelegate.dot != dot;
 }

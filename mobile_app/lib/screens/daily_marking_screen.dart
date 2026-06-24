@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../constants/app_theme.dart';
 import '../components/portal_ui.dart';
@@ -26,11 +28,11 @@ class DailyMarkingScreen extends StatefulWidget {
 }
 
 class _DailyMarkingScreenState extends State<DailyMarkingScreen> {
-  bool _isLoading = false;
-  bool _submitted = false;
-  bool _confirmed = false;
   bool _loadingStructure = true;
-  DateTime? _draftSavedAt;
+
+  // Refreshes the sheet every minute so a prayer unlocks the moment its
+  // configured time arrives without the student having to reopen the screen.
+  Timer? _ticker;
 
   // The full activity catalog loaded from the backend. Every category and
   // activity shown here mirrors the admin configuration, so the student marks
@@ -39,6 +41,10 @@ class _DailyMarkingScreenState extends State<DailyMarkingScreen> {
   // Each category: { name, nameML, icon (IconData), activities: List<Map> }
   // Each activity: { id, name, nameML, icon, rating (-1..3), ratings: {name:id} }
   List<Map<String, dynamic>> _cats = [];
+
+  // Yesterday's prayer review. Lets the student notice prayers they forgot to
+  // mark the previous day. Each entry: { name, nameML, marked (bool), band }.
+  List<Map<String, dynamic>> _yesterdayPrayers = [];
 
   // Unified 4-band rating scale shared by every activity (matches backend).
   static const _ratingMarks = [0, 4, 7, 10];
@@ -78,8 +84,9 @@ class _DailyMarkingScreenState extends State<DailyMarkingScreen> {
 
   IconData _iconForCategory(String name) {
     final n = name.toLowerCase();
-    if (n.contains('salah') || n.contains('prayer'))
+    if (n.contains('salah') || n.contains('prayer')) {
       return Icons.mosque_rounded;
+    }
     if (n.contains('quran')) return Icons.menu_book_rounded;
     if (n.contains('dua') || n.contains('dhikr')) {
       return Icons.auto_awesome_rounded;
@@ -92,10 +99,105 @@ class _DailyMarkingScreenState extends State<DailyMarkingScreen> {
     return Icons.check_circle_outline_rounded;
   }
 
+  /// The five daily prayers use a dedicated 3-way scale
+  /// (Jama'ah / On time / Missed) instead of the shared 4-band scale.
+  bool _isPrayerCategory(String name) {
+    final n = name.toLowerCase();
+    return n.contains('salah') ||
+        n.contains('prayer') ||
+        n.contains('namaz') ||
+        n.contains('niskar');
+  }
+
+  /// Maps a prayer choice to the shared backend rating band index:
+  /// Jama'ah → Excellent (3), On time → Good (2), Missed → Not Done (0).
+  static const _prayerBands = [3, 2, 0];
+
+  // Local start time (minutes since midnight) for each daily prayer. A prayer
+  // can only be marked once its time has arrived; before that it stays locked.
+  // Adjust these to the local timetable as needed.
+  static const Map<String, int> _prayerUnlockMinutes = {
+    'subhi': 4 * 60 + 47, // Fajr 04:47
+    'fajr': 4 * 60 + 47,
+    'zuhr': 12 * 60 + 29, // Dhuhr 12:29
+    'dhuhr': 12 * 60 + 29,
+    'luhr': 12 * 60 + 29,
+    'asr': 15 * 60 + 56, // Asr 15:56
+    'maghrib': 18 * 60 + 53, // Maghrib 18:53
+    'isha': 20 * 60 + 11, // Isha 20:11
+  };
+
+  /// Returns the unlock time (minutes since midnight) for a prayer activity,
+  /// or null if it is not a recognised daily prayer.
+  int? _prayerUnlockFor(Map<String, dynamic> a) {
+    if (a['isPrayer'] != true) return null;
+    final n = (a['name'] ?? '').toString().toLowerCase();
+    for (final entry in _prayerUnlockMinutes.entries) {
+      if (n.contains(entry.key)) return entry.value;
+    }
+    return null;
+  }
+
+  /// True only when the marking sheet is for the real current date.
+  bool get _isToday {
+    final now = DateTime.now();
+    final today =
+        '${now.year.toString().padLeft(4, '0')}-'
+        '${now.month.toString().padLeft(2, '0')}-'
+        '${now.day.toString().padLeft(2, '0')}';
+    return widget.date == today;
+  }
+
+  /// True when this activity is a prayer whose time has not arrived yet today,
+  /// so it must not be markable until then.
+  bool _isTimeLocked(Map<String, dynamic> a) {
+    if (!_isToday) return false;
+    final unlock = _prayerUnlockFor(a);
+    if (unlock == null) return false;
+    final now = DateTime.now();
+    return now.hour * 60 + now.minute < unlock;
+  }
+
+  /// Formats minutes-since-midnight as a friendly 12-hour clock (e.g. 12:29 PM).
+  String _formatClock(int minutes) {
+    final h = minutes ~/ 60;
+    final m = minutes % 60;
+    final ampm = h < 12 ? 'AM' : 'PM';
+    var hour = h % 12;
+    if (hour == 0) hour = 12;
+    return '$hour:${m.toString().padLeft(2, '0')} $ampm';
+  }
+
   @override
   void initState() {
     super.initState();
     _loadStructure();
+    // Re-evaluate time locks once a minute so prayers unlock on schedule.
+    _ticker = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(covariant DailyMarkingScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // When the day rolls over (the parent passes a new `date`), the reused
+    // State still holds the previous day's locked marks. Reload the sheet for
+    // the new date so the student sees a fresh day and any marks already saved
+    // for it, instead of yesterday's submitted state.
+    if (oldWidget.date != widget.date) {
+      setState(() {
+        _loadingStructure = true;
+        _cats = [];
+      });
+      _loadStructure();
+    }
   }
 
   /// Loads the full activity catalog from the backend and builds the marking
@@ -116,6 +218,7 @@ class _DailyMarkingScreenState extends State<DailyMarkingScreen> {
       if ((cm['status'] ?? 'active').toString() != 'active') continue;
       final catName = (cm['name'] ?? '').toString();
       final icon = _iconForCategory(catName);
+      final isPrayer = _isPrayerCategory(catName);
 
       final builtActs = <Map<String, dynamic>>[];
       for (final a in (cm['activities'] as List?) ?? const []) {
@@ -125,10 +228,13 @@ class _DailyMarkingScreenState extends State<DailyMarkingScreen> {
         if (id.isEmpty) continue;
 
         final ratingMap = <String, String>{};
+        final ratingById = <String, String>{};
         for (final r in (am['ratings'] as List?) ?? const []) {
           final rm = r as Map<String, dynamic>;
-          ratingMap[(rm['rating_name'] ?? '').toString()] = (rm['id'] ?? '')
-              .toString();
+          final rName = (rm['rating_name'] ?? '').toString();
+          final rId = (rm['id'] ?? '').toString();
+          ratingMap[rName] = rId;
+          ratingById[rId] = rName;
         }
 
         builtActs.add({
@@ -138,6 +244,10 @@ class _DailyMarkingScreenState extends State<DailyMarkingScreen> {
           'icon': icon,
           'rating': -1,
           'ratings': ratingMap,
+          'ratingsById': ratingById,
+          'isPrayer': isPrayer,
+          'locked': false,
+          'saving': false,
         });
       }
 
@@ -150,12 +260,115 @@ class _DailyMarkingScreenState extends State<DailyMarkingScreen> {
       });
     }
 
+    // Restore any marks already saved for this day so they appear locked.
+    await _restoreSavedLogs(built);
+
     if (!mounted) return;
     setState(() {
       _cats = built;
       _loadingStructure = false;
     });
+
+    // After the sheet is ready, quietly check whether any of yesterday's
+    // prayers were left unmarked so the student can be reminded.
+    _loadYesterday();
   }
+
+  /// Loads the student's already-saved marks for this date and applies them to
+  /// the freshly built sheet, locking each item that was previously committed.
+  Future<void> _restoreSavedLogs(List<Map<String, dynamic>> built) async {
+    final logsRes = await MobileApiService.getMyActivityLogs(
+      from: widget.date,
+      to: widget.date,
+    );
+    if (!logsRes.success || logsRes.data == null) return;
+
+    final ratingByActivity = <String, String>{};
+    for (final log in logsRes.data!) {
+      final aid = (log['activity_id'] ?? '').toString();
+      final rid = (log['rating_id'] ?? '').toString();
+      if (aid.isNotEmpty && rid.isNotEmpty) ratingByActivity[aid] = rid;
+    }
+    if (ratingByActivity.isEmpty) return;
+
+    for (final cat in built) {
+      for (final a
+          in (cat['activities'] as List).cast<Map<String, dynamic>>()) {
+        final rid = ratingByActivity[a['id']];
+        if (rid == null) continue;
+        final name = (a['ratingsById'] as Map<String, String>)[rid];
+        final band = name != null ? _ratingNames.indexOf(name) : -1;
+        if (band >= 0) {
+          a['rating'] = band;
+          a['locked'] = true;
+        }
+      }
+    }
+  }
+
+  /// The ISO date (yyyy-MM-dd) for the day before the sheet's date.
+  String _yesterdayDate() {
+    DateTime base;
+    try {
+      base = DateTime.parse(widget.date);
+    } catch (_) {
+      base = DateTime.now();
+    }
+    final y = base.subtract(const Duration(days: 1));
+    return '${y.year.toString().padLeft(4, '0')}-'
+        '${y.month.toString().padLeft(2, '0')}-'
+        '${y.day.toString().padLeft(2, '0')}';
+  }
+
+  /// Loads yesterday's prayer marks so the student can spot any they forgot to
+  /// mark. Builds a small list of every prayer with its status for that day.
+  Future<void> _loadYesterday() async {
+    // Collect the prayer activities from the loaded structure.
+    final prayerActs = _allActs.where((a) => a['isPrayer'] == true).toList();
+    if (prayerActs.isEmpty) return;
+
+    final yDate = _yesterdayDate();
+    final logsRes = await MobileApiService.getMyActivityLogs(
+      from: yDate,
+      to: yDate,
+    );
+    if (!mounted) return;
+
+    final ratingByActivity = <String, String>{};
+    if (logsRes.success && logsRes.data != null) {
+      for (final log in logsRes.data!) {
+        final aid = (log['activity_id'] ?? '').toString();
+        final rid = (log['rating_id'] ?? '').toString();
+        if (aid.isNotEmpty && rid.isNotEmpty) ratingByActivity[aid] = rid;
+      }
+    }
+
+    final review = <Map<String, dynamic>>[];
+    for (final a in prayerActs) {
+      final rid = ratingByActivity[a['id']];
+      var band = -1;
+      if (rid != null) {
+        final name = (a['ratingsById'] as Map<String, String>)[rid];
+        band = name != null ? _ratingNames.indexOf(name) : -1;
+      }
+      review.add({
+        // Keep a reference to the real activity so a forgotten prayer can be
+        // marked now against yesterday's date.
+        'activity': a,
+        'name': a['name'],
+        'nameML': a['nameML'],
+        'marked': band >= 0,
+        'band': band,
+        'saving': false,
+      });
+    }
+
+    setState(() => _yesterdayPrayers = review);
+  }
+
+  /// Number of yesterday's prayers the student forgot to mark.
+  int get _yesterdayUnmarked =>
+      _yesterdayPrayers.where((p) => p['marked'] != true).length;
 
   @override
   Widget build(BuildContext context) {
@@ -166,19 +379,19 @@ class _DailyMarkingScreenState extends State<DailyMarkingScreen> {
       backgroundColor: kSurface,
       bottomNavigationBar: (_loadingStructure || _cats.isEmpty)
           ? null
-          : _submitBar(isMalayalam),
+          : _statusBar(isMalayalam),
       body: Column(
         children: [
-          PortalHeader(
+          MinimalHeader(
             title: isMalayalam ? 'ഇത്തിസാബ്' : 'Daily Marking',
             subtitle: _formatDate(widget.date),
-            icon: Icons.checklist_rounded,
+            isMalayalam: isMalayalam,
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 _ringBadge(pct),
                 const SizedBox(width: 12),
-                const PortalProfileAvatar(),
+                const PortalProfileAvatar(onDark: false, size: 44),
               ],
             ),
           ),
@@ -188,25 +401,24 @@ class _DailyMarkingScreenState extends State<DailyMarkingScreen> {
                 : _cats.isEmpty
                 ? _emptyState(isMalayalam)
                 : ListView(
-                    padding: const EdgeInsets.fromLTRB(16, 18, 16, 24),
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
                     children: [
                       for (final cat in _cats) ...[
-                        SectionLabel(
-                          '${cat['name']} · ${cat['nameML']}',
-                          icon: cat['icon'] as IconData,
-                        ),
-                        const SizedBox(height: 12),
+                        if (_isPrayerCategory((cat['name'] ?? '').toString()) &&
+                            _isToday &&
+                            _yesterdayUnmarked > 0) ...[
+                          _yesterdayBanner(isMalayalam),
+                          const SizedBox(height: 10),
+                        ],
+                        _sectionHeader(cat, isMalayalam),
+                        const SizedBox(height: 8),
                         _categoryCard(cat, isMalayalam),
                         const SizedBox(height: 12),
                       ],
                       _totalCard(isMalayalam),
-                      if (_markedCount > 0 && !_submitted) ...[
-                        const SizedBox(height: 12),
-                        _confirmTile(isMalayalam),
-                      ],
+                      const SizedBox(height: 12),
+                      _autoSaveNote(isMalayalam),
                       const SizedBox(height: 16),
-                      _autoSaveBar(isMalayalam),
-                      const SizedBox(height: 28),
                     ],
                   ),
           ),
@@ -247,13 +459,9 @@ class _DailyMarkingScreenState extends State<DailyMarkingScreen> {
   }
 
   Widget _ringBadge(int pct) {
-    return Container(
-      width: 56,
-      height: 56,
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.16),
-        shape: BoxShape.circle,
-      ),
+    return SizedBox(
+      width: 46,
+      height: 46,
       child: Stack(
         alignment: Alignment.center,
         children: [
@@ -263,16 +471,17 @@ class _DailyMarkingScreenState extends State<DailyMarkingScreen> {
             child: CircularProgressIndicator(
               value: _progress,
               strokeWidth: 4,
-              backgroundColor: Colors.white.withValues(alpha: 0.25),
-              valueColor: const AlwaysStoppedAnimation(Colors.white),
+              strokeCap: StrokeCap.round,
+              backgroundColor: kGreen.withValues(alpha: 0.15),
+              valueColor: const AlwaysStoppedAnimation(kGreen),
             ),
           ),
           Text(
             '$pct%',
             style: const TextStyle(
-              color: Colors.white,
+              color: AppColors.primaryDeep,
               fontWeight: FontWeight.w800,
-              fontSize: 13,
+              fontSize: 12,
             ),
           ),
         ],
@@ -280,163 +489,316 @@ class _DailyMarkingScreenState extends State<DailyMarkingScreen> {
     );
   }
 
-  Widget _categoryCard(Map<String, dynamic> cat, bool isMalayalam) {
-    final items = (cat['activities'] as List).cast<Map<String, dynamic>>();
-    final done = items.where((a) => (a['rating'] as int) >= 0).length;
-    return SoftCard(
-      padding: const EdgeInsets.all(10),
+  /// A gentle amber reminder shown above today's prayers when one or more of
+  /// yesterday's prayers were never marked. Tapping it opens the full review.
+  Widget _yesterdayBanner(bool isMalayalam) {
+    final n = _yesterdayUnmarked;
+    const amber = Color(0xFFE0A82E);
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: () => _showYesterdaySheet(isMalayalam),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+          decoration: BoxDecoration(
+            color: amber.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: amber.withValues(alpha: 0.35)),
+          ),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.history_rounded,
+                size: 20,
+                color: Color(0xFFB8860B),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      isMalayalam
+                          ? 'ഇന്നലത്തെ $n നമസ്കാരം മാർക്ക് ചെയ്തിട്ടില്ല'
+                          : '$n prayer${n == 1 ? '' : 's'} unmarked yesterday',
+                      style: const TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF8A6D0B),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      isMalayalam
+                          ? 'ഇപ്പോൾ മാർക്ക് ചെയ്യാൻ ടാപ്പ് ചെയ്യുക'
+                          : 'Tap to mark them now',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF8A6D0B).withValues(alpha: 0.75),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(
+                Icons.chevron_right_rounded,
+                size: 22,
+                color: Color(0xFFB8860B),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Bottom sheet listing every one of yesterday's prayers with its status, so
+  /// the student can clearly see which ones they forgot to mark — and mark any
+  /// they missed, saved against yesterday's date.
+  void _showYesterdaySheet(bool isMalayalam) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (_) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return SafeArea(
+              child: SingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Center(
+                        child: Container(
+                          width: 40,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: AppColors.neutral300,
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.history_rounded,
+                            size: 20,
+                            color: kGreen,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              isMalayalam
+                                  ? 'ഇന്നലത്തെ നമസ്കാരം'
+                                  : "Yesterday's prayers",
+                              style: AppTextStyles.cardTitle,
+                            ),
+                          ),
+                          Text(
+                            _formatDate(_yesterdayDate()),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: kMuted,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        isMalayalam
+                            ? 'നിസ്കരിച്ചിട്ടും മാർക്ക് ചെയ്യാൻ മറന്നുപോയ നമസ്കാരം ഇപ്പോൾ മാർക്ക് ചെയ്യാം.'
+                            : 'Mark any prayer you offered yesterday but forgot to record.',
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w500,
+                          color: kMuted,
+                          height: 1.35,
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      for (final p in _yesterdayPrayers)
+                        _yesterdayRow(p, isMalayalam, setSheetState),
+                      const SizedBox(height: 6),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  /// A single prayer line inside the yesterday sheet. Marked prayers show their
+  /// status; unmarked ones show the Jama'ah / On time / Missed chips so the
+  /// student can record a prayer they forgot, saved against yesterday's date.
+  Widget _yesterdayRow(
+    Map<String, dynamic> p,
+    bool isMalayalam,
+    void Function(void Function()) setSheetState,
+  ) {
+    final marked = p['marked'] == true;
+    final saving = p['saving'] == true;
+    final band = p['band'] as int;
+    final name = isMalayalam ? (p['nameML'] ?? p['name']) : p['name'];
+
+    if (marked) {
+      final color = _ratingColor(band);
+      final status = _prayerLabel(band, isMalayalam);
+      final icon = band <= 0 ? Icons.close_rounded : Icons.check_rounded;
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 7),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                name,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.heading,
+                ),
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(icon, size: 13, color: color),
+                  const SizedBox(width: 5),
+                  Text(
+                    status,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: color,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Unmarked → let the student record it now.
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(4, 2, 4, 10),
-            child: Row(
-              children: [
-                Icon(
-                  cat['icon'] as IconData,
-                  size: 15,
-                  color: kGreen.withValues(alpha: 0.85),
-                ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    isMalayalam ? cat['nameML'] : cat['name'],
-                    style: AppTextStyles.labelSmall.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  name,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.heading,
                   ),
                 ),
-                const SizedBox(width: 6),
+              ),
+              if (saving)
+                const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2.2),
+                )
+              else
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 10,
-                    vertical: 4,
+                    vertical: 5,
                   ),
                   decoration: BoxDecoration(
-                    color: kGreen.withValues(alpha: 0.10),
+                    color: const Color(0xFFE0A82E).withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(20),
                   ),
-                  child: Text(
-                    '$done/${items.length}',
-                    style: TextStyle(
-                      color: kGreen,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 12.5,
-                    ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.report_gmailerrorred_rounded,
+                        size: 13,
+                        color: Color(0xFFE0A82E),
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        isMalayalam ? 'മാർക്ക് ചെയ്തില്ല' : 'Not marked',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFFB8860B),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ],
-            ),
+            ],
           ),
-          for (int i = 0; i < items.length; i++) ...[
-            _activityRow(items[i], isMalayalam),
-            if (i < items.length - 1) const SizedBox(height: 8),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Color _darken(Color c, [double amount = 0.16]) {
-    final hsl = HSLColor.fromColor(c);
-    return hsl
-        .withLightness((hsl.lightness - amount).clamp(0.0, 1.0))
-        .toColor();
-  }
-
-  Widget _activityRow(Map<String, dynamic> a, bool isMalayalam) {
-    final rating = a['rating'] as int;
-    final rated = rating >= 0;
-    final accent = rated ? _ratingColor(rating) : kGreen;
-
-    final iconBadge = Container(
-      width: 40,
-      height: 40,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [accent, _darken(accent)],
-        ),
-        borderRadius: BorderRadius.circular(13),
-        boxShadow: [
-          BoxShadow(
-            color: accent.withValues(alpha: 0.32),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Icon(a['icon'] as IconData, color: Colors.white, size: 20),
-    );
-
-    final header = Row(
-      children: [
-        iconBadge,
-        const SizedBox(width: 11),
-        Expanded(
-          child: Text(
-            isMalayalam ? a['nameML'] : a['name'],
-            style: AppTextStyles.cardTitle,
-          ),
-        ),
-        if (rated) ...[
-          const SizedBox(width: 8),
-          _ratingPill(rating, isMalayalam),
-        ],
-      ],
-    );
-
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 220),
-      curve: Curves.easeOut,
-      padding: EdgeInsets.fromLTRB(10, rated ? 9 : 11, 10, rated ? 9 : 11),
-      decoration: BoxDecoration(
-        color: rated ? accent.withValues(alpha: 0.07) : const Color(0xFFF6F8FA),
-        borderRadius: BorderRadius.circular(16),
-        border: rated
-            ? Border.all(color: accent.withValues(alpha: 0.30))
-            : null,
-      ),
-      child: rated
-          ? header
-          : Column(
-              children: [
-                header,
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    for (int i = 0; i < 4; i++) ...[
-                      _ratingChip(a, i, isMalayalam),
-                      if (i < 3) const SizedBox(width: 7),
-                    ],
-                  ],
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              for (int i = 0; i < _prayerBands.length; i++) ...[
+                _yesterdayChip(
+                  p,
+                  _prayerBands[i],
+                  isMalayalam,
+                  setSheetState,
+                  disabled: saving,
                 ),
+                if (i < _prayerBands.length - 1) const SizedBox(width: 7),
               ],
-            ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _ratingChip(Map<String, dynamic> a, int value, bool isMalayalam) {
+  /// A tappable prayer choice inside the yesterday sheet.
+  Widget _yesterdayChip(
+    Map<String, dynamic> p,
+    int value,
+    bool isMalayalam,
+    void Function(void Function()) setSheetState, {
+    bool disabled = false,
+  }) {
     final color = _ratingColor(value);
+    final label = _prayerLabel(value, isMalayalam);
     return Expanded(
       child: GestureDetector(
-        onTap: _submitted
+        onTap: disabled
             ? null
-            : () {
-                setState(() => a['rating'] = value);
-                _autoSaveDraft();
-              },
+            : () => _saveYesterday(p, value, isMalayalam, setSheetState),
         behavior: HitTestBehavior.opaque,
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 3),
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(11),
+            color: color.withValues(alpha: disabled ? 0.05 : 0.08),
+            borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: color.withValues(alpha: 0.40),
-              width: 1.3,
+              color: color.withValues(alpha: disabled ? 0.22 : 0.28),
+              width: 1.2,
             ),
           ),
           child: FittedBox(
@@ -452,9 +814,9 @@ class _DailyMarkingScreenState extends State<DailyMarkingScreen> {
                     shape: BoxShape.circle,
                   ),
                 ),
-                const SizedBox(width: 4),
+                const SizedBox(width: 5),
                 Text(
-                  _ratingLabel(value, isMalayalam),
+                  label,
                   maxLines: 1,
                   style: TextStyle(
                     fontSize: 12,
@@ -470,46 +832,347 @@ class _DailyMarkingScreenState extends State<DailyMarkingScreen> {
     );
   }
 
-  Widget _ratingPill(int rating, bool isMalayalam) {
-    final color = _ratingColor(rating);
-    return Container(
-      padding: const EdgeInsets.fromLTRB(8, 6, 13, 6),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [color, _darken(color)],
-        ),
-        borderRadius: BorderRadius.circular(30),
-        boxShadow: [
-          BoxShadow(
-            color: color.withValues(alpha: 0.38),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
+  /// Saves a forgotten prayer for yesterday's date and locks it on success.
+  Future<void> _saveYesterday(
+    Map<String, dynamic> p,
+    int band,
+    bool isMalayalam,
+    void Function(void Function()) setSheetState,
+  ) async {
+    if (p['marked'] == true || p['saving'] == true) return;
+
+    final a = p['activity'] as Map<String, dynamic>?;
+    final activityId = (a?['id'] ?? '').toString();
+    final ratingName = (band >= 0 && band < _ratingNames.length)
+        ? _ratingNames[band]
+        : '';
+    final ratingId = (a?['ratings'] as Map<String, String>?)?[ratingName] ?? '';
+
+    if (activityId.isEmpty || ratingId.isEmpty) {
+      _showSnack(
+        isMalayalam
+            ? 'സേവ് ചെയ്യാനായില്ല · വീണ്ടും ശ്രമിക്കുക'
+            : 'Could not save · please try again',
+        icon: Icons.error_outline_rounded,
+      );
+      return;
+    }
+
+    setSheetState(() => p['saving'] = true);
+
+    final res = await MobileApiService.submitActivityLog(
+      studentId: widget.studentId,
+      activityId: activityId,
+      logDate: _yesterdayDate(),
+      ratingId: ratingId,
+    );
+
+    if (!mounted) return;
+
+    if (res.success) {
+      setSheetState(() {
+        p['saving'] = false;
+        p['marked'] = true;
+        p['band'] = band;
+      });
+      // Refresh the banner count on the main sheet.
+      setState(() {});
+      widget.onSubmitSuccess?.call();
+    } else {
+      setSheetState(() => p['saving'] = false);
+      _showSnack(
+        isMalayalam
+            ? 'സേവ് ചെയ്യാനായില്ല · വീണ്ടും ശ്രമിക്കുക'
+            : 'Could not save · please try again',
+        icon: Icons.error_outline_rounded,
+      );
+    }
+  }
+
+  /// Minimal section header: a small green icon, the category name in both
+  /// languages and the marked count on the right (e.g. "5/5").
+  Widget _sectionHeader(Map<String, dynamic> cat, bool isMalayalam) {
+    final items = (cat['activities'] as List).cast<Map<String, dynamic>>();
+    final done = items.where((a) => (a['rating'] as int) >= 0).length;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 0, 4, 0),
+      child: Row(
+        children: [
+          Icon(cat['icon'] as IconData, size: 18, color: kGreen),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              '${cat['name']} · ${cat['nameML']}',
+              style: AppTextStyles.sectionTitle,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            '$done/${items.length}',
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: kMuted,
+            ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _categoryCard(Map<String, dynamic> cat, bool isMalayalam) {
+    final items = (cat['activities'] as List).cast<Map<String, dynamic>>();
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.borderSoft),
+        boxShadow: AppDecorations.soft,
+      ),
+      child: Column(
+        children: [
+          for (int i = 0; i < items.length; i++) ...[
+            _activityRow(items[i], isMalayalam),
+            if (i < items.length - 1)
+              Divider(
+                height: 1,
+                thickness: 1,
+                indent: 16,
+                endIndent: 16,
+                color: AppColors.borderSoft,
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _activityRow(Map<String, dynamic> a, bool isMalayalam) {
+    final rating = a['rating'] as int;
+    final rated = rating >= 0;
+    final isPrayer = a['isPrayer'] == true;
+    final saving = a['saving'] == true;
+
+    final iconBadge = Container(
+      width: 38,
+      height: 38,
+      decoration: BoxDecoration(
+        color: kGreenSoft,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Icon(a['icon'] as IconData, color: kGreen, size: 19),
+    );
+
+    final header = Row(
+      children: [
+        iconBadge,
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            isMalayalam ? a['nameML'] : a['name'],
+            style: AppTextStyles.cardTitle,
+          ),
+        ),
+        if (saving) ...[
+          const SizedBox(width: 8),
+          const SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(strokeWidth: 2.2),
+          ),
+        ] else if (rated) ...[
+          const SizedBox(width: 8),
+          _ratingPill(rating, isMalayalam, isPrayer),
+          const SizedBox(width: 8),
+          Icon(
+            Icons.lock_outline_rounded,
+            size: 16,
+            color: AppColors.neutral400,
+          ),
+        ],
+      ],
+    );
+
+    return Padding(
+      padding: const EdgeInsets.all(11),
+      child: rated
+          ? header
+          : _isTimeLocked(a)
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                header,
+                const SizedBox(height: 10),
+                // Show the choices so the student knows what is coming, but
+                // greyed out and not tappable until the prayer time arrives.
+                Row(
+                  children: [
+                    for (int i = 0; i < _prayerBands.length; i++) ...[
+                      _ratingChip(
+                        a,
+                        _prayerBands[i],
+                        isMalayalam,
+                        isPrayer: true,
+                        disabled: true,
+                      ),
+                      if (i < _prayerBands.length - 1) const SizedBox(width: 7),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 10),
+                _timeLockedNote(a, isMalayalam),
+              ],
+            )
+          : Column(
+              children: [
+                header,
+                const SizedBox(height: 10),
+                isPrayer
+                    ? Row(
+                        children: [
+                          for (int i = 0; i < _prayerBands.length; i++) ...[
+                            _ratingChip(
+                              a,
+                              _prayerBands[i],
+                              isMalayalam,
+                              isPrayer: true,
+                            ),
+                            if (i < _prayerBands.length - 1)
+                              const SizedBox(width: 7),
+                          ],
+                        ],
+                      )
+                    : Row(
+                        children: [
+                          for (int i = 0; i < 4; i++) ...[
+                            _ratingChip(a, i, isMalayalam),
+                            if (i < 3) const SizedBox(width: 7),
+                          ],
+                        ],
+                      ),
+              ],
+            ),
+    );
+  }
+
+  /// A small, unobtrusive pill shown in place of the rating chips for a prayer
+  /// whose time has not arrived yet, telling the student when they can mark it.
+  Widget _timeLockedNote(Map<String, dynamic> a, bool isMalayalam) {
+    final unlock = _prayerUnlockFor(a);
+    final clock = unlock != null ? _formatClock(unlock) : '';
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 9),
+        decoration: BoxDecoration(
+          color: AppColors.neutral100,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.schedule_rounded, size: 13, color: kMuted),
+            const SizedBox(width: 5),
+            Text(
+              isMalayalam ? '$clock-ന് ശേഷം' : 'After $clock',
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: kMuted,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _ratingChip(
+    Map<String, dynamic> a,
+    int value,
+    bool isMalayalam, {
+    bool isPrayer = false,
+    bool disabled = false,
+  }) {
+    // When disabled (prayer time not arrived) the chip is greyed and inert so
+    // the student can see the option but cannot pick it yet.
+    final color = disabled ? AppColors.neutral400 : _ratingColor(value);
+    final label = isPrayer
+        ? _prayerLabel(value, isMalayalam)
+        : _ratingLabel(value, isMalayalam);
+    return Expanded(
+      child: GestureDetector(
+        onTap: disabled ? null : () => _saveActivity(a, value, isMalayalam),
+        behavior: HitTestBehavior.opaque,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 3),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: disabled ? 0.05 : 0.08),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: color.withValues(alpha: disabled ? 0.22 : 0.28),
+              width: 1.2,
+            ),
+          ),
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 6,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    color: color,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 5),
+                Text(
+                  label,
+                  maxLines: 1,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: color,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _ratingPill(int rating, bool isMalayalam, bool isPrayer) {
+    final color = _ratingColor(rating);
+    final isBest = rating >= 3;
+    final isMiss = rating <= 0;
+    final label = isPrayer
+        ? _prayerLabel(rating, isMalayalam)
+        : _ratingLabel(rating, isMalayalam);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+      decoration: BoxDecoration(
+        color: isBest ? color : color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            padding: const EdgeInsets.all(2),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.25),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.check_rounded,
-              color: Colors.white,
-              size: 13,
-            ),
+          Icon(
+            isMiss ? Icons.close_rounded : Icons.check_rounded,
+            color: isBest ? Colors.white : color,
+            size: 14,
           ),
-          const SizedBox(width: 6),
+          const SizedBox(width: 5),
           Text(
-            _ratingLabel(rating, isMalayalam),
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w800,
+            label,
+            style: TextStyle(
+              color: isBest ? Colors.white : color,
+              fontWeight: FontWeight.w700,
               fontSize: 12.5,
             ),
           ),
@@ -520,10 +1183,10 @@ class _DailyMarkingScreenState extends State<DailyMarkingScreen> {
 
   Color _ratingColor(int i) {
     const colors = [
-      Color(0xFFEF4444),
-      Color(0xFFE0A82E),
-      Color(0xFF3B82F6),
-      Color(0xFF10B981),
+      Color(0xFFDC2626), // Not Done / Missed — red
+      Color(0xFFE0A82E), // Needs Improvement — amber
+      Color(0xFF14B8A6), // Good / On time — teal
+      Color(0xFF0F766E), // Excellent / Jama'ah — deep teal
     ];
     return (i >= 0 && i < colors.length) ? colors[i] : kMuted;
   }
@@ -533,6 +1196,14 @@ class _DailyMarkingScreenState extends State<DailyMarkingScreen> {
         ? ['ഇല്ല', 'കുറവ്', 'നല്ലത്', 'ഉത്തമം']
         : ['None', 'Fair', 'Good', 'Best'];
     return (i >= 0 && i < labels.length) ? labels[i] : '';
+  }
+
+  /// Prayer-specific label for a backend rating band.
+  /// Jama'ah (band 3) / On time (bands 1-2) / Missed (band 0).
+  String _prayerLabel(int band, bool isMalayalam) {
+    if (band >= 3) return isMalayalam ? 'ജമാഅത്ത്' : "Jama'ah";
+    if (band <= 0) return isMalayalam ? 'വിട്ടു' : 'Missed';
+    return isMalayalam ? 'ഓൺ ടൈം' : 'On time';
   }
 
   Widget _totalCard(bool isMalayalam) {
@@ -614,44 +1285,13 @@ class _DailyMarkingScreenState extends State<DailyMarkingScreen> {
     );
   }
 
-  // Persistent bottom action bar — sits below the list so it never overlaps
-  // the rating buttons. Drafts save automatically, so there is no separate
-  // "Save Draft" button.
-  Widget _submitBar(bool isMalayalam) {
-    final locked = _markedCount == 0 || !_confirmed;
-    final disabled = _isLoading || _submitted || locked;
-    final bg = (_submitted || locked) ? kMuted : kGreen;
-
-    final label = _isLoading
-        ? (isMalayalam ? 'സമർപ്പിക്കുന്നു…' : 'Submitting…')
-        : _submitted
-        ? (isMalayalam ? 'ഇന്ന് സമർപ്പിച്ചു' : 'Submitted today')
-        : _markedCount == 0
-        ? (isMalayalam ? 'ഒന്നെങ്കിലും അടയാളപ്പെടുത്തുക' : 'Mark at least one')
-        : !_confirmed
-        ? (isMalayalam ? 'ഉറപ്പിക്കുക' : 'Confirm first')
-        : (isMalayalam
-              ? '$_markedCount/${_allActs.length} സമർപ്പിക്കുക'
-              : 'Submit $_markedCount/${_allActs.length}');
-
-    final icon = _isLoading
-        ? const SizedBox(
-            width: 18,
-            height: 18,
-            child: CircularProgressIndicator(
-              strokeWidth: 2.4,
-              valueColor: AlwaysStoppedAnimation(Colors.white),
-            ),
-          )
-        : Icon(
-            _submitted
-                ? Icons.check_circle_rounded
-                : locked
-                ? Icons.lock_outline_rounded
-                : Icons.send_rounded,
-            size: 20,
-            color: Colors.white,
-          );
+  // Persistent bottom status bar. Each mark is saved to the backend and locked
+  // the moment it is tapped, so there is no separate submit step.
+  Widget _statusBar(bool isMalayalam) {
+    final total = _allActs.length;
+    final done = _markedCount;
+    final allDone = total > 0 && done >= total;
+    final bg = allDone ? kGreen : const Color(0xFF0F766E);
 
     return SafeArea(
       top: false,
@@ -667,126 +1307,62 @@ class _DailyMarkingScreenState extends State<DailyMarkingScreen> {
             ),
           ],
         ),
-        child: SizedBox(
+        child: Container(
           height: 52,
           width: double.infinity,
-          child: ElevatedButton(
-            onPressed: disabled ? null : () => _submit(isMalayalam),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: bg,
-              disabledBackgroundColor: bg,
-              foregroundColor: Colors.white,
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                allDone ? Icons.check_circle_rounded : Icons.cloud_done_rounded,
+                size: 20,
+                color: Colors.white,
               ),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                icon,
-                const SizedBox(width: 10),
-                Text(
-                  label,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 15,
-                    color: Colors.white,
-                  ),
+              const SizedBox(width: 10),
+              Text(
+                allDone
+                    ? (isMalayalam
+                          ? 'എല്ലാം സേവ് ചെയ്തു · $done/$total'
+                          : 'All saved · $done/$total')
+                    : (isMalayalam
+                          ? 'സേവ് ചെയ്തു $done/$total · ടാപ്പ് ചെയ്താൽ ലോക്ക് ആകും'
+                          : 'Saved $done/$total · tap locks the mark'),
+                style: const TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 14.5,
+                  color: Colors.white,
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 
-  // Final confirmation tick — student verifies everything is correct before
-  // the submit button unlocks.
-  Widget _confirmTile(bool isMalayalam) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: () => setState(() => _confirmed = !_confirmed),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-        decoration: BoxDecoration(
-          color: _confirmed ? kGreen.withValues(alpha: 0.08) : Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: _confirmed ? kGreen : kBorder,
-            width: _confirmed ? 1.6 : 1,
-          ),
-        ),
-        child: Row(
-          children: [
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
-              width: 26,
-              height: 26,
-              decoration: BoxDecoration(
-                color: _confirmed ? kGreen : Colors.transparent,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: _confirmed ? kGreen : kMuted,
-                  width: 1.8,
-                ),
-              ),
-              child: _confirmed
-                  ? const Icon(
-                      Icons.check_rounded,
-                      size: 18,
-                      color: Colors.white,
-                    )
-                  : null,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                isMalayalam
-                    ? 'ഇതെല്ലാം ശരിയാണ്, സമർപ്പിക്കാൻ തയ്യാർ'
-                    : 'I confirm everything is correct',
-                style: TextStyle(
-                  fontSize: 13.5,
-                  fontWeight: FontWeight.w700,
-                  color: _confirmed ? kGreen : kHeading,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // Subtle status line showing that marks are kept safe automatically.
-  Widget _autoSaveBar(bool isMalayalam) {
-    final saved = _draftSavedAt != null;
+  // Subtle status line reminding that marks save automatically and lock.
+  Widget _autoSaveNote(bool isMalayalam) {
     return Center(
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            saved ? Icons.cloud_done_rounded : Icons.cloud_queue_rounded,
-            size: 18,
-            color: saved ? kGreen : kMuted,
-          ),
+          Icon(Icons.lock_clock_rounded, size: 18, color: kMuted),
           const SizedBox(width: 8),
           Flexible(
             child: Text(
-              saved
-                  ? (isMalayalam
-                        ? 'ഡ്രാഫ്റ്റ് സ്വയം സേവ് ചെയ്തു · ${_formatTime(_draftSavedAt!)}'
-                        : 'Draft auto-saved · ${_formatTime(_draftSavedAt!)}')
-                  : (isMalayalam
-                        ? 'മാർക്ക് ചെയ്യുമ്പോൾ സ്വയം സേവ് ആകും'
-                        : 'Your marks save automatically'),
+              isMalayalam
+                  ? 'ഓരോ മാർക്കും ഉടനെ സേവ് ആകും · പിന്നെ മാറ്റാനാകില്ല'
+                  : 'Each mark saves instantly and cannot be changed',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: saved ? kGreen : kMuted,
+                color: kMuted,
               ),
             ),
           ),
@@ -795,75 +1371,76 @@ class _DailyMarkingScreenState extends State<DailyMarkingScreen> {
     );
   }
 
-  void _autoSaveDraft() {
-    setState(() => _draftSavedAt = DateTime.now());
-  }
+  /// Saves a single activity mark to the backend and locks it on success.
+  /// On failure the optimistic selection is rolled back.
+  Future<void> _saveActivity(
+    Map<String, dynamic> a,
+    int band,
+    bool isMalayalam,
+  ) async {
+    if (a['locked'] == true || a['saving'] == true) return;
 
-  Future<void> _submit(bool isMalayalam) async {
-    if (_markedCount == 0 || !_confirmed || _submitted || _isLoading) return;
-    setState(() => _isLoading = true);
-
-    var persistedAny = false;
-    var hadFailure = false;
-
-    final futures = <Future<void>>[];
-    for (final a in _allActs) {
-      final r = a['rating'] as int;
-      if (r < 0) continue;
-      final activityId = (a['id'] ?? '').toString();
-      final ratingName = _ratingNames[r];
-      final ratingId =
-          (a['ratings'] as Map<String, String>?)?[ratingName] ?? '';
-      if (activityId.isEmpty || ratingId.isEmpty) {
-        hadFailure = true;
-        continue;
-      }
-      futures.add(() async {
-        final res = await MobileApiService.submitActivityLog(
-          studentId: widget.studentId,
-          activityId: activityId,
-          logDate: widget.date,
-          ratingId: ratingId,
-        );
-        if (res.success) {
-          persistedAny = true;
-        } else {
-          hadFailure = true;
-        }
-      }());
-    }
-    await Future.wait(futures);
-
-    if (!mounted) return;
-
-    if (!persistedAny) {
-      setState(() => _isLoading = false);
+    // A prayer cannot be marked before its time has arrived.
+    if (_isTimeLocked(a)) {
+      final unlock = _prayerUnlockFor(a);
+      final clock = unlock != null ? _formatClock(unlock) : '';
       _showSnack(
         isMalayalam
-            ? 'സമർപ്പിക്കാൻ കഴിഞ്ഞില്ല · വീണ്ടും ശ്രമിക്കുക'
-            : 'Could not submit · please try again',
+            ? 'സമയം ആയിട്ടില്ല · $clock-ന് ശേഷം മാർക്ക് ചെയ്യാം'
+            : 'Not time yet · markable after $clock',
+        icon: Icons.schedule_rounded,
+      );
+      return;
+    }
+
+    final activityId = (a['id'] ?? '').toString();
+    final ratingName = (band >= 0 && band < _ratingNames.length)
+        ? _ratingNames[band]
+        : '';
+    final ratingId = (a['ratings'] as Map<String, String>?)?[ratingName] ?? '';
+
+    if (activityId.isEmpty || ratingId.isEmpty) {
+      _showSnack(
+        isMalayalam
+            ? 'സേവ് ചെയ്യാനായില്ല · വീണ്ടും ശ്രമിക്കുക'
+            : 'Could not save · please try again',
         icon: Icons.error_outline_rounded,
       );
       return;
     }
 
     setState(() {
-      _isLoading = false;
-      _submitted = true;
+      a['rating'] = band;
+      a['saving'] = true;
     });
-    _showSnack(
-      hadFailure
-          ? (isMalayalam
-                ? 'ഭാഗികമായി സമർപ്പിച്ചു · ചിലത് സംരക്ഷിക്കാനായില്ല'
-                : 'Partially submitted · some marks could not be saved')
-          : (isMalayalam
-                ? 'ഇന്നത്തേക്ക് സമർപ്പിച്ചു · ഒരു ദിവസം ഒരു തവണ മാത്രം'
-                : 'Submitted for today · one submission per day'),
-      icon: hadFailure
-          ? Icons.warning_amber_rounded
-          : Icons.check_circle_rounded,
+
+    final res = await MobileApiService.submitActivityLog(
+      studentId: widget.studentId,
+      activityId: activityId,
+      logDate: widget.date,
+      ratingId: ratingId,
     );
-    widget.onSubmitSuccess?.call();
+
+    if (!mounted) return;
+
+    if (res.success) {
+      setState(() {
+        a['saving'] = false;
+        a['locked'] = true;
+      });
+      widget.onSubmitSuccess?.call();
+    } else {
+      setState(() {
+        a['saving'] = false;
+        a['rating'] = -1;
+      });
+      _showSnack(
+        isMalayalam
+            ? 'സേവ് ചെയ്യാനായില്ല · വീണ്ടും ശ്രമിക്കുക'
+            : 'Could not save · please try again',
+        icon: Icons.error_outline_rounded,
+      );
+    }
   }
 
   void _showSnack(String msg, {required IconData icon}) {
@@ -888,13 +1465,6 @@ class _DailyMarkingScreenState extends State<DailyMarkingScreen> {
         behavior: SnackBarBehavior.floating,
       ),
     );
-  }
-
-  String _formatTime(DateTime t) {
-    final h = t.hour % 12 == 0 ? 12 : t.hour % 12;
-    final m = t.minute.toString().padLeft(2, '0');
-    final ap = t.hour < 12 ? 'AM' : 'PM';
-    return '$h:$m $ap';
   }
 
   String _formatDate(String iso) {

@@ -30,6 +30,12 @@ export interface AuthUser {
     role: 'student' | 'parent' | 'teacher' | 'admin';
     name: string;
     profile_id: string;
+    /**
+     * True when this account is also linked to one or more children via the
+     * parent_students table, regardless of its primary `role`. Lets a single
+     * sign-in switch into the parent view from inside the student portal.
+     */
+    has_parent_access?: boolean;
 }
 /**
  * OTP request response
@@ -50,14 +56,9 @@ export interface OTPVerificationResponse {
     error?: string;
 }
 /**
- * Mock implementation of Supabase Auth
- * In production, replace with actual Supabase client
- */
-/**
  * Request OTP for phone number
  *
- * Calls Supabase to send OTP to the phone
- * In production: Use supabase.auth.signInWithOtp({ phone })
+ * Sends a one-time password to the user's WhatsApp number via MsgHex.
  *
  * @param phone - Phone number in format +91XXXXXXXXXX
  * @returns OTP request response with session ID
@@ -71,7 +72,7 @@ export declare function requestOTP(phone: string): Promise<OTPRequestResponse>;
  * Verify OTP and authenticate user
  *
  * @param phone - Phone number that received OTP
- * @param code - OTP code (6 digits)
+ * @param code - OTP code
  * @returns Verification response with user and token if successful
  *
  * @example

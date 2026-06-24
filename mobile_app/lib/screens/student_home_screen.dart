@@ -7,11 +7,6 @@ import '../shared/theme/theme.dart';
 // Redesigned dashboard palette.
 const Color _kGreenDark = AppColors.primaryDeep;
 
-/// How far the Today's Activities card overlaps below the colored top section.
-/// The card straddles the boundary — roughly half over the primary color and
-/// half below it.
-const double _kCardOverlap = 60;
-
 /// Minimal icon badge — soft tinted background with a colored icon.
 Widget _iconBadge(
   IconData icon,
@@ -47,9 +42,27 @@ class StudentHomeScreen extends StatelessWidget {
   // Sample data (replaced by API once wired).
   final int todayDone;
   final int todayTotal;
+  final int todayMarks;
+  final int todayMaxMarks;
   final int streakDays;
   final int weekPoints;
   final int batchRank;
+  final int batchSize;
+
+  /// Per-day completion for the current week (Mon..Sun). Each entry is a map
+  /// with `done` (bool), `is_today` (bool) and `is_future` (bool). Comes from
+  /// the backend home-summary so the streak chips reflect real activity.
+  final List<dynamic> weekDays;
+
+  /// Real badge progress and a small preview list (each entry has `name`,
+  /// `name_ml`, `icon`, `earned`) from the backend home-summary.
+  final int badgesEarned;
+  final int badgesTotal;
+  final List<dynamic> badges;
+
+  /// Whether the backend summary has finished loading. While false the cards
+  /// show a neutral resting state instead of misleading zeros.
+  final bool summaryLoaded;
 
   const StudentHomeScreen({
     super.key,
@@ -58,217 +71,75 @@ class StudentHomeScreen extends StatelessWidget {
     required this.onOpenProgress,
     required this.onOpenRanking,
     required this.onOpenBadges,
-    this.todayDone = 6,
-    this.todayTotal = 9,
-    this.streakDays = 7,
-    this.weekPoints = 210,
-    this.batchRank = 3,
+    this.todayDone = 0,
+    this.todayTotal = 0,
+    this.todayMarks = 0,
+    this.todayMaxMarks = 0,
+    this.streakDays = 0,
+    this.weekPoints = 0,
+    this.batchRank = 0,
+    this.batchSize = 0,
+    this.weekDays = const [],
+    this.badgesEarned = 0,
+    this.badgesTotal = 0,
+    this.badges = const [],
+    this.summaryLoaded = false,
   });
 
-  /// Demo notifications surfaced in the home header bell (replaced by the API
-  /// once wired). Shared with the student progress screen so both headers show
-  /// the same list.
-  static const List<PortalNotification> demoNotifications = [
-    PortalNotification(
-      title: 'New badge earned',
-      titleMl: 'പുതിയ ബാഡ്ജ് നേടി',
-      body: 'You earned the "Prayer Master" badge. Keep it up!',
-      bodyMl: 'നിങ്ങൾ "നമസ്കാര വിജയി" ബാഡ്ജ് നേടി. തുടരുക!',
-      timeAgo: '2 hours ago',
-      timeAgoMl: '2 മണിക്കൂർ മുമ്പ്',
-      icon: Icons.military_tech_rounded,
-      color: Color(0xFF8B5CF6),
-      unread: true,
-    ),
-    PortalNotification(
-      title: 'Today\'s marking pending',
-      titleMl: 'ഇന്നത്തെ മാർക്കിംഗ് ബാക്കി',
-      body: 'You haven\'t completed today\'s activity marking yet.',
-      bodyMl: 'ഇന്നത്തെ പ്രവർത്തന മാർക്കിംഗ് ഇതുവരെ പൂർത്തിയായില്ല.',
-      timeAgo: '4 hours ago',
-      timeAgoMl: '4 മണിക്കൂർ മുമ്പ്',
-      icon: Icons.checklist_rounded,
-      color: Color(0xFFF59E0B),
-      unread: true,
-    ),
-    PortalNotification(
-      title: 'You moved up to rank 3',
-      titleMl: 'നിങ്ങൾ റാങ്ക് 3 ലേക്ക് ഉയർന്നു',
-      body: 'Great work! You climbed up in your batch leaderboard.',
-      bodyMl: 'മികച്ച പ്രകടനം! ബാച്ച് ലീഡർബോർഡിൽ നിങ്ങൾ ഉയർന്നു.',
-      timeAgo: 'Yesterday',
-      timeAgoMl: 'ഇന്നലെ',
-      icon: Icons.leaderboard_rounded,
-      color: kGreen,
-      unread: false,
-    ),
-    PortalNotification(
-      title: 'Holiday notice',
-      titleMl: 'അവധി അറിയിപ്പ്',
-      body: 'The school will remain closed this Friday.',
-      bodyMl: 'ഈ വെള്ളിയാഴ്ച സ്കൂൾ അവധിയായിരിക്കും.',
-      timeAgo: '2 days ago',
-      timeAgoMl: '2 ദിവസം മുമ്പ്',
-      icon: Icons.campaign_rounded,
-      color: Color(0xFF3B82F6),
-      unread: false,
-    ),
-  ];
-
-  // A small rotating set of daily reminders.
-  static const List<Map<String, String>> _hadiths = [
+  // Rotating Quran verses shown in the hero card.
+  static const List<Map<String, String>> _verses = [
     {
-      'en':
-          'The most beloved deeds to Allah are those done regularly, even if small.',
-      'ml':
-          'അല്ലാഹുവിന് ഏറ്റവും പ്രിയപ്പെട്ട കർമ്മങ്ങൾ ചെറുതാണെങ്കിലും '
-          'സ്ഥിരമായി ചെയ്യുന്നവയാണ്.',
-      'ref': 'Bukhari & Muslim',
+      'en': 'And say, "My Lord, increase me in knowledge."',
+      'ml': 'പറയുക: "എന്റെ രക്ഷിതാവേ, എനിക്ക് അറിവ് വർദ്ധിപ്പിച്ചു തരേണമേ."',
+      'ref': 'Quran 20:114',
     },
     {
-      'en': 'The best of you are those who learn the Quran and teach it.',
-      'ml':
-          'ഖുർആൻ പഠിക്കുകയും പഠിപ്പിക്കുകയും ചെയ്യുന്നവരാണ് '
-          'നിങ്ങളിൽ ഉത്തമർ.',
-      'ref': 'Bukhari',
+      'en': 'Indeed, with hardship comes ease.',
+      'ml': 'തീർച്ചയായും പ്രയാസത്തോടൊപ്പം എളുപ്പമുണ്ട്.',
+      'ref': 'Quran 94:6',
     },
     {
-      'en':
-          'Kindness is a mark of faith, and whoever is not kind has no faith.',
-      'ml':
-          'ദയ വിശ്വാസത്തിന്റെ അടയാളമാണ്; ദയയില്ലാത്തവന് '
-          'വിശ്വാസമില്ല.',
-      'ref': 'Muslim',
+      'en': 'So remember Me; I will remember you.',
+      'ml': 'നിങ്ങൾ എന്നെ ഓർക്കുക; ഞാൻ നിങ്ങളെ ഓർക്കും.',
+      'ref': 'Quran 2:152',
     },
   ];
-
-  String _greeting(bool isMalayalam) {
-    final hour = DateTime.now().hour;
-    if (hour < 12) return isMalayalam ? 'സുപ്രഭാതം' : 'Good morning';
-    if (hour < 17) return isMalayalam ? 'ഉച്ചവന്ദനം' : 'Good afternoon';
-    return isMalayalam ? 'ശുഭ സായാഹ്നം' : 'Good evening';
-  }
 
   @override
   Widget build(BuildContext context) {
     final isMalayalam = context.isMalayalam;
     final fullName = studentName.trim();
-    final hadith = _hadiths[DateTime.now().day % _hadiths.length];
-    final pending = (todayTotal - todayDone).clamp(0, todayTotal);
+    final verse = _verses[DateTime.now().day % _verses.length];
 
     return ColoredBox(
       color: kSurface,
       child: ListView(
-        padding: EdgeInsets.zero,
+        padding: const EdgeInsets.only(bottom: 14),
         children: [
-          _header(isMalayalam, fullName, pending),
+          _header(isMalayalam, fullName),
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, _kCardOverlap + 18, 16, 20),
+            padding: const EdgeInsets.fromLTRB(16, 2, 16, 0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // ---- Stats row ----
+                _verseHero(isMalayalam, verse),
+                const SizedBox(height: 10),
+                _todaysProgress(isMalayalam),
+                const SizedBox(height: 10),
                 IntrinsicHeight(
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Expanded(
-                        child: _statCard(
-                          icon: Icons.local_fire_department_rounded,
-                          iconColor: const Color(0xFFF59E0B),
-                          value: '$streakDays',
-                          label: isMalayalam ? 'ദിന സ്ട്രീക്ക്' : 'Day streak',
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _statCard(
-                          icon: Icons.star_rounded,
-                          iconColor: _kGreenDark,
-                          value: '$weekPoints',
-                          label: isMalayalam
-                              ? 'ഈ ആഴ്ച പോയിന്റ്'
-                              : 'Points this week',
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _statCard(
-                          icon: Icons.emoji_events_rounded,
-                          iconColor: const Color(0xFF7C3AED),
-                          value: '#$batchRank',
-                          label: isMalayalam ? 'ബാച്ച് റാങ്ക്' : 'Batch rank',
-                        ),
-                      ),
+                      Expanded(child: _streakCard(isMalayalam)),
+                      const SizedBox(width: 12),
+                      Expanded(child: _weekCard(isMalayalam)),
                     ],
                   ),
                 ),
                 const SizedBox(height: 10),
-                // ---- Quick actions ----
-                _sectionTitle(
-                  isMalayalam ? 'വേഗ പ്രവർത്തനങ്ങൾ' : 'Quick Actions',
-                ),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _quickAction(
-                        icon: Icons.fact_check_rounded,
-                        iconColor: const Color(0xFF0F766E),
-                        label: isMalayalam
-                            ? 'ഇന്ന് മാർക്ക് ചെയ്യുക'
-                            : 'Mark today',
-                        sub: pending == 0
-                            ? (isMalayalam ? 'പൂർത്തിയായി' : 'All done')
-                            : (isMalayalam
-                                  ? '$pending ബാക്കി'
-                                  : '$pending pending'),
-                        onTap: onMarkToday,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _quickAction(
-                        icon: Icons.insights_rounded,
-                        iconColor: const Color(0xFF3B82F6),
-                        label: isMalayalam ? 'പുരോഗതി' : 'Progress',
-                        sub: isMalayalam ? 'ഈ ആഴ്ച' : 'This week',
-                        onTap: onOpenProgress,
-                      ),
-                    ),
-                  ],
-                ),
+                _achievementsCard(isMalayalam),
                 const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _quickAction(
-                        icon: Icons.leaderboard_rounded,
-                        iconColor: const Color(0xFFF59E0B),
-                        label: isMalayalam ? 'റാങ്കിംഗ്' : 'Ranking',
-                        sub: isMalayalam
-                            ? 'ബാച്ച് #$batchRank'
-                            : 'Batch #$batchRank',
-                        onTap: onOpenRanking,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _quickAction(
-                        icon: Icons.workspace_premium_rounded,
-                        iconColor: const Color(0xFF7C3AED),
-                        label: isMalayalam ? 'ബാഡ്ജുകൾ' : 'Badges',
-                        sub: isMalayalam ? 'നേടിയവ കാണുക' : 'View earned',
-                        onTap: onOpenBadges,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                // ---- Today's reminder ----
-                _sectionTitle(
-                  isMalayalam ? 'ഇന്നത്തെ ഓർമ്മപ്പെടുത്തൽ' : "Today's Reminder",
-                ),
-                _reminderCard(isMalayalam, hadith),
+                _footerBanner(isMalayalam),
               ],
             ),
           ),
@@ -277,364 +148,76 @@ class StudentHomeScreen extends StatelessWidget {
     );
   }
 
-  Widget _header(bool isMalayalam, String fullName, int pending) {
-    final pct = todayTotal == 0 ? 0.0 : todayDone / todayTotal;
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        // Colored top section — uses the app primary color.
-        Container(
-          width: double.infinity,
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                AppColors.primaryDeep,
-                AppColors.primary,
-                AppColors.primaryLight,
-              ],
-            ),
-            borderRadius: BorderRadius.vertical(bottom: Radius.circular(28)),
-          ),
-          child: ClipRRect(
-            borderRadius: const BorderRadius.vertical(
-              bottom: Radius.circular(28),
-            ),
-            child: Stack(
-              children: [
-                Positioned(
-                  right: -22,
-                  top: -20,
-                  child: Icon(
-                    Icons.mosque_rounded,
-                    size: 150,
-                    color: Colors.white.withValues(alpha: 0.07),
-                  ),
-                ),
-                SafeArea(
-                  bottom: false,
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                      18,
-                      12,
-                      18,
-                      _kCardOverlap + 8,
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                '${_greeting(isMalayalam)},',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                  color: Colors.white.withValues(alpha: 0.8),
-                                  letterSpacing: 0.2,
-                                ),
-                              ),
-                              const SizedBox(height: 3),
-                              Text(
-                                isMalayalam
-                                    ? 'അസ്സലാമു അലൈക്കും, $fullName 👋'
-                                    : 'Assalamu Alaikum, $fullName 👋',
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontSize: 19,
-                                  fontWeight: FontWeight.w700,
-                                  color: Colors.white,
-                                  letterSpacing: -0.3,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        PortalNotificationBell(
-                          notifications: demoNotifications,
-                          isMalayalam: isMalayalam,
-                          onDark: true,
-                          size: 42,
-                        ),
-                        const SizedBox(width: 8),
-                        PortalProfileAvatar(
-                          fallbackName: studentName,
-                          onDark: true,
-                          size: 42,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        // Today's Activities card — overlaps from the middle of the colored
-        // section (half over the primary color, half below) with a soft
-        // primary-tinted shadow.
-        Positioned(
-          left: 16,
-          right: 16,
-          bottom: -_kCardOverlap,
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: AppColors.primary.withValues(alpha: 0.12),
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.primary.withValues(alpha: 0.22),
-                  blurRadius: 26,
-                  spreadRadius: -4,
-                  offset: const Offset(0, 14),
-                ),
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                SizedBox(
-                  width: 54,
-                  height: 54,
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      SizedBox(
-                        width: 54,
-                        height: 54,
-                        child: CircularProgressIndicator(
-                          value: pct,
-                          strokeWidth: 5,
-                          strokeCap: StrokeCap.round,
-                          backgroundColor: kGreen.withValues(alpha: 0.15),
-                          valueColor: const AlwaysStoppedAnimation(kGreen),
-                        ),
-                      ),
-                      Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            '$todayDone/$todayTotal',
-                            style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w800,
-                              color: _kGreenDark,
-                              height: 1,
-                            ),
-                          ),
-                          const SizedBox(height: 1),
-                          Text(
-                            isMalayalam ? 'കഴിഞ്ഞു' : 'done',
-                            style: const TextStyle(
-                              fontSize: 8,
-                              fontWeight: FontWeight.w500,
-                              color: kMuted,
-                              height: 1,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        isMalayalam
-                            ? 'ഇന്നത്തെ പ്രവർത്തനങ്ങൾ'
-                            : "Today's Activities",
-                        style: const TextStyle(
-                          fontSize: 14.5,
-                          fontWeight: FontWeight.w800,
-                          color: kHeading,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        pending == 0
-                            ? (isMalayalam
-                                  ? 'എല്ലാം പൂർത്തിയായി! 🎉'
-                                  : 'All done! 🎉')
-                            : (isMalayalam
-                                  ? '$pending പ്രവർത്തനങ്ങൾ ബാക്കിയുണ്ട്'
-                                  : '$pending activities left to mark'),
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w400,
-                          color: kMuted,
-                        ),
-                      ),
-                      const SizedBox(height: 11),
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: _TapScale(
-                          onTap: onMarkToday,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 9,
-                            ),
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [
-                                  AppColors.primary,
-                                  AppColors.primaryDeep,
-                                ],
-                              ),
-                              borderRadius: BorderRadius.circular(12),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: kGreen.withValues(alpha: 0.35),
-                                  blurRadius: 10,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ],
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  pending == 0
-                                      ? Icons.visibility_rounded
-                                      : Icons.edit_rounded,
-                                  size: 15,
-                                  color: Colors.white,
-                                ),
-                                const SizedBox(width: 7),
-                                Text(
-                                  pending == 0
-                                      ? (isMalayalam ? 'കാണുക' : 'Review')
-                                      : (isMalayalam
-                                            ? 'മാർക്ക് ചെയ്യുക'
-                                            : 'Mark now'),
-                                  style: const TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w700,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _sectionTitle(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Text(
-        text.toUpperCase(),
-        style: const TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 0.5,
-          color: kMuted,
-        ),
-      ),
-    );
-  }
-
-  Widget _statCard({
-    required IconData icon,
-    required Color iconColor,
-    required String value,
-    required String label,
-  }) {
-    return AppCard(
-      elevated: true,
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _iconBadge(icon, iconColor, size: 34, radius: 11, iconSize: 18),
-          const SizedBox(height: 6),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Text(
-              value,
-              style: AppTextStyles.statNumber.copyWith(fontSize: 19),
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            textAlign: TextAlign.center,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: AppTextStyles.labelSmall,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _quickAction({
-    required IconData icon,
-    required Color iconColor,
-    required String label,
-    required String sub,
-    required VoidCallback onTap,
-  }) {
-    return _TapScale(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: AppDecorations.softCard(),
+  Widget _header(bool isMalayalam, String fullName) {
+    return SafeArea(
+      bottom: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 6),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            _iconBadge(icon, iconColor, size: 46, radius: 15, iconSize: 22),
-            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppTextStyles.label,
+                    isMalayalam ? 'അസ്സലാമു അലൈക്കും,' : 'Assalamu alaikum,',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: kBody,
+                      letterSpacing: 0.1,
+                    ),
                   ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 3),
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          fullName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.w800,
+                            color: _kGreenDark,
+                            letterSpacing: -0.4,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      const Text('🌿', style: TextStyle(fontSize: 18)),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
                   Text(
-                    sub,
+                    isMalayalam
+                        ? 'പഠിച്ച്, വളർന്ന്, അല്ലാഹുവിനെ പ്രസാദിപ്പിക്കൂ.'
+                        : 'Keep learning, growing and pleasing Allah.',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: AppTextStyles.labelSmall,
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w400,
+                      color: kMuted,
+                    ),
                   ),
                 ],
               ),
             ),
-            Icon(
-              Icons.chevron_right_rounded,
-              size: 18,
-              color: const Color(0xFFD1D5DB),
+            const SizedBox(width: 10),
+            PortalNotificationBellAsync(
+              fallback: const [],
+              source: PortalNotificationSource.student,
+              isMalayalam: isMalayalam,
+              minimal: true,
+              size: 44,
+            ),
+            const SizedBox(width: 10),
+            PortalProfileAvatar(
+              fallbackName: studentName,
+              onDark: false,
+              size: 44,
             ),
           ],
         ),
@@ -642,99 +225,749 @@ class StudentHomeScreen extends StatelessWidget {
     );
   }
 
-  Widget _reminderCard(bool isMalayalam, Map<String, String> hadith) {
+  // ── Card primitives ───────────────────────────────────────────────────────
+  BoxDecoration _cardDecoration() {
+    return BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(20),
+      border: Border.all(color: const Color(0xFFEFF1F3)),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withValues(alpha: 0.04),
+          blurRadius: 18,
+          spreadRadius: -6,
+          offset: const Offset(0, 10),
+        ),
+      ],
+    );
+  }
+
+  // ── Quran verse hero ──────────────────────────────────────────────────────
+  Widget _verseHero(bool isMalayalam, Map<String, String> verse) {
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      height: 138,
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFFFFFBEB), Color(0xFFFFF8E1)],
+          colors: [
+            AppColors.primaryDeep,
+            AppColors.primary,
+            AppColors.primaryLight,
+          ],
+          stops: [0.0, 0.55, 1.0],
         ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: const Color(0xFFD4A017).withValues(alpha: 0.2),
-        ),
-        boxShadow: const [
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: [
           BoxShadow(
-            color: Color(0x08000000),
-            blurRadius: 12,
-            offset: Offset(0, 4),
+            color: AppColors.primary.withValues(alpha: 0.28),
+            blurRadius: 24,
+            spreadRadius: -6,
+            offset: const Offset(0, 14),
           ),
         ],
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(top: 2),
-            child: _iconBadge(
-              Icons.auto_stories_rounded,
-              const Color(0xFFD4A017),
-              size: 36,
-              radius: 11,
-              iconSize: 18,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(22),
+        child: Stack(
+          children: [
+            Positioned(
+              top: 20,
+              right: 24,
+              child: Icon(
+                Icons.nightlight_round,
+                size: 26,
+                color: Colors.white.withValues(alpha: 0.85),
+              ),
             ),
+            Positioned(top: 34, right: 72, child: _star(4)),
+            Positioned(top: 18, right: 98, child: _star(3)),
+            Positioned(top: 56, right: 52, child: _star(2.5)),
+            Positioned(
+              right: -8,
+              bottom: -18,
+              child: Icon(
+                Icons.mosque_rounded,
+                size: 150,
+                color: Colors.white.withValues(alpha: 0.10),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    '\u201C',
+                    style: TextStyle(
+                      fontSize: 30,
+                      height: 0.9,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white.withValues(alpha: 0.35),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    isMalayalam ? verse['ml']! : verse['en']!,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 16.5,
+                      height: 1.32,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                      letterSpacing: -0.2,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    verse['ref']!,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.gold,
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _star(double size) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        shape: BoxShape.circle,
+      ),
+    );
+  }
+
+  // ── Today's progress (matches the Progress page hero card) ────────────────
+  Widget _todaysProgress(bool isMalayalam) {
+    final total = todayTotal;
+    final done = todayDone.clamp(0, total == 0 ? todayDone : total);
+    final marks = todayMarks;
+    final maxMarks = todayMaxMarks;
+    // Percentage mirrors the Progress page: marks earned ÷ max possible marks.
+    final pct = maxMarks > 0
+        ? (marks / maxMarks).clamp(0.0, 1.0)
+        : (total > 0 ? (done / total).clamp(0.0, 1.0) : 0.0);
+    final percentLabel = (pct * 100).round();
+    final allDone = total > 0 && done >= total;
+    final remaining = (total - done).clamp(0, total);
+
+    String statusText;
+    if (!summaryLoaded) {
+      statusText = isMalayalam ? 'വിവരങ്ങൾ ലോഡ് ചെയ്യുന്നു…' : 'Loading…';
+    } else if (total == 0) {
+      statusText = isMalayalam
+          ? 'ഇന്ന് മാർക്ക് ചെയ്യാൻ പ്രവർത്തനങ്ങളൊന്നുമില്ല.'
+          : 'No activities to mark today.';
+    } else if (allDone) {
+      statusText = isMalayalam
+          ? 'മാഷാ അല്ലാഹ്! ഇന്നത്തെ എല്ലാം പൂർത്തിയായി.'
+          : "Masha'Allah! All done for today.";
+    } else {
+      statusText = isMalayalam
+          ? 'ഇനി $remaining പ്രവർത്തനങ്ങൾ ബാക്കിയുണ്ട്.'
+          : '$remaining more to complete today.';
+    }
+
+    return GestureDetector(
+      onTap: onOpenProgress,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [AppColors.primaryDeep, AppColors.primary],
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.primary.withValues(alpha: 0.28),
+              blurRadius: 22,
+              spreadRadius: -8,
+              offset: const Offset(0, 12),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Text(
-                  isMalayalam ? hadith['ml']! : hadith['en']!,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    color: Color(0xFF444444),
-                    height: 1.5,
-                    fontStyle: FontStyle.italic,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        isMalayalam ? 'ഇന്നത്തെ മാർക്ക്' : "Today's marks",
+                        style: TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white.withValues(alpha: 0.9),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text.rich(
+                        TextSpan(
+                          children: [
+                            TextSpan(
+                              text: '$marks',
+                              style: const TextStyle(
+                                fontSize: 32,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white,
+                                height: 1,
+                              ),
+                            ),
+                            if (maxMarks > 0)
+                              TextSpan(
+                                text: ' / $maxMarks',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white.withValues(alpha: 0.75),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        '$done/$total ${isMalayalam ? 'പ്രവർത്തനങ്ങൾ' : 'activities'}',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white.withValues(alpha: 0.92),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 6),
-                Text(
-                  '— ${hadith['ref']}',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFFB8860B),
+                const SizedBox(width: 12),
+                SizedBox(
+                  width: 74,
+                  height: 74,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      SizedBox(
+                        width: 74,
+                        height: 74,
+                        child: CircularProgressIndicator(
+                          value: summaryLoaded ? pct : null,
+                          strokeWidth: 7,
+                          strokeCap: StrokeCap.round,
+                          backgroundColor: Colors.white.withValues(alpha: 0.22),
+                          valueColor: const AlwaysStoppedAnimation(Colors.white),
+                        ),
+                      ),
+                      Text(
+                        '$percentLabel%',
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Icon(
+                  allDone
+                      ? Icons.check_circle_rounded
+                      : Icons.info_outline_rounded,
+                  size: 16,
+                  color: Colors.white.withValues(alpha: 0.85),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    statusText,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.white.withValues(alpha: 0.9),
+                    ),
+                  ),
+                ),
+                if (summaryLoaded && total > 0 && !allDone) ...[
+                  const SizedBox(width: 8),
+                  GestureDetector(
+                    onTap: onMarkToday,
+                    behavior: HitTestBehavior.opaque,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 7,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        isMalayalam ? 'മാർക്ക് ചെയ്യൂ' : 'Mark now',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.primaryDeep,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Streak card ───────────────────────────────────────────────────────────
+  Widget _streakCard(bool isMalayalam) {
+    const labels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+    final value = streakDays;
+    return Container(
+      padding: const EdgeInsets.all(13),
+      decoration: _cardDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.local_fire_department_rounded,
+                size: 19,
+                color: Color(0xFFF59E0B),
+              ),
+              const SizedBox(width: 7),
+              Expanded(
+                child: Text(
+                  isMalayalam ? 'നിലവിലെ സ്ട്രീക്ക്' : 'Current Streak',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: kHeading,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Text(
+                '$value',
+                style: const TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w800,
+                  color: kHeading,
+                  height: 1,
+                ),
+              ),
+              const SizedBox(width: 4),
+              Text(
+                isMalayalam ? 'ദിവസം' : 'days',
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: kMuted,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            value > 0
+                ? (isMalayalam
+                      ? 'തുടരൂ! സ്ഥിരതയാണ് വിജയം.'
+                      : 'Keep it up! Consistency builds excellence.')
+                : (isMalayalam
+                      ? 'ഇന്ന് മാർക്ക് ചെയ്ത് സ്ട്രീക്ക് തുടങ്ങൂ.'
+                      : 'Mark today to start your streak.'),
+            style: const TextStyle(
+              fontSize: 11.5,
+              height: 1.4,
+              fontWeight: FontWeight.w400,
+              color: kMuted,
+            ),
+          ),
+          const SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (int i = 0; i < labels.length; i++) ...[
+                    if (i > 0) const SizedBox(width: 7),
+                    _dayChip(
+                      labels[i],
+                      done: _dayFlag(i, 'done'),
+                      isToday: _dayFlag(i, 'is_today'),
+                    ),
+                  ],
+                ],
+              ),
             ),
           ),
         ],
       ),
     );
   }
-}
 
-/// Small wrapper that scales its child to 0.97 while pressed, then runs [onTap].
-class _TapScale extends StatefulWidget {
-  final Widget child;
-  final VoidCallback onTap;
+  /// Reads a boolean flag for the i-th weekday (Mon=0..Sun=6) from the real
+  /// backend `weekDays` payload. Falls back to false when data is absent.
+  bool _dayFlag(int index, String key) {
+    if (index < 0 || index >= weekDays.length) return false;
+    final entry = weekDays[index];
+    if (entry is Map) return entry[key] == true;
+    return false;
+  }
 
-  const _TapScale({required this.child, required this.onTap});
+  Widget _dayChip(String label, {required bool done, required bool isToday}) {
+    final circleColor = done ? AppColors.primary : AppColors.neutral200;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 22,
+          height: 22,
+          decoration: BoxDecoration(
+            color: circleColor,
+            shape: BoxShape.circle,
+            border: isToday && !done
+                ? Border.all(color: AppColors.primary, width: 1.6)
+                : null,
+          ),
+          child: done
+              ? const Icon(Icons.check_rounded, size: 13, color: Colors.white)
+              : null,
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w600,
+            color: done
+                ? AppColors.primaryDeep
+                : (isToday ? AppColors.primary : kMuted),
+          ),
+        ),
+      ],
+    );
+  }
 
-  @override
-  State<_TapScale> createState() => _TapScaleState();
-}
-
-class _TapScaleState extends State<_TapScale> {
-  bool _down = false;
-
-  @override
-  Widget build(BuildContext context) {
+  // ── This week card ────────────────────────────────────────────────────────
+  Widget _weekCard(bool isMalayalam) {
+    final hasRank = batchRank > 0;
     return GestureDetector(
-      onTapDown: (_) => setState(() => _down = true),
-      onTapUp: (_) => setState(() => _down = false),
-      onTapCancel: () => setState(() => _down = false),
-      onTap: widget.onTap,
-      child: AnimatedScale(
-        scale: _down ? 0.97 : 1.0,
-        duration: const Duration(milliseconds: 120),
-        child: widget.child,
+      onTap: onOpenRanking,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: const EdgeInsets.all(13),
+        decoration: _cardDecoration(),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(
+                  Icons.bar_chart_rounded,
+                  size: 19,
+                  color: AppColors.primary,
+                ),
+                const SizedBox(width: 7),
+                Expanded(
+                  child: Text(
+                    isMalayalam ? 'ഈ ആഴ്ച' : 'This Week',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: kHeading,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
+                Text(
+                  '$weekPoints',
+                  style: const TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.primary,
+                    height: 1,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  isMalayalam ? 'പോയിന്റ്' : 'points',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: kMuted,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              isMalayalam ? 'കഴിഞ്ഞ 7 ദിവസം' : 'Earned in last 7 days',
+              style: const TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w400,
+                color: kMuted,
+              ),
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                const Icon(
+                  Icons.emoji_events_rounded,
+                  size: 16,
+                  color: AppColors.gold,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    hasRank
+                        ? (isMalayalam
+                              ? 'ബാച്ചിൽ റാങ്ക് $batchRank${batchSize > 0 ? '/$batchSize' : ''}'
+                              : 'Rank $batchRank${batchSize > 0 ? ' of $batchSize' : ''} in batch')
+                        : (isMalayalam
+                              ? 'റാങ്ക് ഇതുവരെ ലഭ്യമല്ല'
+                              : 'Rank not available yet'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: kHeading,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Badges & achievements preview ─────────────────────────────────────────
+  Widget _achievementsCard(bool isMalayalam) {
+    final earnedCount = badgesEarned;
+    final total = badgesTotal;
+    final hasBadges = badges.isNotEmpty;
+
+    return GestureDetector(
+      onTap: onOpenBadges,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(13, 13, 13, 13),
+        decoration: _cardDecoration(),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                _iconBadge(
+                  Icons.military_tech_rounded,
+                  AppColors.gold,
+                  size: 36,
+                  radius: 11,
+                  iconSize: 20,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        isMalayalam
+                            ? 'ബാഡ്ജുകൾ & നേട്ടങ്ങൾ'
+                            : 'Badges & Achievements',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: kHeading,
+                          letterSpacing: -0.2,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        isMalayalam
+                            ? '$earnedCount/$total എണ്ണം നേടി · എല്ലാം കാണുക'
+                            : '$earnedCount of $total earned · tap to view all',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w500,
+                          color: kMuted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(
+                  Icons.chevron_right_rounded,
+                  size: 20,
+                  color: Color(0xFF9CA3AF),
+                ),
+              ],
+            ),
+            if (hasBadges) ...[
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  for (var i = 0; i < badges.length; i++) ...[
+                    if (i > 0) const SizedBox(width: 10),
+                    Expanded(child: _badgeMedallion(badges[i], isMalayalam)),
+                  ],
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _badgeMedallion(dynamic raw, bool isMalayalam) {
+    final b = raw is Map ? raw : const <String, dynamic>{};
+    final earned = b['earned'] == true;
+    final icon = (b['icon'] as String?)?.trim();
+    final nameEn = (b['name'] as String?) ?? '';
+    final nameMl = (b['name_ml'] as String?) ?? nameEn;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          height: 44,
+          width: 44,
+          decoration: BoxDecoration(
+            color: earned
+                ? AppColors.gold.withValues(alpha: 0.14)
+                : const Color(0xFFF1F3F5),
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: earned
+                  ? AppColors.gold.withValues(alpha: 0.45)
+                  : const Color(0xFFE3E6E9),
+            ),
+          ),
+          alignment: Alignment.center,
+          child: earned
+              ? Text(
+                  (icon != null && icon.isNotEmpty) ? icon : '🏅',
+                  style: const TextStyle(fontSize: 24),
+                )
+              : const Icon(
+                  Icons.lock_rounded,
+                  size: 18,
+                  color: Color(0xFFB6BCC2),
+                ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          isMalayalam ? nameMl : nameEn,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 9.5,
+            fontWeight: FontWeight.w600,
+            color: earned ? kHeading : kMuted,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── Motivational footer ───────────────────────────────────────────────────
+  Widget _footerBanner(bool isMalayalam) {
+    return Container(
+      padding: const EdgeInsets.all(11),
+      decoration: BoxDecoration(
+        color: AppColors.secondaryMuted,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.secondary.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.local_florist_rounded,
+            size: 30,
+            color: AppColors.primary.withValues(alpha: 0.55),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              isMalayalam
+                  ? 'ചെറിയ ചുവടുകൾ ഇന്ന്, വലിയ പ്രതിഫലം നാളെ ഇൻ ഷാ അല്ലാഹ്.'
+                  : 'Small steps today, big rewards tomorrow insha\u2019Allah.',
+              style: const TextStyle(
+                fontSize: 12.5,
+                height: 1.4,
+                fontWeight: FontWeight.w500,
+                color: AppColors.body,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: AppColors.primary,
+              borderRadius: BorderRadius.circular(13),
+            ),
+            child: const Icon(
+              Icons.favorite_rounded,
+              size: 20,
+              color: AppColors.gold,
+            ),
+          ),
+        ],
       ),
     );
   }

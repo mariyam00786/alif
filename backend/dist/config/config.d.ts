@@ -24,6 +24,15 @@ export declare const config: {
         readonly provider: "supabase";
         readonly expirationTime: number;
     };
+    readonly msghex: {
+        readonly apiUrl: string;
+        readonly secret: string;
+        readonly account: string;
+        readonly messageTemplate: string;
+        readonly otpTtlSeconds: number;
+        readonly maxVerifyAttempts: number;
+        readonly otpLength: number;
+    };
     readonly email: {
         readonly fromEmail: string;
         readonly fromName: string;

@@ -29,6 +29,13 @@ export declare class AuthService {
         user: AuthUser;
         profile: Profile;
     }>;
+    /**
+     * Returns true when the given profile is linked to at least one student via
+     * the parent_students table. This is independent of the profile's primary
+     * `role`, so a student account that is also a parent can switch into the
+     * parent view from a single sign-in.
+     */
+    private profileHasChildren;
     private getProfileForSupabaseUser;
     private getProfileForGoogleIdentity;
     private findProfileByColumn;

@@ -42,7 +42,7 @@ export class AdminDashboardService {
       ] = await Promise.all([
         client.from('profiles').select('id, full_name, full_name_ml, phone, role'),
         client.from('students').select('id, profile_id, parent_phone, father_name, mother_name, date_of_birth, gender, address, batch_id, class_id, status, created_at'),
-        client.from('teachers').select('id, profile_id, qualification, status, created_at'),
+        client.from('teachers').select('id, profile_id, email, qualification, subjects, status, created_at'),
         client.from('batches').select('id, name, capacity, timing, status, created_at'),
         client.from('classes').select('id, name, batch_id'),
         client.from('teacher_batches').select('teacher_id, batch_id'),
@@ -116,9 +116,16 @@ export class AdminDashboardService {
     const teacherBatches = (teacherBatchesResult.data ?? []) as Array<{ teacher_id: string; batch_id: string }>;
     const batchTeacherMap = new Map<string, string>();
     const teacherBatchCounts = new Map<string, number>();
+    const teacherBatchNames = new Map<string, string[]>();
     for (const assignment of teacherBatches) {
       batchTeacherMap.set(assignment.batch_id, assignment.teacher_id);
       teacherBatchCounts.set(assignment.teacher_id, (teacherBatchCounts.get(assignment.teacher_id) ?? 0) + 1);
+      const batchName = batchById.get(assignment.batch_id)?.name;
+      if (batchName) {
+        const names = teacherBatchNames.get(assignment.teacher_id) ?? [];
+        names.push(batchName);
+        teacherBatchNames.set(assignment.teacher_id, names);
+      }
     }
 
     const logsByStudent = new Map<string, Array<{ logDate: string; marksEarned: number }>>();
@@ -171,14 +178,24 @@ export class AdminDashboardService {
     const teachers = ((teachersResult.data ?? []) as Array<{
       id: string;
       profile_id: string;
+      email?: string | null;
       qualification?: string | null;
+      subjects?: string[] | null;
       status?: string | null;
     }>).map((teacher) => {
       const profile = profiles.get(teacher.profile_id);
+      const subjects = Array.isArray(teacher.subjects) ? teacher.subjects.filter(Boolean) : [];
+      const batches = teacherBatchNames.get(teacher.id) ?? [];
 
       return {
         id: teacher.id,
         name: profile?.full_name ?? 'Unnamed teacher',
+        nameMl: profile?.full_name_ml ?? '',
+        mobile: profile?.phone ?? '',
+        email: teacher.email ?? '',
+        qualification: teacher.qualification ?? '',
+        subjects,
+        batches,
         subject: teacher.qualification ?? 'General Instruction',
         batchCount: teacherBatchCounts.get(teacher.id) ?? 0,
         responseRate: teacher.status === 'active' ? 1 : 0,

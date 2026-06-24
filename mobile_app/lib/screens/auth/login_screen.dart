@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../components/input.dart';
 import '../../components/otp_box_field.dart';
 import '../../constants/app_theme.dart';
@@ -6,6 +7,15 @@ import '../../constants/colors.dart';
 import '../../constants/dimensions.dart';
 import '../../services/api_service.dart';
 import '../../services/google_auth_service.dart';
+
+// ── Minimal sign-in palette (warm cream surface + deep brand green) ─────────
+const Color _kCanvas = Color(0xFFEDE8DE);
+const Color _kPanel = Color(0xFFF6F3EC);
+const Color _kPanelBorder = Color(0xFFE4DED2);
+const Color _kBrandGreen = Color(0xFF1B6A5B);
+const Color _kHelperText = Color(0xFF9B968B);
+const Color _kDisabledBtn = Color(0xFFE7E2D8);
+const Color _kDivider = Color(0xFFE5E0D5);
 
 enum LoginStep { phone, otp }
 
@@ -49,6 +59,11 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
   String? _error;
   bool _isLoading = false;
 
+  /// Cached locale captured during [build] so event handlers can build
+  /// localized messages without doing a listening provider read (which is
+  /// illegal outside the widget tree and throws a provider assertion).
+  bool _isMalayalam = false;
+
   final _phoneController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -65,36 +80,20 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
   @override
   Widget build(BuildContext context) {
     final isMalayalam = context.isMalayalam;
+    _isMalayalam = isMalayalam;
 
     return Scaffold(
-      backgroundColor: ColorPalette.backgroundLight,
-      body: Container(
-        width: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [ColorPalette.white, ColorPalette.primaryMuted],
-          ),
-        ),
-        child: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding: EdgeInsets.symmetric(
-                horizontal: SpacingScale.lg,
-                vertical: SpacingScale.xl,
-              ),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 420),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _buildHero(isMalayalam),
-                    SizedBox(height: SpacingScale.xl),
-                    _buildCard(isMalayalam),
-                  ],
-                ),
-              ),
+      backgroundColor: _kCanvas,
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: EdgeInsets.symmetric(
+              horizontal: SpacingScale.lg,
+              vertical: SpacingScale.xl,
+            ),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 380),
+              child: _buildCard(isMalayalam),
             ),
           ),
         ),
@@ -104,22 +103,27 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
 
   Widget _buildCard(bool isMalayalam) {
     return Container(
-      padding: EdgeInsets.all(SpacingScale.lg),
+      padding: EdgeInsets.symmetric(
+        horizontal: SpacingScale.lg,
+        vertical: SpacingScale.xl,
+      ),
       decoration: BoxDecoration(
-        color: ColorPalette.white,
-        borderRadius: BorderRadius.circular(26),
-        border: Border.all(color: ColorPalette.neutral200),
+        color: _kPanel,
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: _kPanelBorder),
         boxShadow: [
           BoxShadow(
-            color: ColorPalette.primaryDark.withValues(alpha: 0.06),
-            blurRadius: 30,
-            offset: const Offset(0, 16),
+            color: const Color(0xFF1F2937).withValues(alpha: 0.04),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
           ),
         ],
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          _buildHero(isMalayalam),
+          SizedBox(height: SpacingScale.xl),
           _buildPortalSelector(isMalayalam),
           SizedBox(height: SpacingScale.lg),
           if (_useEmail)
@@ -194,62 +198,43 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
     );
   }
 
+  bool get _canSubmit {
+    if (_isLoading) return false;
+    if (!_useEmail && _step == LoginStep.phone) {
+      return _phone.replaceAll(RegExp(r'\D'), '').length == 10;
+    }
+    return true;
+  }
+
   Widget _buildPrimaryButton(bool isMalayalam) {
-    final enabled = !_isLoading;
-    return Opacity(
-      opacity: enabled ? 1 : 0.75,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [ColorPalette.primaryDark, ColorPalette.primaryLight],
-          ),
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: ColorPalette.primaryDark.withValues(alpha: 0.35),
-              blurRadius: 20,
-              offset: const Offset(0, 12),
-            ),
-          ],
-        ),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            borderRadius: BorderRadius.circular(16),
-            onTap: enabled ? _handlePrimaryAction : null,
-            child: SizedBox(
-              height: 56,
-              child: Center(
-                child: _isLoading
-                    ? const SizedBox(
-                        width: 22,
-                        height: 22,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2.4,
-                          valueColor: AlwaysStoppedAnimation(Colors.white),
-                        ),
-                      )
-                    : Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            _primaryLabel(isMalayalam),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          const Icon(
-                            Icons.arrow_forward_rounded,
-                            color: Colors.white,
-                            size: 20,
-                          ),
-                        ],
-                      ),
-              ),
-            ),
+    final active = _canSubmit;
+    return SizedBox(
+      width: double.infinity,
+      height: 54,
+      child: Material(
+        color: active ? _kBrandGreen : _kDisabledBtn,
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: active ? _handlePrimaryAction : null,
+          child: Center(
+            child: _isLoading
+                ? const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.4,
+                      valueColor: AlwaysStoppedAnimation(Colors.white),
+                    ),
+                  )
+                : Text(
+                    _primaryLabel(isMalayalam),
+                    style: TextStyle(
+                      color: active ? Colors.white : _kHelperText,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
           ),
         ),
       ),
@@ -261,19 +246,38 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
   String get _selectedRole =>
       _portal == LoginPortal.teacher ? 'teacher' : 'student';
 
-  IconData get _portalIcon => _portal == LoginPortal.teacher
-      ? Icons.co_present_rounded
-      : Icons.school_rounded;
-
-  String _portalTitle(bool isMalayalam) {
-    switch (_portal) {
-      case LoginPortal.teacher:
-        return isMalayalam ? 'അധ്യാപക പോർട്ടൽ' : 'Teacher Portal';
-      case LoginPortal.studentParent:
-        return isMalayalam
-            ? 'വിദ്യാർത്ഥി / രക്ഷിതാവ് പോർട്ടൽ'
-            : 'Student / Parent Portal';
+  /// Returns an error message when the verified [backendRole] does not match
+  /// the portal selected at the top of the screen, or null when it is allowed.
+  ///
+  /// Signing in only proves who the account is (phone ownership via OTP, or
+  /// email + password). It must NOT let a student / parent account open the
+  /// teacher board, or a teacher open the student board, just because the
+  /// wrong tab happened to be selected.
+  String? _portalRoleMismatch(String? backendRole, bool isMalayalam) {
+    final role = backendRole?.toLowerCase();
+    if (_portal == LoginPortal.teacher) {
+      if (role == 'teacher' || role == 'admin') return null;
+      return isMalayalam
+          ? 'ഈ അക്കൗണ്ട് ഒരു അധ്യാപക അക്കൗണ്ട് അല്ല. വിദ്യാർത്ഥി / രക്ഷിതാവ് ടാബിൽ സൈൻ ഇൻ ചെയ്യുക.'
+          : 'This is not a teacher account. Use the Student / Parent tab to sign in.';
     }
+    // Student / Parent portal: a teacher account belongs on the Teacher tab.
+    if (role == 'teacher') {
+      return isMalayalam
+          ? 'ഇത് ഒരു അധ്യാപക അക്കൗണ്ട് ആണ്. അധ്യാപകൻ ടാബിൽ സൈൻ ഇൻ ചെയ്യുക.'
+          : 'This is a teacher account. Use the Teacher tab to sign in.';
+    }
+    return null;
+  }
+
+  /// The board to open, derived from the verified backend [backendRole] so the
+  /// correct portal always opens regardless of any UI selection. Falls back to
+  /// the selected portal when the backend did not return a role.
+  String _resolveRole(String? backendRole) {
+    final role = backendRole?.toLowerCase();
+    if (role == 'teacher') return 'teacher';
+    if (_portal == LoginPortal.studentParent && role == 'parent') return 'parent';
+    return _selectedRole;
   }
 
   void _selectPortal(LoginPortal portal) {
@@ -286,11 +290,11 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
 
   Widget _buildPortalSelector(bool isMalayalam) {
     return Container(
-      padding: const EdgeInsets.all(4),
+      padding: const EdgeInsets.all(5),
       decoration: BoxDecoration(
-        color: ColorPalette.neutral100,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: ColorPalette.neutral200),
+        color: ColorPalette.white,
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(color: _kPanelBorder),
       ),
       child: Row(
         children: [
@@ -329,42 +333,29 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
       behavior: HitTestBehavior.opaque,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
+        padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 6),
         decoration: BoxDecoration(
-          color: selected ? ColorPalette.white : Colors.transparent,
-          borderRadius: BorderRadius.circular(11),
-          boxShadow: selected
-              ? [
-                  BoxShadow(
-                    color: ColorPalette.neutral900.withValues(alpha: 0.08),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ]
-              : null,
+          color: selected ? _kBrandGreen : Colors.transparent,
+          borderRadius: BorderRadius.circular(24),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
               icon,
-              size: 16,
-              color: selected
-                  ? ColorPalette.primaryDark
-                  : ColorPalette.neutral500,
+              size: 17,
+              color: selected ? Colors.white : _kHelperText,
             ),
-            const SizedBox(width: 6),
+            const SizedBox(width: 7),
             Flexible(
               child: Text(
                 label,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  fontSize: 12.5,
+                  fontSize: 13,
                   fontWeight: FontWeight.w700,
-                  color: selected
-                      ? ColorPalette.primaryDark
-                      : ColorPalette.neutral500,
+                  color: selected ? Colors.white : _kHelperText,
                 ),
               ),
             ),
@@ -375,56 +366,32 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
   }
 
   Widget _buildHero(bool isMalayalam) {
-    final subtitle = _useEmail
-        ? (isMalayalam
-              ? 'ഇമെയിലും പാസ്‌വേഡും ഉപയോഗിച്ച് സൈൻ ഇൻ ചെയ്യുക'
-              : 'Sign in with your email and password')
-        : (isMalayalam
-              ? 'ഫോൺ നമ്പറും OTP-യും ഉപയോഗിച്ച് സൈൻ ഇൻ ചെയ്യുക'
-              : 'Sign in with your phone number and OTP');
-
     return Column(
       children: [
-        Container(
-          width: 72,
-          height: 72,
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [ColorPalette.primaryDark, ColorPalette.primaryLight],
-            ),
-            borderRadius: BorderRadius.circular(22),
-            boxShadow: [
-              BoxShadow(
-                color: ColorPalette.primaryDark.withValues(alpha: 0.28),
-                blurRadius: 22,
-                offset: const Offset(0, 12),
-              ),
-            ],
-          ),
-          child: Icon(_portalIcon, size: 34, color: Colors.white),
+        const SizedBox(
+          width: 64,
+          height: 40,
+          child: CustomPaint(painter: _ArchLogoPainter()),
         ),
-        SizedBox(height: SpacingScale.lg),
-        Text(
-          _portalTitle(isMalayalam),
-          textAlign: TextAlign.center,
-          style: const TextStyle(
-            fontSize: 26,
-            height: 1.15,
-            fontWeight: FontWeight.w800,
-            color: ColorPalette.textPrimary,
-            letterSpacing: -0.4,
-          ),
-        ),
-        SizedBox(height: SpacingScale.xs),
-        Text(
-          subtitle,
-          textAlign: TextAlign.center,
+        const SizedBox(height: 12),
+        const Text(
+          'Alif',
           style: TextStyle(
-            fontSize: 14,
-            height: 1.4,
-            color: ColorPalette.textTertiary,
+            fontFamily: 'serif',
+            fontSize: 30,
+            height: 1.0,
+            fontWeight: FontWeight.w600,
+            color: _kBrandGreen,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          isMalayalam ? 'സൈൻ ഇൻ' : 'SIGN IN',
+          style: const TextStyle(
+            fontSize: 12,
+            letterSpacing: 4,
+            fontWeight: FontWeight.w600,
+            color: _kHelperText,
           ),
         ),
       ],
@@ -434,49 +401,65 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
   Widget _buildPhoneForm(bool isMalayalam) {
     return Form(
       key: _formKey,
-      child: _buildFormStepShell(
-        accent: ColorPalette.primaryLight,
-        icon: Icons.phone_iphone,
-        child: Column(
-          children: [
-            Text(
-              isMalayalam ? 'ഫോൺ നമ്പർ നൽകുക' : 'Enter your phone number',
-              style: TextStyle(fontSize: 14, color: ColorPalette.neutral600),
-              textAlign: TextAlign.center,
-            ),
-            SizedBox(height: SpacingScale.md),
-            AlifInput(
-              label: isMalayalam ? 'ഫോൺ നമ്പർ' : 'Phone Number',
-              placeholder: '98XXXXXXXX',
-              type: InputType.phone,
-              controller: _phoneController,
-              maxLength: 10,
-              leading: const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 12),
-                child: Center(
-                  widthFactor: 1,
-                  child: Text(
-                    '+91',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: ColorPalette.textSecondary,
-                    ),
-                  ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              const Text(
+                '+91',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w700,
+                  color: ColorPalette.textPrimary,
                 ),
               ),
-              onChanged: (value) {
-                setState(() => _phone = value);
-              },
-              required: true,
-              validator: _validatePhone,
-              isMalayalam: isMalayalam,
-              helperText: isMalayalam
-                  ? '10 അക്ക മൊബൈൽ നമ്പർ'
-                  : '10-digit mobile number',
-            ),
-          ],
-        ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: TextFormField(
+                  controller: _phoneController,
+                  keyboardType: TextInputType.phone,
+                  enabled: !_isLoading,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    LengthLimitingTextInputFormatter(10),
+                  ],
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 1,
+                    color: ColorPalette.textPrimary,
+                  ),
+                  decoration: const InputDecoration(
+                    isDense: true,
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    contentPadding: EdgeInsets.zero,
+                    counterText: '',
+                    hintText: '98XXXXXXXX',
+                    hintStyle: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 1,
+                      color: _kHelperText,
+                    ),
+                  ),
+                  onChanged: (value) => setState(() => _phone = value),
+                  validator: _validatePhone,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Container(height: 1, color: _kDivider),
+          const SizedBox(height: 10),
+          Text(
+            isMalayalam ? '10 അക്ക മൊബൈൽ നമ്പർ' : '10-digit mobile number',
+            style: const TextStyle(fontSize: 12.5, color: _kHelperText),
+          ),
+        ],
       ),
     );
   }
@@ -550,10 +533,15 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
   /// The link that toggles between the primary phone flow and the optional
   /// email flow.
   Widget _buildMethodSwitch(bool isMalayalam) {
+    final style = TextButton.styleFrom(
+      foregroundColor: _kBrandGreen,
+      textStyle: const TextStyle(fontWeight: FontWeight.w700),
+    );
     if (_useEmail) {
       return TextButton.icon(
         onPressed: _isLoading ? null : _switchToPhone,
-        icon: Icon(Icons.phone_iphone, size: 18),
+        style: style,
+        icon: const Icon(Icons.phone_iphone, size: 18),
         label: Text(
           isMalayalam
               ? 'ഫോൺ നമ്പർ ഉപയോഗിച്ച് സൈൻ ഇൻ ചെയ്യുക'
@@ -563,7 +551,8 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
     }
     return TextButton.icon(
       onPressed: _isLoading ? null : _switchToEmail,
-      icon: Icon(Icons.alternate_email, size: 18),
+      style: style,
+      icon: const Icon(Icons.mail_outline_rounded, size: 18),
       label: Text(
         isMalayalam ? 'പകരം ഇമെയിൽ ഉപയോഗിക്കുക' : 'Use email instead',
       ),
@@ -766,23 +755,38 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
       return;
     }
 
-    setState(() => _isLoading = false);
-
-    // The portal chosen at the top decides which board opens; the backend OTP
-    // verification still authenticates the phone number. Parent access is
-    // always offered inside the student portal as an in-app switch.
     final user = result.data?['user'];
     final backendRole = user is Map ? user['role']?.toString() : null;
+
+    // The OTP only proves ownership of the phone number. Make sure the verified
+    // account actually matches the chosen portal before opening any board.
+    final mismatch = _portalRoleMismatch(backendRole, _isMalayalam);
+    if (mismatch != null) {
+      setState(() {
+        _isLoading = false;
+        _error = mismatch;
+      });
+      return;
+    }
+
+    setState(() => _isLoading = false);
+
     final hasParentAccess =
         _portal == LoginPortal.studentParent ||
         (user is Map && user['has_parent_access'] == true);
 
-    // A guardian account (linked to children, with no student board of its own)
-    // opens the parent child-picker directly instead of an empty student board.
-    final role =
-        (_portal == LoginPortal.studentParent && backendRole == 'parent')
-        ? 'parent'
-        : _selectedRole;
+    // Capture the verified user's display name so the portal can greet them by
+    // name (a phone/OTP session has no Supabase session to read this from).
+    if (user is Map) {
+      MobileGoogleAuthService.setSessionDisplayUser(
+        name: user['name']?.toString(),
+        email: user['email']?.toString(),
+      );
+    }
+
+    // Route by the verified backend role so the correct board always opens
+    // (a guardian account opens the parent child-picker directly).
+    final role = _resolveRole(backendRole);
 
     widget.onLoginSuccess(role, hasParentAccess: hasParentAccess);
   }
@@ -792,12 +796,31 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
       final result = await MobileGoogleAuthService.signInWithEmailPassword(
         email: _emailController.text,
         password: _passwordController.text,
+        allowedRoles: _portal == LoginPortal.teacher
+            ? const {'teacher', 'admin'}
+            : const {'student', 'parent'},
       );
       if (!mounted) {
         return;
       }
+
+      // Enforce that the verified account matches the chosen portal; otherwise
+      // sign back out so no teacher/student board opens for the wrong account.
+      final mismatch = _portalRoleMismatch(result.role, _isMalayalam);
+      if (mismatch != null) {
+        await MobileGoogleAuthService.signOut();
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          _isLoading = false;
+          _error = mismatch;
+        });
+        return;
+      }
+
       widget.onLoginSuccess(
-        _selectedRole,
+        _resolveRole(result.role),
         hasParentAccess:
             _portal == LoginPortal.studentParent || result.hasParentAccess,
       );
@@ -811,4 +834,31 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
       });
     }
   }
+}
+
+/// Thin-line mihrab arch used as the minimal Alif sign-in mark.
+class _ArchLogoPainter extends CustomPainter {
+  const _ArchLogoPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = _kBrandGreen
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.4
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+
+    final w = size.width;
+    final h = size.height;
+    final path = Path()
+      ..moveTo(w * 0.12, h)
+      ..lineTo(w * 0.12, h * 0.42)
+      ..cubicTo(w * 0.12, h * 0.06, w * 0.88, h * 0.06, w * 0.88, h * 0.42)
+      ..lineTo(w * 0.88, h);
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _ArchLogoPainter oldDelegate) => false;
 }

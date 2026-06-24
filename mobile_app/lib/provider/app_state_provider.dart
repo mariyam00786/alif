@@ -20,10 +20,9 @@ enum AppLocale {
 class AppStateProvider extends ChangeNotifier {
   AppLocale _locale = AppLocale.en;
   bool _isDarkMode = false;
-  // TEMP-DEBUG: auto-login as a student with parent access to verify switch.
-  bool _isLoggedIn = true;
-  String? _activeRole = 'student';
-  String? _currentStudentId = 'self';
+  bool _isLoggedIn = false;
+  String? _activeRole;
+  String? _currentStudentId;
 
   /// The portal currently being shown. Usually equals [_activeRole], but a
   /// dual student/parent account can flip this to switch views without signing
@@ -33,7 +32,7 @@ class AppStateProvider extends ChangeNotifier {
 
   /// Whether the signed-in account is also linked to one or more children, as
   /// reported by the backend at sign-in. Drives the in-portal switch option.
-  bool _hasParentAccess = true; // TEMP-DEBUG
+  bool _hasParentAccess = false;
 
   // ===== Getters =====
   AppLocale get locale => _locale;

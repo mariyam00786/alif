@@ -205,6 +205,145 @@ class TeacherApiService {
     }
   }
 
+  // ===== Badges (teacher-awarded recognition) =====
+
+  /// Loads the catalogue of awardable badges. Returns empty list on failure.
+  static Future<List<TeacherBadge>> fetchBadges() async {
+    final token = MobileApiService.getAuthToken();
+    if (token == null || token == 'demo-teacher') return const [];
+    try {
+      final res = await http
+          .get(Uri.parse('$_base/teacher/badges'), headers: _headers())
+          .timeout(_timeout);
+      return _list(res).map((e) => _mapBadge(e as Map<String, dynamic>)).toList();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  /// Loads the badges already awarded to a student.
+  static Future<List<TeacherBadge>> fetchStudentBadges(String studentId) async {
+    final token = MobileApiService.getAuthToken();
+    if (token == null || token == 'demo-teacher') return const [];
+    try {
+      final res = await http
+          .get(
+            Uri.parse('$_base/teacher/student/$studentId/badges'),
+            headers: _headers(),
+          )
+          .timeout(_timeout);
+      return _list(res).map((e) => _mapBadge(e as Map<String, dynamic>)).toList();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  /// Awards a badge to a student. Returns the awarded [TeacherBadge] or null.
+  static Future<TeacherBadge?> awardBadge(
+    String studentId,
+    String badgeId,
+  ) async {
+    final token = MobileApiService.getAuthToken();
+    if (token == null || token == 'demo-teacher') return null;
+    try {
+      final res = await http
+          .post(
+            Uri.parse('$_base/teacher/student/$studentId/badge'),
+            headers: _headers(),
+            body: jsonEncode({'badge_id': badgeId}),
+          )
+          .timeout(_timeout);
+      return _mapBadge(_object(res));
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static TeacherBadge _mapBadge(Map<String, dynamic> j) {
+    final name = j['name']?.toString() ?? 'Badge';
+    return TeacherBadge(
+      id: j['badge_id']?.toString() ?? j['id']?.toString() ?? '',
+      name: name,
+      nameMl: (j['name_ml']?.toString().isNotEmpty ?? false)
+          ? j['name_ml'].toString()
+          : name,
+      icon: j['icon']?.toString() ?? '🏅',
+      bonusPoints: (j['bonus_points'] as num?)?.toInt() ?? 0,
+    );
+  }
+
+  // ===== Attendance =====
+
+  /// Loads attendance for a batch on a date. Returns null on failure.
+  static Future<BatchAttendance?> fetchAttendance(
+    String batchId, {
+    String? date,
+  }) async {
+    final token = MobileApiService.getAuthToken();
+    if (token == null || token == 'demo-teacher') return null;
+    try {
+      final q = date != null ? '?date=$date' : '';
+      final res = await http
+          .get(
+            Uri.parse('$_base/teacher/batch/$batchId/attendance$q'),
+            headers: _headers(),
+          )
+          .timeout(_timeout);
+      final data = _object(res);
+      final students = ((data['students'] as List?) ?? const [])
+          .map((e) {
+            final m = e as Map<String, dynamic>;
+            final name = m['name']?.toString() ?? 'Student';
+            return AttendanceRow(
+              studentId: m['id']?.toString() ?? '',
+              name: name,
+              nameMl: (m['name_ml']?.toString().isNotEmpty ?? false)
+                  ? m['name_ml'].toString()
+                  : name,
+              status: m['status']?.toString(),
+            );
+          })
+          .toList();
+      return BatchAttendance(
+        date: data['date']?.toString() ?? '',
+        presentCount: (data['present_count'] as num?)?.toInt() ?? 0,
+        total: (data['total'] as num?)?.toInt() ?? students.length,
+        rows: students,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Saves attendance for one or more students in a batch on a date.
+  /// Returns true on success.
+  static Future<bool> saveAttendance(
+    String batchId, {
+    required List<({String studentId, String status})> entries,
+    String? date,
+  }) async {
+    final token = MobileApiService.getAuthToken();
+    if (token == null || token == 'demo-teacher') return false;
+    try {
+      final res = await http
+          .post(
+            Uri.parse('$_base/teacher/batch/$batchId/attendance'),
+            headers: _headers(),
+            body: jsonEncode({
+              'date': ?date,
+              'entries': entries
+                  .map((e) => {'student_id': e.studentId, 'status': e.status})
+                  .toList(),
+            }),
+          )
+          .timeout(_timeout);
+      _object(res); // throws on non-2xx
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   // ===== Batch analytics =====
 
   /// Fetches analytics for a single batch. Returns null on failure.
@@ -350,5 +489,52 @@ class TeacherBatchAnalytics {
     required this.avgCompletion,
     required this.topPerformers,
     required this.areasToImprove,
+  });
+}
+
+/// An awardable / awarded badge from `/teacher/badges`.
+class TeacherBadge {
+  final String id;
+  final String name;
+  final String nameMl;
+  final String icon;
+  final int bonusPoints;
+
+  const TeacherBadge({
+    required this.id,
+    required this.name,
+    required this.nameMl,
+    required this.icon,
+    required this.bonusPoints,
+  });
+}
+
+/// One student's attendance status for a day.
+class AttendanceRow {
+  final String studentId;
+  final String name;
+  final String nameMl;
+  final String? status; // present | absent | late | excused | null
+
+  const AttendanceRow({
+    required this.studentId,
+    required this.name,
+    required this.nameMl,
+    required this.status,
+  });
+}
+
+/// Attendance for a batch on a given date.
+class BatchAttendance {
+  final String date;
+  final int presentCount;
+  final int total;
+  final List<AttendanceRow> rows;
+
+  const BatchAttendance({
+    required this.date,
+    required this.presentCount,
+    required this.total,
+    required this.rows,
   });
 }

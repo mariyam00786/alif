@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../constants/app_theme.dart';
 import '../components/portal_ui.dart';
 import '../services/api_service.dart';
+import '../services/google_auth_service.dart';
 import '../shared/theme/theme.dart';
 
 /// Leaderboard / ranking screen for a batch.
@@ -26,7 +27,6 @@ class LeaderboardScreen extends StatefulWidget {
 
 class _LeaderboardScreenState extends State<LeaderboardScreen> {
   int _tab = 0; // 0=Daily, 1=Weekly, 2=Monthly, 3=All-time
-  bool _initialsOnly = false; // privacy: show initials instead of full names
   bool _loading = true;
 
   @override
@@ -272,16 +272,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
     }
   }
 
-  String _displayName(Map<String, dynamic> s) {
-    final name = s['name'] as String;
-    if (!_initialsOnly || s['me'] == true) return name;
-    final parts = name.trim().split(' ');
-    final initials = parts
-        .take(2)
-        .map((p) => p.isNotEmpty ? p[0] : '')
-        .join('. ');
-    return '$initials.';
-  }
+  String _displayName(Map<String, dynamic> s) => s['name'] as String;
 
   @override
   Widget build(BuildContext context) {
@@ -310,25 +301,18 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                 : 'Rankings appear once marking starts.',
           )
         : ListView(
-            padding: const EdgeInsets.fromLTRB(16, 18, 16, 28),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
             children: [
               _podium(top3, isMalayalam),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(
-                    child: SectionLabel(
-                      isMalayalam ? 'എല്ലാ റാങ്കുകൾ' : 'All Rankings',
-                      icon: Icons.format_list_numbered_rounded,
-                    ),
-                  ),
-                  _privacyToggle(isMalayalam),
-                ],
+              const SizedBox(height: 14),
+              SectionLabel(
+                isMalayalam ? 'എല്ലാ റാങ്കുകൾ' : 'All Rankings',
+                icon: Icons.format_list_numbered_rounded,
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
               ...rest.map(
                 (s) => Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
+                  padding: const EdgeInsets.only(bottom: 8),
                   child: _row(s, isMalayalam),
                 ),
               ),
@@ -347,12 +331,15 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
             ),
           )
         else
-          PortalHeader(
+          MinimalHeader(
             title: isMalayalam ? 'റാങ്കിംഗ്' : 'Leaderboard',
             subtitle: widget.batchName,
-            icon: Icons.leaderboard_rounded,
+            isMalayalam: isMalayalam,
+            notifications: const [],
+            notificationSource: PortalNotificationSource.student,
+            avatarName:
+                MobileGoogleAuthService.currentUser?.name ?? widget.batchName,
             bottom: PortalSegmented(
-              onHeader: true,
               index: _tab,
               items: segItems,
               onChanged: (i) => setState(() => _tab = i),
@@ -508,7 +495,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
         ),
         const SizedBox(height: 14),
         Text(
-          _initialsOnly && !me ? _displayName(s) : _firstName(s['name']),
+          _firstName(s['name']),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           textAlign: TextAlign.center,
@@ -724,41 +711,6 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
     return hsl
         .withLightness((hsl.lightness - amount).clamp(0.0, 1.0))
         .toColor();
-  }
-
-  Widget _privacyToggle(bool isMalayalam) {
-    return GestureDetector(
-      onTap: () => setState(() => _initialsOnly = !_initialsOnly),
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-        decoration: BoxDecoration(
-          color: _initialsOnly ? kGreen : kGreenSoft,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              _initialsOnly
-                  ? Icons.visibility_off_rounded
-                  : Icons.visibility_rounded,
-              size: 16,
-              color: _initialsOnly ? Colors.white : kGreen,
-            ),
-            const SizedBox(width: 6),
-            Text(
-              isMalayalam ? 'സ്വകാര്യത' : 'Privacy',
-              style: TextStyle(
-                fontSize: 12.5,
-                fontWeight: FontWeight.w700,
-                color: _initialsOnly ? Colors.white : kGreen,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 
   String _firstName(String name) => name.split(' ').first;

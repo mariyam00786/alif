@@ -72,7 +72,7 @@ router.post('/supabase-signin', (0, async_handler_1.asyncHandler)(async (req, re
     const result = await authService.signInWithSupabaseAccessToken(accessToken);
     res.json({
         success: true,
-        message: 'Supabase Google sign-in successful.',
+        message: 'Sign-in successful.',
         token: result.token,
         data: {
             token: result.token,

@@ -12,6 +12,11 @@
  * - GET  /student/:id/progress?period=  Weekly/monthly progress + remarks
  * - POST /student/:id/remark            Add a remark/feedback for a student
  * - GET  /batch/:id/analytics           Batch analytics (top/improve)
+ * - GET  /badges                        Catalogue of awardable badges
+ * - GET  /student/:id/badges            Badges already awarded to a student
+ * - POST /student/:id/badge             Award a badge to a student
+ * - GET  /batch/:id/attendance?date=    Students + attendance status for a day
+ * - POST /batch/:id/attendance          Upsert attendance for a day
  */
 
 import { Router, Request, Response } from 'express';
@@ -617,6 +622,216 @@ router.get(
         top_performers: topPerformers,
         areas_to_improve: areas,
       },
+    });
+  })
+);
+
+// ===== Badges (teacher-awarded recognition) =====
+
+/** GET /badges — catalogue of active badges a teacher can award. */
+router.get(
+  '/badges',
+  authenticateRequest,
+  teacherOnly,
+  asyncHandler(async (_req: Request, res: Response) => {
+    const { data, error } = await getSupabaseClient()
+      .from('badges')
+      .select('id, name, name_ml, description, icon, bonus_points')
+      .eq('status', 'active')
+      .order('bonus_points', { ascending: false });
+    if (error) throw new HttpError(500, `Failed to load badges: ${error.message}`);
+    res.json({ success: true, data: data ?? [] });
+  })
+);
+
+/** GET /student/:id/badges — badges already awarded to a student. */
+router.get(
+  '/student/:id/badges',
+  authenticateRequest,
+  teacherOnly,
+  asyncHandler(async (req: Request, res: Response) => {
+    const teacher = await resolveTeacher(req.user!.profileId);
+    await requireStudentInScope(teacher.id, req.params.id);
+    const supabase = getSupabaseClient();
+
+    const { data: awarded, error } = await supabase
+      .from('student_badges')
+      .select('id, badge_id, earned_at')
+      .eq('student_id', req.params.id)
+      .order('earned_at', { ascending: false });
+    if (error) throw new HttpError(500, `Failed to load student badges: ${error.message}`);
+
+    const badgeIds = [...new Set((awarded ?? []).map((r: any) => r.badge_id))];
+    const { data: badges } = badgeIds.length
+      ? await supabase.from('badges').select('id, name, name_ml, icon, bonus_points').in('id', badgeIds)
+      : { data: [] as any[] };
+    const badgeMap = new Map((badges ?? []).map((b: any) => [b.id, b]));
+
+    const data = (awarded ?? []).map((r: any) => {
+      const b: any = badgeMap.get(r.badge_id);
+      return {
+        id: r.id,
+        badge_id: r.badge_id,
+        name: b?.name ?? 'Badge',
+        name_ml: b?.name_ml ?? null,
+        icon: b?.icon ?? null,
+        bonus_points: b?.bonus_points ?? 0,
+        earned_at: r.earned_at,
+      };
+    });
+    res.json({ success: true, data });
+  })
+);
+
+/** POST /student/:id/badge — award a badge to a student (idempotent). */
+router.post(
+  '/student/:id/badge',
+  authenticateRequest,
+  teacherOnly,
+  asyncHandler(async (req: Request, res: Response) => {
+    const teacher = await resolveTeacher(req.user!.profileId);
+    await requireStudentInScope(teacher.id, req.params.id);
+
+    const badgeId = String((req.body ?? {}).badge_id ?? '').trim();
+    if (!badgeId) throw new HttpError(400, 'A badge_id is required.');
+
+    const supabase = getSupabaseClient();
+    const { data: badge, error: badgeErr } = await supabase
+      .from('badges')
+      .select('id, name, name_ml, icon, bonus_points, status')
+      .eq('id', badgeId)
+      .maybeSingle();
+    if (badgeErr) throw new HttpError(500, `Failed to load badge: ${badgeErr.message}`);
+    if (!badge || (badge as any).status !== 'active') throw new HttpError(404, 'Badge not found.');
+
+    const { data, error } = await supabase
+      .from('student_badges')
+      .upsert(
+        { student_id: req.params.id, badge_id: badgeId, awarded_by: teacher.id },
+        { onConflict: 'student_id,badge_id', ignoreDuplicates: false }
+      )
+      .select('id, badge_id, earned_at')
+      .single();
+    if (error) throw new HttpError(500, `Failed to award badge: ${error.message}`);
+
+    res.status(201).json({
+      success: true,
+      data: {
+        id: (data as any).id,
+        badge_id: badgeId,
+        name: (badge as any).name,
+        name_ml: (badge as any).name_ml,
+        icon: (badge as any).icon,
+        bonus_points: (badge as any).bonus_points,
+        earned_at: (data as any).earned_at,
+      },
+    });
+  })
+);
+
+// ===== Attendance (teacher marks daily presence) =====
+
+const ATTENDANCE_STATUSES = ['present', 'absent', 'late', 'excused'] as const;
+
+/** GET /batch/:id/attendance?date=YYYY-MM-DD — students + their status for a day. */
+router.get(
+  '/batch/:id/attendance',
+  authenticateRequest,
+  teacherOnly,
+  asyncHandler(async (req: Request, res: Response) => {
+    const teacher = await resolveTeacher(req.user!.profileId);
+    const batches = await loadAssignedBatches(teacher.id);
+    const batch = batches.find((b) => b.id === req.params.id);
+    if (!batch) throw new HttpError(403, 'This batch is not assigned to you.');
+
+    const date = String(req.query.date ?? todayUtc()).slice(0, 10);
+    const students = await loadStudents([batch.id]);
+    const supabase = getSupabaseClient();
+
+    const { data: rows, error } = students.length
+      ? await supabase
+          .from('attendance')
+          .select('student_id, status, notes')
+          .eq('attendance_date', date)
+          .in('student_id', students.map((s) => s.id))
+      : { data: [] as any[], error: null };
+    if (error) throw new HttpError(500, `Failed to load attendance: ${error.message}`);
+
+    const statusMap = new Map((rows ?? []).map((r: any) => [r.student_id, r]));
+    const data = students.map((s) => {
+      const r: any = statusMap.get(s.id);
+      return {
+        id: s.id,
+        name: s.name,
+        name_ml: s.nameMl,
+        status: r?.status ?? null,
+        notes: r?.notes ?? null,
+      };
+    });
+
+    const present = data.filter((d) => d.status === 'present' || d.status === 'late').length;
+    res.json({
+      success: true,
+      data: {
+        batch_id: batch.id,
+        date,
+        present_count: present,
+        total: data.length,
+        students: data,
+      },
+    });
+  })
+);
+
+/**
+ * POST /batch/:id/attendance — upsert attendance for a day.
+ * Body: { date?: string, entries: [{ student_id, status, notes? }] }
+ */
+router.post(
+  '/batch/:id/attendance',
+  authenticateRequest,
+  teacherOnly,
+  asyncHandler(async (req: Request, res: Response) => {
+    const teacher = await resolveTeacher(req.user!.profileId);
+    const batches = await loadAssignedBatches(teacher.id);
+    const batch = batches.find((b) => b.id === req.params.id);
+    if (!batch) throw new HttpError(403, 'This batch is not assigned to you.');
+
+    const body = req.body ?? {};
+    const date = String(body.date ?? todayUtc()).slice(0, 10);
+    const entries = Array.isArray(body.entries) ? body.entries : [];
+    if (entries.length === 0) throw new HttpError(400, 'At least one attendance entry is required.');
+
+    const students = await loadStudents([batch.id]);
+    const validIds = new Set(students.map((s) => s.id));
+
+    const rows = entries.map((e: any) => {
+      const studentId = String(e?.student_id ?? '');
+      const status = String(e?.status ?? '');
+      if (!validIds.has(studentId)) throw new HttpError(403, 'A student is not in this batch.');
+      if (!ATTENDANCE_STATUSES.includes(status as any)) {
+        throw new HttpError(400, `Invalid status "${status}".`);
+      }
+      return {
+        student_id: studentId,
+        batch_id: batch.id,
+        attendance_date: date,
+        status,
+        marked_by: teacher.id,
+        notes: e?.notes ? String(e.notes) : null,
+        updated_at: new Date().toISOString(),
+      };
+    });
+
+    const { error } = await getSupabaseClient()
+      .from('attendance')
+      .upsert(rows, { onConflict: 'student_id,attendance_date', ignoreDuplicates: false });
+    if (error) throw new HttpError(500, `Failed to save attendance: ${error.message}`);
+
+    const present = rows.filter((r: { status: string }) => r.status === 'present' || r.status === 'late').length;
+    res.json({
+      success: true,
+      data: { batch_id: batch.id, date, saved: rows.length, present_count: present },
     });
   })
 );
