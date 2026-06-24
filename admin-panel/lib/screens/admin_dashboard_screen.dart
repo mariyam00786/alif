@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import '../model/app_models.dart';
 
@@ -10,12 +9,12 @@ class AdminDashboardScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final isCompact = MediaQuery.of(context).size.width < 600;
     final totalStudents = state.students.length;
     final activeToday = state.students
         .where((item) => item.status == RecordStatus.active)
         .length;
-    final activitiesCompletedToday = state.activities
+    final activitiesLive = state.activities
         .where((item) => item.isActive)
         .length;
 
@@ -27,140 +26,412 @@ class AdminDashboardScreen extends StatelessWidget {
 
     return SingleChildScrollView(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 12, 12, 100),
+        padding: EdgeInsets.fromLTRB(
+          isCompact ? 12 : 20,
+          isCompact ? 12 : 20,
+          isCompact ? 12 : 20,
+          100,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header Section
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final titleBlock = Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Dashboard',
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        color: theme.colorScheme.primary,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Admin overview for students, daily activities, and performance insights.',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: const Color(0xFF6B7280),
-                        height: 1.3,
-                      ),
-                    ),
-                  ],
-                );
-                return titleBlock;
-              },
+            _HeroCard(
+              totalStudents: totalStudents,
+              activeToday: activeToday,
+              compact: isCompact,
             ),
-            const SizedBox(height: 12),
-
-            // Metrics Grid - always 2 columns (4 on wide desktop)
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final width = constraints.maxWidth;
-                final crossAxisCount = width >= 900 ? 4 : 2;
-                final isCompact = width < 380;
-                final spacing = isCompact ? 10.0 : 14.0;
-
-                final cards = _metricCards(
-                  totalStudents,
-                  activeToday,
-                  activitiesCompletedToday,
-                  topPerformer,
-                );
-
-                final cardWidth =
-                    (width - (spacing * (crossAxisCount - 1))) / crossAxisCount;
-
-                return Wrap(
-                  spacing: spacing,
-                  runSpacing: spacing,
-                  children: [
-                    for (final card in cards)
-                      SizedBox(
-                        width: cardWidth,
-                        child: StatCard(
-                          icon: card.icon,
-                          iconColor: card.iconColor,
-                          iconBackground: card.iconBackground,
-                          label: card.label,
-                          malayalamLabel: card.malayalamLabel,
-                          value: card.value,
-                          description: card.description,
-                          statusColor: card.statusColor,
-                          compact: isCompact,
-                        ),
-                      ),
-                  ],
-                );
-              },
+            SizedBox(height: isCompact ? 14 : 20),
+            _KpiBand(
+              metrics: _metricData(
+                totalStudents,
+                activeToday,
+                activitiesLive,
+                topPerformer,
+              ),
             ),
-            const SizedBox(height: 12),
-
-            // Reports Section
-            _buildReportsSection(context, theme),
+            SizedBox(height: isCompact ? 16 : 24),
+            _ReportsPanel(reports: state.reports),
           ],
         ),
       ),
     );
   }
 
-  List<_MetricCardData> _metricCards(
+  List<_Metric> _metricData(
     int totalStudents,
     int activeToday,
-    int activitiesCompletedToday,
+    int activitiesLive,
     String topPerformer,
   ) {
     return [
-      _MetricCardData(
+      _Metric(
         icon: Icons.people_alt_rounded,
-        iconColor: const Color(0xFF7C3AED),
-        iconBackground: const Color(0xFFEDE9FE),
+        accent: const Color(0xFF7C3AED),
         label: 'Total Students',
-        malayalamLabel: 'മൊത്തം വിദ്യാർത്ഥികൾ',
         value: '$totalStudents',
-        description: 'registered students',
-        statusColor: const Color(0xFF6B7280),
+        caption: 'Registered students',
       ),
-      _MetricCardData(
+      _Metric(
         icon: Icons.check_circle_rounded,
-        iconColor: const Color(0xFF16A34A),
-        iconBackground: const Color(0xFFDCFCE7),
+        accent: const Color(0xFF16A34A),
         label: 'Active Today',
-        malayalamLabel: 'ഇന്ന് സജീവം',
         value: '$activeToday',
-        description: 'status marked active',
-        statusColor: const Color(0xFF16A34A),
+        caption: 'Marked active',
       ),
-      _MetricCardData(
+      _Metric(
         icon: Icons.assignment_rounded,
-        iconColor: const Color(0xFF2563EB),
-        iconBackground: const Color(0xFFDBEAFE),
+        accent: const Color(0xFF2563EB),
         label: 'Activities Live',
-        malayalamLabel: 'സജീവ പ്രവർത്തനങ്ങൾ',
-        value: '$activitiesCompletedToday',
-        description: 'active configurations',
-        statusColor: const Color(0xFF2563EB),
+        value: '$activitiesLive',
+        caption: 'Active configurations',
       ),
-      _MetricCardData(
+      _Metric(
         icon: Icons.star_rounded,
-        iconColor: const Color(0xFFEA580C),
-        iconBackground: const Color(0xFFFFEDD5),
+        accent: const Color(0xFFEA580C),
         label: 'Top Performer',
-        malayalamLabel: 'മികച്ച പ്രകടനം',
         value: topPerformer,
-        description: 'highest scorer',
-        statusColor: const Color(0xFF6B7280),
+        caption: 'Highest scorer',
       ),
     ];
   }
+}
 
-  Widget _buildReportsSection(BuildContext context, ThemeData theme) {
+class _HeroCard extends StatelessWidget {
+  const _HeroCard({
+    required this.totalStudents,
+    required this.activeToday,
+    this.compact = false,
+  });
+
+  final int totalStudents;
+  final int activeToday;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(compact ? 22 : 28),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF115E59), Color(0xFF0F766E), Color(0xFF14B8A6)],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F766E).withValues(alpha: 0.28),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
+            spreadRadius: -8,
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(compact ? 22 : 28),
+        child: Stack(
+          children: [
+            // Mosque watermark illustration (top-right).
+            Positioned(
+              right: compact ? -20 : -24,
+              top: compact ? -18 : -22,
+              child: Icon(
+                Icons.mosque_rounded,
+                size: compact ? 124 : 150,
+                color: Colors.white.withValues(alpha: 0.08),
+              ),
+            ),
+            // Crescent moon + stars, matching the student app hero.
+            Positioned(
+              right: compact ? 24 : 30,
+              top: compact ? 18 : 22,
+              child: Icon(
+                Icons.nightlight_round,
+                size: compact ? 17 : 20,
+                color: Colors.white.withValues(alpha: 0.45),
+              ),
+            ),
+            const Positioned(
+              right: 70,
+              top: 30,
+              child: _Star(size: 4),
+            ),
+            const Positioned(
+              right: 58,
+              top: 52,
+              child: _Star(size: 3),
+            ),
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                compact ? 16 : 22,
+                compact ? 16 : 22,
+                compact ? 16 : 22,
+                compact ? 16 : 22,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Assalamu alaikum',
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: Colors.white.withValues(alpha: 0.85),
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                  SizedBox(height: compact ? 4 : 6),
+                  Text(
+                    'Admin Dashboard',
+                    style: (compact
+                            ? theme.textTheme.titleLarge
+                            : theme.textTheme.headlineSmall)
+                        ?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                      height: 1.1,
+                    ),
+                  ),
+                  SizedBox(height: compact ? 6 : 8),
+                  Text(
+                    'Daily overview of students, activities and performance.',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: Colors.white.withValues(alpha: 0.82),
+                      height: 1.4,
+                    ),
+                  ),
+                  SizedBox(height: compact ? 12 : 18),
+                  Row(
+                    children: [
+                      _HeroChip(
+                        icon: Icons.people_alt_rounded,
+                        label: '$totalStudents students',
+                      ),
+                      SizedBox(width: compact ? 8 : 10),
+                      _HeroChip(
+                        icon: Icons.check_circle_rounded,
+                        label: '$activeToday active today',
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _Star extends StatelessWidget {
+  const _Star({required this.size});
+
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.6),
+        shape: BoxShape.circle,
+      ),
+    );
+  }
+}
+
+class _HeroChip extends StatelessWidget {
+  const _HeroChip({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.16),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.22)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: Colors.white),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A single flat KPI presentation — no elevated cards. KPIs sit inside one
+/// bordered surface separated by hairline dividers, like modern dashboards.
+class _KpiBand extends StatelessWidget {
+  const _KpiBand({required this.metrics});
+
+  final List<_Metric> metrics;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = constraints.maxWidth >= 900
+            ? metrics.length
+          : constraints.maxWidth >= 360
+            ? 2
+            : 1;
+
+        final rows = <List<int>>[];
+        for (var i = 0; i < metrics.length; i += columns) {
+          rows.add([
+            for (var j = i; j < i + columns && j < metrics.length; j++) j,
+          ]);
+        }
+
+        return Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0xFFE5E7EB)),
+          ),
+          child: Column(
+            children: [
+              for (var r = 0; r < rows.length; r++)
+                IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      for (var c = 0; c < columns; c++)
+                        Expanded(
+                          child: c < rows[r].length
+                              ? _KpiCell(
+                                  metric: metrics[rows[r][c]],
+                                  showRightDivider: c != columns - 1,
+                                  showBottomDivider: r != rows.length - 1,
+                                )
+                              : const SizedBox.shrink(),
+                        ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _KpiCell extends StatelessWidget {
+  const _KpiCell({
+    required this.metric,
+    required this.showRightDivider,
+    required this.showBottomDivider,
+  });
+
+  final _Metric metric;
+  final bool showRightDivider;
+  final bool showBottomDivider;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    const divider = Color(0xFFE5E7EB);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        border: Border(
+          right: showRightDivider
+              ? const BorderSide(color: divider)
+              : BorderSide.none,
+          bottom: showBottomDivider
+              ? const BorderSide(color: divider)
+              : BorderSide.none,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: metric.accent.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(9),
+                ),
+                child: Icon(metric.icon, color: metric.accent, size: 18),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  metric.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: const Color(0xFF6B7280),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            metric.value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.w800,
+              color: const Color(0xFF111827),
+              height: 1.1,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            metric.caption,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: const Color(0xFF9CA3AF),
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Flat bordered panel listing operational report highlights as clean rows
+/// separated by hairline dividers.
+class _ReportsPanel extends StatelessWidget {
+  const _ReportsPanel({required this.reports});
+
+  final List<ReportSnapshot> reports;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -168,112 +439,31 @@ class AdminDashboardScreen extends StatelessWidget {
           'Operational Highlights',
           style: theme.textTheme.titleMedium?.copyWith(
             fontWeight: FontWeight.w800,
-            color: theme.colorScheme.primary,
+            color: const Color(0xFF111827),
           ),
         ),
         const SizedBox(height: 4),
         Text(
-          'പ്രവർത്തന സംഗ്രഹം',
-          style: GoogleFonts.notoSansMalayalam(
-            textStyle: theme.textTheme.labelSmall?.copyWith(
-              color: const Color(0xFF6B7280),
-            ),
+          'Key trends across participation and performance.',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: const Color(0xFF6B7280),
           ),
         ),
-        const SizedBox(height: 10),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(10),
-            child: ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: state.reports.length,
-              itemBuilder: (context, index) {
-                final report = state.reports[index];
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.primary.withValues(
-                            alpha: 0.15,
-                          ),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Icon(
-                          Icons.trending_up_rounded,
-                          color: theme.colorScheme.primary,
-                          size: 16,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              report.title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: theme.textTheme.labelMedium?.copyWith(
-                                color: theme.colorScheme.primary,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              report.trendLabel,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: theme.textTheme.labelSmall?.copyWith(
-                                color: const Color(0xFF6B7280),
-                                fontSize: 11,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Text(
-                            report.value,
-                            style: theme.textTheme.titleSmall?.copyWith(
-                              fontWeight: FontWeight.w800,
-                              color: theme.colorScheme.primary,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 1,
-                            ),
-                            decoration: BoxDecoration(
-                              color: theme.colorScheme.primary.withValues(
-                                alpha: 0.1,
-                              ),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              report.change,
-                              style: theme.textTheme.labelSmall?.copyWith(
-                                color: theme.colorScheme.primary,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 9,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
+        const SizedBox(height: 14),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0xFFE5E7EB)),
+          ),
+          child: Column(
+            children: [
+              for (var i = 0; i < reports.length; i++)
+                _ReportRow(
+                  report: reports[i],
+                  showDivider: i < reports.length - 1,
+                ),
+            ],
           ),
         ),
       ],
@@ -281,178 +471,108 @@ class AdminDashboardScreen extends StatelessWidget {
   }
 }
 
-class _MetricCardData {
-  const _MetricCardData({
-    required this.icon,
-    required this.iconColor,
-    required this.iconBackground,
-    required this.label,
-    required this.malayalamLabel,
-    required this.value,
-    required this.description,
-    required this.statusColor,
-  });
+class _ReportRow extends StatelessWidget {
+  const _ReportRow({required this.report, required this.showDivider});
 
-  final IconData icon;
-  final Color iconColor;
-  final Color iconBackground;
-  final String label;
-  final String malayalamLabel;
-  final String value;
-  final String description;
-  final Color statusColor;
-}
-
-/// Reusable StatCard widget that hugs its content with a pastel icon chip,
-/// clear typography hierarchy and a colored status line.
-class StatCard extends StatelessWidget {
-  const StatCard({
-    super.key,
-    required this.icon,
-    required this.iconColor,
-    required this.iconBackground,
-    required this.label,
-    required this.malayalamLabel,
-    required this.value,
-    required this.description,
-    required this.statusColor,
-    this.compact = false,
-  });
-
-  final IconData icon;
-  final Color iconColor;
-  final Color iconBackground;
-  final String label;
-  final String malayalamLabel;
-  final String value;
-  final String description;
-  final Color statusColor;
-  final bool compact;
+  final ReportSnapshot report;
+  final bool showDivider;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Card(
-      margin: EdgeInsets.zero,
-      child: Padding(
-        padding: EdgeInsets.all(compact ? 12 : 16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Pastel icon chip
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: iconBackground,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(icon, color: iconColor, size: 22),
+    final primary = theme.colorScheme.primary;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: showDivider
+              ? const BorderSide(color: Color(0xFFF1F4F1))
+              : BorderSide.none,
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: primary.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(11),
             ),
-            const SizedBox(height: 12),
-            // Label - medium grey
-            Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: Colors.grey[600],
-                fontWeight: FontWeight.w500,
-                fontSize: compact ? 13 : 14,
-              ),
+            child: Icon(Icons.trending_up_rounded, color: primary, size: 20),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  report.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: const Color(0xFF111827),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  report.trendLabel,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: const Color(0xFF6B7280),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 3),
-            Text(
-              malayalamLabel,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.notoSansMalayalam(
-                textStyle: theme.textTheme.labelSmall?.copyWith(
-                  color: Colors.grey[700],
-                  fontSize: compact ? 9 : 10,
+          ),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                report.value,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  color: const Color(0xFF111827),
                 ),
               ),
-            ),
-            const SizedBox(height: 6),
-            // Big number + status text. Numeric values stay large with an
-            // inline status; longer text values (e.g. names) shrink and wrap
-            // so they remain fully visible inside the card.
-            _buildValueBlock(theme),
-          ],
-        ),
+              const SizedBox(height: 4),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: primary.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  report.change,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: primary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
+}
 
-  bool get _isShortValue {
-    // Treat purely numeric / short values (<= 4 chars) as "stat numbers".
-    final numeric = double.tryParse(value.replaceAll('%', '')) != null;
-    return numeric || value.length <= 4;
-  }
+class _Metric {
+  const _Metric({
+    required this.icon,
+    required this.accent,
+    required this.label,
+    required this.value,
+    required this.caption,
+  });
 
-  Widget _buildValueBlock(ThemeData theme) {
-    if (_isShortValue) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.headlineMedium?.copyWith(
-              fontWeight: FontWeight.w800,
-              color: const Color(0xFF111827),
-              fontSize: compact ? 24 : 28,
-              height: 1.1,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            description,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: statusColor,
-              fontWeight: FontWeight.w600,
-              fontSize: compact ? 10 : 11,
-              height: 1.15,
-            ),
-          ),
-        ],
-      );
-    }
-
-    // Text value (e.g. a name): full width, wraps to two lines, smaller font.
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          value,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: theme.textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w800,
-            color: const Color(0xFF111827),
-            fontSize: compact ? 15 : 17,
-            height: 1.15,
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          description,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: theme.textTheme.labelSmall?.copyWith(
-            color: statusColor,
-            fontWeight: FontWeight.w600,
-            fontSize: compact ? 10 : 11,
-            height: 1.1,
-          ),
-        ),
-      ],
-    );
-  }
+  final IconData icon;
+  final Color accent;
+  final String label;
+  final String value;
+  final String caption;
 }

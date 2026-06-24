@@ -112,7 +112,7 @@ class _RatingConfigurationScreenState extends State<RatingConfigurationScreen> {
           items: [
             StatItem(
               value: '${groupNames.length}',
-              label: 'Activities',
+              label: 'Score scales',
               icon: Icons.list_alt,
             ),
             StatItem(
@@ -219,13 +219,6 @@ class _RatingTile extends StatelessWidget {
                     ],
                   ],
                 ),
-                if (rule.labelMl.isNotEmpty)
-                  Text(
-                    rule.labelMl,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: const Color(0xFF6B7280),
-                    ),
-                  ),
                 const SizedBox(height: 2),
                 Text(
                   rule.minScore == rule.maxScore
@@ -298,7 +291,6 @@ class RatingFormSheet extends StatefulWidget {
 class _RatingFormSheetState extends State<RatingFormSheet> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _label;
-  late final TextEditingController _labelMl;
   late final TextEditingController _min;
   late final TextEditingController _max;
   String? _color;
@@ -309,7 +301,6 @@ class _RatingFormSheetState extends State<RatingFormSheet> {
     super.initState();
     final e = widget.existing;
     _label = TextEditingController(text: e?.label ?? '');
-    _labelMl = TextEditingController(text: e?.labelMl ?? '');
     _min = TextEditingController(text: (e?.minScore ?? 0).toString());
     _max = TextEditingController(text: (e?.maxScore ?? 100).toString());
     _color =
@@ -320,7 +311,6 @@ class _RatingFormSheetState extends State<RatingFormSheet> {
   @override
   void dispose() {
     _label.dispose();
-    _labelMl.dispose();
     _min.dispose();
     _max.dispose();
     super.dispose();
@@ -338,7 +328,6 @@ class _RatingFormSheetState extends State<RatingFormSheet> {
     final record = RatingRule(
       id: e?.id ?? 'RATE-${DateTime.now().millisecondsSinceEpoch % 100000}',
       label: _label.text.trim(),
-      labelMl: _labelMl.text.trim(),
       minScore: min,
       maxScore: max,
       colorName: _color ?? 'Green',
@@ -414,7 +403,6 @@ class _RatingFormSheetState extends State<RatingFormSheet> {
                         runSpacing: 16,
                         children: [
                           field(_text(_label, 'Label *', validator: _required)),
-                          field(_text(_labelMl, 'Label (Malayalam)')),
                           field(
                             _text(
                               _min,
@@ -434,12 +422,16 @@ class _RatingFormSheetState extends State<RatingFormSheet> {
                           field(_colorField()),
                           SizedBox(
                             width: constraints.maxWidth,
-                            child: SwitchListTile.adaptive(
-                              contentPadding: EdgeInsets.zero,
-                              activeThumbColor: theme.colorScheme.primary,
-                              value: _isDefault,
-                              onChanged: (v) => setState(() => _isDefault = v),
-                              title: const Text('Set as default band'),
+                            child: Material(
+                              type: MaterialType.transparency,
+                              child: SwitchListTile.adaptive(
+                                contentPadding: EdgeInsets.zero,
+                                activeThumbColor: theme.colorScheme.primary,
+                                value: _isDefault,
+                                onChanged: (v) =>
+                                    setState(() => _isDefault = v),
+                                title: const Text('Set as default band'),
+                              ),
                             ),
                           ),
                         ],

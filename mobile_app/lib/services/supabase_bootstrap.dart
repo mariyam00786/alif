@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class SupabaseBootstrap {
@@ -15,14 +16,22 @@ class SupabaseBootstrap {
       return;
     }
 
-    await Supabase.initialize(
-      url: _url,
-      publishableKey: _key,
-      authOptions: const FlutterAuthClientOptions(
-        authFlowType: AuthFlowType.pkce,
-      ),
-    );
-    _initialized = true;
+    try {
+      await Supabase.initialize(
+        url: _url,
+        publishableKey: _key,
+        authOptions: const FlutterAuthClientOptions(
+          authFlowType: AuthFlowType.pkce,
+        ),
+      ).timeout(const Duration(seconds: 8));
+      _initialized = true;
+    } catch (error, stackTrace) {
+      // Never let a slow or failing Supabase init block the first frame.
+      // The app can still render (e.g. the login screen) and surface
+      // connection errors on the first authenticated action instead.
+      debugPrint('Supabase.initialize failed or timed out: $error');
+      debugPrint('$stackTrace');
+    }
   }
 
   /// Removes surrounding whitespace and any non-printable/non-ASCII characters

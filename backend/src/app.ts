@@ -16,6 +16,7 @@ import { isHttpError } from './errors/http-error';
 import authRoutes from './routes/auth';
 import adminRoutes from './routes/admin';
 import studentRoutes from './routes/students';
+import studentPortalRoutes from './routes/student-portal';
 import teacherRoutes from './routes/teachers';
 import teacherPortalRoutes from './routes/teacher-portal';
 import academicRoutes from './routes/academics';
@@ -95,6 +96,9 @@ app.get('/api/health', healthHandler);
  */
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
+// Student self-service (/me/*) is mounted before the admin students router so
+// its routes resolve first.
+app.use('/api/students', studentPortalRoutes);
 app.use('/api/students', studentRoutes);
 app.use('/api/teachers', teacherRoutes);
 app.use('/api/teacher', teacherPortalRoutes);

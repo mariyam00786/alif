@@ -42,7 +42,6 @@ class AdminRepository {
 
   Map<String, dynamic> studentPayload(StudentRecord s) => {
     'full_name': s.name,
-    'full_name_ml': s.nameMl,
     'parent_phone': s.mobile,
     'email': s.email,
     'father_name': s.fatherName,
@@ -80,7 +79,6 @@ class AdminRepository {
 
   Map<String, dynamic> teacherPayload(TeacherRecord t) => {
     'full_name': t.name,
-    'full_name_ml': t.nameMl,
     'phone': t.mobile,
     'email': t.email,
     'qualification': t.qualification,
@@ -141,7 +139,6 @@ class AdminRepository {
 
   Map<String, dynamic> activityPayload(ActivityRule a) => {
     'name': a.name,
-    'name_ml': a.nameMl,
     'category': a.category,
     'points': a.points,
     'has_quantity': a.hasQuantity,
@@ -171,7 +168,6 @@ class AdminRepository {
 
   Map<String, dynamic> ratingPayload(RatingRule r) => {
     'label': r.label,
-    'label_ml': r.labelMl,
     'min_score': r.minScore,
     'max_score': r.maxScore,
     'color': r.colorName,
@@ -230,7 +226,6 @@ class AdminRepository {
 
   Map<String, dynamic> badgePayload(BadgeDefinition b) => {
     'name': b.name,
-    'name_ml': b.nameMl,
     'criteria': b.criteria,
     'icon': b.icon,
     'bonus_points': b.bonusPoints,
@@ -263,7 +258,6 @@ class AdminRepository {
     return StudentRecord(
       id: data['id']?.toString() ?? '',
       name: data['name']?.toString() ?? 'Unnamed student',
-      nameMl: data['nameMl']?.toString() ?? '',
       mobile:
           data['mobile']?.toString() ?? data['parentPhone']?.toString() ?? '',
       email: data['email']?.toString() ?? '',
@@ -288,7 +282,6 @@ class AdminRepository {
     return TeacherRecord(
       id: data['id']?.toString() ?? '',
       name: data['name']?.toString() ?? 'Unnamed teacher',
-      nameMl: data['nameMl']?.toString() ?? '',
       mobile: data['mobile']?.toString() ?? data['phone']?.toString() ?? '',
       email: data['email']?.toString() ?? '',
       qualification: data['qualification']?.toString() ?? '',
@@ -341,7 +334,6 @@ class AdminRepository {
     return ActivityRule(
       id: data['id']?.toString() ?? '',
       name: data['name']?.toString() ?? 'Unnamed activity',
-      nameMl: data['nameMl']?.toString() ?? '',
       category: data['category']?.toString() ?? 'Uncategorized',
       points: (data['points'] as num?)?.toInt() ?? 0,
       hasQuantity: data['hasQuantity'] == true,
@@ -354,7 +346,6 @@ class AdminRepository {
     return RatingRule(
       id: data['id']?.toString() ?? '',
       label: data['label']?.toString() ?? 'Rule',
-      labelMl: data['labelMl']?.toString() ?? '',
       minScore: (data['minScore'] as num?)?.toInt() ?? 0,
       maxScore: (data['maxScore'] as num?)?.toInt() ?? 0,
       colorName: data['colorName']?.toString() ?? 'Green',
@@ -397,7 +388,6 @@ class AdminRepository {
     return BadgeDefinition(
       id: data['id']?.toString() ?? '',
       name: data['name']?.toString() ?? 'Badge',
-      nameMl: data['nameMl']?.toString() ?? '',
       criteria: data['criteria']?.toString() ?? 'Criteria not configured',
       icon: data['icon']?.toString() ?? '🏅',
       bonusPoints: (data['bonusPoints'] as num?)?.toInt() ?? 0,

@@ -452,6 +452,598 @@ router.post(
  * 
  * Error: 404 Not Found
  */
+/**
+ * Resolve the `students` row owned by the authenticated user (by profile id).
+ * Returns null when the signed-in user is not a student.
+ */
+async function resolveOwnStudent(
+  profileId: string | undefined
+): Promise<Record<string, any> | null> {
+  if (!profileId) return null;
+  const { data } = await getSupabaseClient()
+    .from('students')
+    .select('*')
+    .eq('profile_id', profileId)
+    .maybeSingle();
+  return (data as Record<string, any>) ?? null;
+}
+
+/** Local `YYYY-MM-DD` date string, optionally offset by N days. */
+function ymd(offsetDays = 0): string {
+  const d = new Date();
+  d.setDate(d.getDate() + offsetDays);
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${m}-${day}`;
+}
+
+/**
+ * GET /api/students/me
+ *
+ * Return the authenticated student's own profile. Must be registered before
+ * `/:studentId` so the literal "me" is not parsed as a student id.
+ */
+router.get(
+  '/me',
+  requireAuth,
+  asyncHandler(async (req: Request, res: Response) => {
+    const supabase = getSupabaseClient();
+    const student = await resolveOwnStudent(req.user!.id);
+    if (!student) {
+      return res
+        .status(404)
+        .json({ success: false, error: 'STUDENT_NOT_FOUND' });
+    }
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('id, full_name, full_name_ml, phone')
+      .eq('id', student.profile_id)
+      .maybeSingle();
+    res.status(200).json({ success: true, data: shapeStudent(student, profile) });
+  })
+);
+
+/**
+ * PUT /api/students/me
+ *
+ * Update the authenticated student's own profile (name + phone).
+ */
+router.put(
+  '/me',
+  requireAuth,
+  asyncHandler(async (req: Request, res: Response) => {
+    const supabase = getSupabaseClient();
+    const student = await resolveOwnStudent(req.user!.id);
+    if (!student) {
+      return res
+        .status(404)
+        .json({ success: false, error: 'STUDENT_NOT_FOUND' });
+    }
+    const body = req.body ?? {};
+    const updates: Record<string, any> = {};
+    if (typeof body.full_name === 'string' && body.full_name.trim()) {
+      updates.full_name = body.full_name.trim();
+    }
+    if (typeof body.phone === 'string') {
+      updates.phone = body.phone.trim();
+    }
+    if (Object.keys(updates).length > 0) {
+      await supabase
+        .from('profiles')
+        .update(updates)
+        .eq('id', student.profile_id);
+    }
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('id, full_name, full_name_ml, phone')
+      .eq('id', student.profile_id)
+      .maybeSingle();
+    res.status(200).json({ success: true, data: shapeStudent(student, profile) });
+  })
+);
+
+/**
+ * GET /api/students/me/notifications
+ *
+ * Announcements relevant to the authenticated student: school-wide ("all"),
+ * the student's batch, or the student personally.
+ */
+router.get(
+  '/me/notifications',
+  requireAuth,
+  asyncHandler(async (req: Request, res: Response) => {
+    const supabase = getSupabaseClient();
+    const student = await resolveOwnStudent(req.user!.id);
+    if (!student) {
+      return res
+        .status(404)
+        .json({ success: false, error: 'STUDENT_NOT_FOUND' });
+    }
+
+    const studentId = student.id as string;
+    const batchId = (student.batch_id as string | null) ?? null;
+
+    const { data: notifications, error } = await supabase
+      .from('notifications')
+      .select('id, title, body, target_type, target_id, sent_at, created_at')
+      .order('created_at', { ascending: false })
+      .limit(40);
+    if (error) {
+      return res.status(500).json({
+        success: false,
+        error: `Failed to load notifications: ${error.message}`,
+      });
+    }
+
+    const relevant = (notifications ?? []).filter((n: any) => {
+      if (n.target_type === 'all' || !n.target_type) return true;
+      if (n.target_type === 'batch') return !!batchId && n.target_id === batchId;
+      if (n.target_type === 'student') return n.target_id === studentId;
+      if (n.target_type === 'class') return true;
+      return false;
+    });
+
+    res.status(200).json({
+      success: true,
+      data: relevant.map((n: any) => ({
+        id: n.id,
+        title: n.title,
+        body: n.body,
+        target_type: n.target_type,
+        created_at: n.created_at,
+        sent_at: n.sent_at,
+      })),
+    });
+  })
+);
+
+/**
+ * GET /api/students/me/home-summary
+ *
+ * Dashboard summary for the authenticated student: today's completion,
+ * current streak, points earned this week, and rank within their batch.
+ */
+router.get(
+  '/me/home-summary',
+  requireAuth,
+  asyncHandler(async (req: Request, res: Response) => {
+    const supabase = getSupabaseClient();
+    const student = await resolveOwnStudent(req.user!.id);
+    if (!student) {
+      return res
+        .status(404)
+        .json({ success: false, error: 'STUDENT_NOT_FOUND' });
+    }
+
+    const today = ymd();
+    const weekStart = ymd(-6);
+
+    const { data: activeActivities } = await supabase
+      .from('activities')
+      .select('id')
+      .eq('status', 'active');
+    const activityIds = (activeActivities ?? []).map((a: any) => a.id);
+    const todayTotal = activityIds.length;
+
+    // Max possible marks today = sum of the highest rating per active activity.
+    const { data: ratings } = activityIds.length
+      ? await supabase
+          .from('activity_ratings')
+          .select('activity_id, marks')
+          .in('activity_id', activityIds)
+      : { data: [] as any[] };
+    const maxByActivity = new Map<string, number>();
+    for (const r of ratings ?? []) {
+      const cur = maxByActivity.get(r.activity_id) ?? 0;
+      if ((r.marks ?? 0) > cur) maxByActivity.set(r.activity_id, r.marks ?? 0);
+    }
+    const todayMaxMarks = [...maxByActivity.values()].reduce(
+      (s, m) => s + m,
+      0
+    );
+
+    const { data: todayLogs } = await supabase
+      .from('activity_logs')
+      .select('marks_earned')
+      .eq('student_id', student.id)
+      .eq('log_date', today);
+    const todayDone = (todayLogs ?? []).length;
+    const todayMarks = (todayLogs ?? []).reduce(
+      (sum: number, r: any) => sum + (r.marks_earned ?? 0),
+      0
+    );
+
+    // Streak: consecutive days (ending today or yesterday) with >=1 log.
+    const { data: recent } = await supabase
+      .from('activity_logs')
+      .select('log_date')
+      .eq('student_id', student.id)
+      .order('log_date', { ascending: false })
+      .limit(400);
+    const days = new Set((recent ?? []).map((r: any) => r.log_date));
+    let streak = 0;
+    let cursor: number | null = days.has(today)
+      ? 0
+      : days.has(ymd(-1))
+        ? -1
+        : null;
+    if (cursor !== null) {
+      while (days.has(ymd(cursor))) {
+        streak += 1;
+        cursor -= 1;
+      }
+    }
+
+    // Per-day completion for the current week (Monday..Sunday) so the home
+    // dashboard can render real streak chips instead of placeholder data.
+    const now = new Date();
+    const mondayOffset = -((now.getDay() + 6) % 7); // 0 = Monday
+    const weekDays = Array.from({ length: 7 }, (_, i) => {
+      const offset = mondayOffset + i;
+      const date = ymd(offset);
+      return {
+        date,
+        done: days.has(date),
+        is_today: offset === 0,
+        is_future: offset > 0,
+      };
+    });
+
+    const { data: weekLogs } = await supabase
+      .from('activity_logs')
+      .select('marks_earned')
+      .eq('student_id', student.id)
+      .gte('log_date', weekStart);
+    const weekPoints = (weekLogs ?? []).reduce(
+      (sum: number, r: any) => sum + (r.marks_earned ?? 0),
+      0
+    );
+
+    let batchRank = 0;
+    let batchSize = 0;
+    let batchName: string | null = null;
+    if (student.batch_id) {
+      const { data: batch } = await supabase
+        .from('batches')
+        .select('name')
+        .eq('id', student.batch_id)
+        .maybeSingle();
+      batchName = (batch as any)?.name ?? null;
+
+      const { data: peers } = await supabase
+        .from('students')
+        .select('id')
+        .eq('batch_id', student.batch_id);
+      const peerIds = (peers ?? []).map((p: any) => p.id);
+      batchSize = peerIds.length;
+      const { data: peerLogs } = peerIds.length
+        ? await supabase
+            .from('activity_logs')
+            .select('student_id, marks_earned')
+            .gte('log_date', weekStart)
+            .in('student_id', peerIds)
+        : { data: [] as any[] };
+      const totals = new Map<string, number>();
+      for (const id of peerIds) totals.set(id, 0);
+      for (const r of peerLogs ?? []) {
+        totals.set(
+          r.student_id,
+          (totals.get(r.student_id) ?? 0) + (r.marks_earned ?? 0)
+        );
+      }
+      const ranked = [...totals.entries()].sort((a, b) => b[1] - a[1]);
+      batchRank = ranked.findIndex(([id]) => id === student.id) + 1;
+    }
+
+    // Real badge progress + a small preview (earned first) so the home card
+    // reflects actual achievements instead of placeholder medallions.
+    const { data: allBadges } = await supabase
+      .from('badges')
+      .select('id, name, name_ml, icon, created_at')
+      .eq('status', 'active')
+      .order('created_at', { ascending: true });
+    const { data: earnedBadges } = await supabase
+      .from('student_badges')
+      .select('badge_id')
+      .eq('student_id', student.id);
+    const earnedSet = new Set(
+      (earnedBadges ?? []).map((e: any) => e.badge_id)
+    );
+    const badgesTotal = (allBadges ?? []).length;
+    const badgesEarned = (allBadges ?? []).filter((b: any) =>
+      earnedSet.has(b.id)
+    ).length;
+    const badgePreview = [...(allBadges ?? [])]
+      .sort((a: any, b: any) => {
+        const ae = earnedSet.has(a.id) ? 0 : 1;
+        const be = earnedSet.has(b.id) ? 0 : 1;
+        return ae - be;
+      })
+      .slice(0, 5)
+      .map((b: any) => ({
+        name: b.name,
+        name_ml: b.name_ml,
+        icon: b.icon,
+        earned: earnedSet.has(b.id),
+      }));
+
+    res.status(200).json({
+      success: true,
+      data: {
+        today_done: todayDone,
+        today_total: todayTotal,
+        today_marks: todayMarks,
+        today_max_marks: todayMaxMarks,
+        streak_days: streak,
+        week_points: weekPoints,
+        week_days: weekDays,
+        batch_rank: batchRank,
+        batch_size: batchSize,
+        batch_name: batchName,
+        badges_earned: badgesEarned,
+        badges_total: badgesTotal,
+        badges: badgePreview,
+      },
+    });
+  })
+);
+
+/**
+ * GET /api/students/me/progress
+ *
+ * Real daily / weekly / monthly progress for the authenticated student,
+ * computed from activity_logs and the active activity scoring rules.
+ */
+router.get(
+  '/me/progress',
+  requireAuth,
+  asyncHandler(async (req: Request, res: Response) => {
+    const supabase = getSupabaseClient();
+    const student = await resolveOwnStudent(req.user!.id);
+    if (!student) {
+      return res
+        .status(404)
+        .json({ success: false, error: 'STUDENT_NOT_FOUND' });
+    }
+
+    // Active activities + max possible marks per day.
+    const { data: activeActivities } = await supabase
+      .from('activities')
+      .select('id')
+      .eq('status', 'active');
+    const activityIds = (activeActivities ?? []).map((a: any) => a.id);
+    const totalActivities = activityIds.length;
+    const { data: ratings } = activityIds.length
+      ? await supabase
+          .from('activity_ratings')
+          .select('activity_id, marks')
+          .in('activity_id', activityIds)
+      : { data: [] as any[] };
+    const maxByActivity = new Map<string, number>();
+    for (const r of ratings ?? []) {
+      const cur = maxByActivity.get(r.activity_id) ?? 0;
+      if ((r.marks ?? 0) > cur) maxByActivity.set(r.activity_id, r.marks ?? 0);
+    }
+    const dayMaxMarks = [...maxByActivity.values()].reduce((s, m) => s + m, 0);
+
+    // Aggregate the last 60 days of logs by date.
+    const since = ymd(-60);
+    const { data: logs } = await supabase
+      .from('activity_logs')
+      .select('log_date, marks_earned')
+      .eq('student_id', student.id)
+      .gte('log_date', since);
+    const byDate = new Map<string, { marks: number; done: number }>();
+    for (const l of logs ?? []) {
+      const e = byDate.get(l.log_date) ?? { marks: 0, done: 0 };
+      e.marks += l.marks_earned ?? 0;
+      e.done += 1;
+      byDate.set(l.log_date, e);
+    }
+
+    const dayData = (offset: number) => {
+      const date = ymd(offset);
+      const e = byDate.get(date) ?? { marks: 0, done: 0 };
+      const pct =
+        dayMaxMarks > 0 ? Math.round((e.marks / dayMaxMarks) * 100) : 0;
+      return {
+        date,
+        marks: e.marks,
+        done: e.done,
+        total: totalActivities,
+        pct,
+      };
+    };
+
+    // Daily — last 7 days (today first) with a trend vs the previous day.
+    const daily = [];
+    for (let i = 0; i < 7; i++) {
+      const cur = dayData(-i);
+      const prev = dayData(-i - 1);
+      let trend = 'flat';
+      if (cur.marks > prev.marks) trend = 'up';
+      else if (cur.marks < prev.marks) trend = 'down';
+      daily.push({ ...cur, trend });
+    }
+
+    // Weekly — last 7 days.
+    const week = Array.from({ length: 7 }, (_, i) => dayData(-i));
+    const weekTotalMarks = week.reduce((s, d) => s + d.marks, 0);
+    const weekActiveDays = week.filter((d) => d.done > 0).length;
+    const weekDone = week.reduce((s, d) => s + d.done, 0);
+    const weekMaxMarks = dayMaxMarks * 7;
+    const weekly = {
+      totalMarks: weekTotalMarks,
+      avg: weekActiveDays > 0 ? Math.round(weekTotalMarks / weekActiveDays) : 0,
+      pct: weekMaxMarks > 0 ? Math.round((weekTotalMarks / weekMaxMarks) * 100) : 0,
+      best: week.reduce((m, d) => Math.max(m, d.marks), 0),
+      done: weekDone,
+      total: totalActivities * 7,
+    };
+
+    // Monthly — last 30 days, with improvement vs the previous 30 days.
+    const month = Array.from({ length: 30 }, (_, i) => dayData(-i));
+    const monthTotalMarks = month.reduce((s, d) => s + d.marks, 0);
+    const monthActiveDays = month.filter((d) => d.done > 0).length;
+    const monthMaxMarks = dayMaxMarks * 30;
+    const prevMonth = Array.from({ length: 30 }, (_, i) => dayData(-i - 30));
+    const prevMonthMarks = prevMonth.reduce((s, d) => s + d.marks, 0);
+    const monthly = {
+      totalMarks: monthTotalMarks,
+      avg: monthActiveDays > 0 ? Math.round(monthTotalMarks / monthActiveDays) : 0,
+      pct:
+        monthMaxMarks > 0 ? Math.round((monthTotalMarks / monthMaxMarks) * 100) : 0,
+      best: month.reduce((m, d) => Math.max(m, d.marks), 0),
+      improve:
+        prevMonthMarks > 0
+          ? Math.round(((monthTotalMarks - prevMonthMarks) / prevMonthMarks) * 100)
+          : 0,
+      days: monthActiveDays,
+    };
+
+    res.status(200).json({
+      success: true,
+      data: { daily, weekly, monthly },
+    });
+  })
+);
+
+/**
+ * GET /api/students/me/leaderboard
+ *
+ * Batch leaderboard for the authenticated student across four periods
+ * (daily / weekly / monthly / all_time).
+ */
+router.get(
+  '/me/leaderboard',
+  requireAuth,
+  asyncHandler(async (req: Request, res: Response) => {
+    const supabase = getSupabaseClient();
+    const student = await resolveOwnStudent(req.user!.id);
+    if (!student) {
+      return res
+        .status(404)
+        .json({ success: false, error: 'STUDENT_NOT_FOUND' });
+    }
+    const empty = { daily: [], weekly: [], monthly: [], all_time: [] };
+    if (!student.batch_id) {
+      return res.status(200).json({ success: true, data: empty });
+    }
+
+    const { data: peers } = await supabase
+      .from('students')
+      .select('id, profile_id')
+      .eq('batch_id', student.batch_id);
+    const peerList = peers ?? [];
+    const peerIds = peerList.map((p: any) => p.id);
+    const profileIds = peerList.map((p: any) => p.profile_id);
+
+    const { data: profiles } = profileIds.length
+      ? await supabase
+          .from('profiles')
+          .select('id, full_name')
+          .in('id', profileIds)
+      : { data: [] as any[] };
+    const nameByProfile = new Map(
+      (profiles ?? []).map((p: any) => [p.id, p.full_name])
+    );
+    const profileByStudent = new Map(
+      peerList.map((p: any) => [p.id, p.profile_id])
+    );
+
+    const { data: allLogs } = peerIds.length
+      ? await supabase
+          .from('activity_logs')
+          .select('student_id, marks_earned, log_date')
+          .in('student_id', peerIds)
+      : { data: [] as any[] };
+    const logs = allLogs ?? [];
+
+    const build = (fromDate: string | null) => {
+      const agg = new Map<string, { marks: number; acts: number }>();
+      for (const id of peerIds) agg.set(id, { marks: 0, acts: 0 });
+      for (const r of logs) {
+        if (fromDate && r.log_date < fromDate) continue;
+        const a = agg.get(r.student_id);
+        if (!a) continue;
+        a.marks += r.marks_earned ?? 0;
+        a.acts += 1;
+      }
+      const rows = [...agg.entries()]
+        .map(([id, v]) => ({
+          id,
+          name:
+            (nameByProfile.get(profileByStudent.get(id)) as string) ??
+            'Student',
+          marks: v.marks,
+          activities: v.acts,
+        }))
+        .sort((x, y) => y.marks - x.marks);
+      return rows.map((r, i) => ({
+        rank: i + 1,
+        name: r.name,
+        marks: r.marks,
+        activities: r.activities,
+        avatar: (r.name || '?').trim().charAt(0).toUpperCase(),
+        me: r.id === student.id,
+        trend: r.marks > 0 ? 'up' : 'flat',
+      }));
+    };
+
+    res.status(200).json({
+      success: true,
+      data: {
+        daily: build(ymd(0)),
+        weekly: build(ymd(-6)),
+        monthly: build(ymd(-29)),
+        all_time: build(null),
+      },
+    });
+  })
+);
+
+/**
+ * GET /api/students/me/badges
+ *
+ * All active badges with an `earned` flag for the authenticated student.
+ */
+router.get(
+  '/me/badges',
+  requireAuth,
+  asyncHandler(async (req: Request, res: Response) => {
+    const supabase = getSupabaseClient();
+    const student = await resolveOwnStudent(req.user!.id);
+    if (!student) {
+      return res
+        .status(404)
+        .json({ success: false, error: 'STUDENT_NOT_FOUND' });
+    }
+    const { data: badges } = await supabase
+      .from('badges')
+      .select('id, name, name_ml, description, icon, bonus_points, status')
+      .eq('status', 'active')
+      .order('created_at', { ascending: true });
+    const { data: earned } = await supabase
+      .from('student_badges')
+      .select('badge_id, earned_at')
+      .eq('student_id', student.id);
+    const earnedMap = new Map(
+      (earned ?? []).map((e: any) => [e.badge_id, e.earned_at])
+    );
+    const list = (badges ?? []).map((b: any) => ({
+      id: b.id,
+      name: b.name,
+      name_ml: b.name_ml,
+      description: b.description,
+      icon: b.icon,
+      bonus_points: b.bonus_points,
+      earned: earnedMap.has(b.id),
+      earned_at: earnedMap.get(b.id) ?? null,
+    }));
+    res.status(200).json({ success: true, data: { badges: list } });
+  })
+);
+
 router.get(
   '/:studentId',
   requireAuth,

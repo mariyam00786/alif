@@ -53,7 +53,6 @@ class _TeacherManagementScreenState extends State<TeacherManagementScreen> {
       final matchesQuery =
           query.isEmpty ||
           teacher.name.toLowerCase().contains(query) ||
-          teacher.nameMl.toLowerCase().contains(query) ||
           teacher.mobile.toLowerCase().contains(query) ||
           teacher.subjects.join(' ').toLowerCase().contains(query);
       final matchesStatus =
@@ -268,13 +267,6 @@ class _TeacherTile extends StatelessWidget {
                         fontWeight: FontWeight.w700,
                       ),
                     ),
-                    if (teacher.nameMl.isNotEmpty)
-                      Text(
-                        teacher.nameMl,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: const Color(0xFF6B7280),
-                        ),
-                      ),
                     const SizedBox(height: 4),
                     Text(subjectsLabel, style: theme.textTheme.bodySmall),
                     if (teacher.batches.isNotEmpty)
@@ -388,7 +380,6 @@ class TeacherFormSheet extends StatefulWidget {
 class _TeacherFormSheetState extends State<TeacherFormSheet> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _name;
-  late final TextEditingController _nameMl;
   late final TextEditingController _mobile;
   late final TextEditingController _email;
   late final TextEditingController _qualification;
@@ -401,7 +392,6 @@ class _TeacherFormSheetState extends State<TeacherFormSheet> {
     super.initState();
     final e = widget.existing;
     _name = TextEditingController(text: e?.name ?? '');
-    _nameMl = TextEditingController(text: e?.nameMl ?? '');
     _mobile = TextEditingController(text: e?.mobile ?? '');
     _email = TextEditingController(text: e?.email ?? '');
     _qualification = TextEditingController(text: e?.qualification ?? '');
@@ -413,7 +403,6 @@ class _TeacherFormSheetState extends State<TeacherFormSheet> {
   @override
   void dispose() {
     _name.dispose();
-    _nameMl.dispose();
     _mobile.dispose();
     _email.dispose();
     _qualification.dispose();
@@ -430,7 +419,6 @@ class _TeacherFormSheetState extends State<TeacherFormSheet> {
     final record = TeacherRecord(
       id: e?.id ?? 'TCH-${DateTime.now().millisecondsSinceEpoch % 100000}',
       name: _name.text.trim(),
-      nameMl: _nameMl.text.trim(),
       mobile: _mobile.text.trim(),
       email: _email.text.trim(),
       qualification: _qualification.text.trim(),
@@ -514,7 +502,6 @@ class _TeacherFormSheetState extends State<TeacherFormSheet> {
                               validator: _required,
                             ),
                           ),
-                          field(_text(_nameMl, 'Name (Malayalam)')),
                           field(
                             _text(
                               _mobile,

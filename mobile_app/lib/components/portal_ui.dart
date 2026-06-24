@@ -26,6 +26,10 @@ class PortalHeader extends StatelessWidget {
   final Widget? trailing;
   final Widget? bottom;
 
+  /// Optional back action. When provided, a back arrow is shown before the
+  /// icon/title and tapping it invokes this callback.
+  final VoidCallback? onBack;
+
   /// Optional portal name shown as a small pill above the title (e.g.
   /// "Student Portal" / "Teacher Portal" / "Parent Portal") so it is always
   /// clear which portal is open.
@@ -38,6 +42,7 @@ class PortalHeader extends StatelessWidget {
     this.icon,
     this.trailing,
     this.bottom,
+    this.onBack,
     this.portalLabel,
   });
 
@@ -74,6 +79,10 @@ class PortalHeader extends StatelessWidget {
               ],
               Row(
                 children: [
+                  if (onBack != null) ...[
+                    _HeaderBackButton(onTap: onBack!),
+                    const SizedBox(width: 8),
+                  ],
                   if (icon != null) ...[
                     Container(
                       width: 40,
@@ -132,6 +141,39 @@ class PortalHeader extends StatelessWidget {
   }
 }
 
+/// Translucent circular back button used as the leading widget of a
+/// [PortalHeader].
+class _HeaderBackButton extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _HeaderBackButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white.withValues(alpha: 0.15),
+      shape: const CircleBorder(),
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const CircleBorder(),
+        child: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+          ),
+          child: const Icon(
+            Icons.arrow_back_rounded,
+            color: Colors.white,
+            size: 21,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// Small translucent pill that names the active portal inside a [PortalHeader].
 class _PortalBadge extends StatelessWidget {
   final String label;
@@ -162,6 +204,131 @@ class _PortalBadge extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Light, minimal screen header — a bold dark title (optionally a subtitle)
+/// with an optional notification bell + profile avatar on the right, sitting
+/// on the page background (no heavy coloured gradient). Matches the redesigned
+/// student home aesthetic. Pass [bottom] for a segmented control or filter row.
+class MinimalHeader extends StatelessWidget {
+  final String title;
+  final String? subtitle;
+
+  /// When non-null, a minimal notification bell is shown.
+  final List<PortalNotification>? notifications;
+
+  /// When non-null, the bell loads live notifications from this backend source
+  /// (using [notifications] as a fallback while loading / on failure).
+  final PortalNotificationSource? notificationSource;
+
+  /// When non-null, a profile avatar (light style) is shown.
+  final String? avatarName;
+
+  final bool isMalayalam;
+
+  /// Custom trailing widget — overrides the bell/avatar when provided.
+  final Widget? trailing;
+
+  /// Optional content shown below the title row (e.g. a segmented control).
+  final Widget? bottom;
+
+  const MinimalHeader({
+    super.key,
+    required this.title,
+    this.subtitle,
+    this.notifications,
+    this.notificationSource,
+    this.avatarName,
+    this.isMalayalam = false,
+    this.trailing,
+    this.bottom,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    Widget? right = trailing;
+    if (right == null && (notifications != null || avatarName != null)) {
+      right = Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (notifications != null)
+            if (notificationSource != null)
+              PortalNotificationBellAsync(
+                fallback: notifications!,
+                source: notificationSource!,
+                isMalayalam: isMalayalam,
+                minimal: true,
+                size: 44,
+              )
+            else
+              PortalNotificationBell(
+                notifications: notifications!,
+                isMalayalam: isMalayalam,
+                minimal: true,
+                size: 44,
+              ),
+          if (notifications != null && avatarName != null)
+            const SizedBox(width: 10),
+          if (avatarName != null)
+            PortalProfileAvatar(
+              fallbackName: avatarName,
+              onDark: false,
+              size: 44,
+            ),
+        ],
+      );
+    }
+
+    return SafeArea(
+      bottom: false,
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(16, 14, 16, bottom == null ? 12 : 14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                          color: kHeading,
+                          letterSpacing: -0.4,
+                        ),
+                      ),
+                      if (subtitle != null && subtitle!.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          subtitle!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w500,
+                            color: kMuted,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                if (right != null) ...[const SizedBox(width: 10), right],
+              ],
+            ),
+            if (bottom != null) ...[const SizedBox(height: 14), bottom!],
+          ],
+        ),
       ),
     );
   }
@@ -445,7 +612,7 @@ class SoftCard extends StatelessWidget {
     this.color,
     this.onTap,
     this.borderColor,
-    this.radius = 16,
+    this.radius = 18,
   });
 
   @override
@@ -456,7 +623,8 @@ class SoftCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: color ?? AppColors.surface,
         borderRadius: BorderRadius.circular(radius),
-        border: Border.all(color: borderColor ?? AppColors.border),
+        border: Border.all(color: borderColor ?? AppColors.borderSoft),
+        boxShadow: AppDecorations.soft,
       ),
       child: child,
     );
@@ -750,22 +918,38 @@ class PortalNotificationBell extends StatelessWidget {
   final bool onDark;
   final double size;
 
+  /// Minimal modern style: a thin outlined bell on a soft light circle with a
+  /// small green unread dot (instead of a red count badge). Used on the light
+  /// student home header.
+  final bool minimal;
+
   const PortalNotificationBell({
     super.key,
     required this.notifications,
     required this.isMalayalam,
     this.onDark = true,
     this.size = 44,
+    this.minimal = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final unread = notifications.where((n) => n.unread).length;
-    final ringColor = onDark
+    final ringColor = minimal
+        ? const Color(0xFFE6EBEA)
+        : onDark
         ? Colors.white.withValues(alpha: 0.55)
         : kGreen.withValues(alpha: 0.25);
-    final bgColor = onDark ? Colors.white.withValues(alpha: 0.18) : kGreenSoft;
-    final fgColor = onDark ? Colors.white : kGreen;
+    final bgColor = minimal
+        ? const Color(0xFFF3F6F5)
+        : onDark
+        ? Colors.white.withValues(alpha: 0.18)
+        : kGreenSoft;
+    final fgColor = minimal
+        ? const Color(0xFF334155)
+        : onDark
+        ? Colors.white
+        : kGreen;
 
     return GestureDetector(
       onTap: () => _open(context),
@@ -782,16 +966,32 @@ class PortalNotificationBell extends StatelessWidget {
               decoration: BoxDecoration(
                 color: bgColor,
                 shape: BoxShape.circle,
-                border: Border.all(color: ringColor, width: 2),
+                border: Border.all(color: ringColor, width: minimal ? 1 : 2),
               ),
               alignment: Alignment.center,
               child: Icon(
-                Icons.notifications_rounded,
+                minimal
+                    ? Icons.notifications_none_rounded
+                    : Icons.notifications_rounded,
                 color: fgColor,
                 size: size * 0.5,
               ),
             ),
-            if (unread > 0)
+            if (unread > 0 && minimal)
+              Positioned(
+                right: 1,
+                top: 1,
+                child: Container(
+                  width: 11,
+                  height: 11,
+                  decoration: BoxDecoration(
+                    color: kGreen,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 2),
+                  ),
+                ),
+              )
+            else if (unread > 0)
               Positioned(
                 right: -2,
                 top: -2,
@@ -956,6 +1156,7 @@ class PortalNotificationBellAsync extends StatefulWidget {
   final bool isMalayalam;
   final bool onDark;
   final double size;
+  final bool minimal;
   final PortalNotificationSource source;
 
   const PortalNotificationBellAsync({
@@ -965,6 +1166,7 @@ class PortalNotificationBellAsync extends StatefulWidget {
     required this.source,
     this.onDark = true,
     this.size = 44,
+    this.minimal = false,
   });
 
   @override
@@ -972,7 +1174,7 @@ class PortalNotificationBellAsync extends StatefulWidget {
       _PortalNotificationBellAsyncState();
 }
 
-enum PortalNotificationSource { parent }
+enum PortalNotificationSource { parent, student }
 
 class _PortalNotificationBellAsyncState
     extends State<PortalNotificationBellAsync> {
@@ -997,6 +1199,16 @@ class _PortalNotificationBellAsyncState
             }
           }
           break;
+        case PortalNotificationSource.student:
+          final res = await MobileApiService.getStudentNotifications();
+          if (!mounted) return;
+          if (res.success && res.data != null && res.data!.isNotEmpty) {
+            final mapped = portalNotificationsFromApi(res.data!);
+            if (mapped.isNotEmpty) {
+              setState(() => _items = mapped);
+            }
+          }
+          break;
       }
     } catch (_) {
       // Keep the fallback sample data on any failure.
@@ -1010,6 +1222,7 @@ class _PortalNotificationBellAsyncState
       isMalayalam: widget.isMalayalam,
       onDark: widget.onDark,
       size: widget.size,
+      minimal: widget.minimal,
     );
   }
 }
@@ -1199,6 +1412,150 @@ class _NotificationTile extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// A single tab in [AppBottomNavBar].
+class AppNavItem {
+  final IconData icon;
+  final String labelEn;
+  final String labelMl;
+
+  /// Optional unread/pending count shown as a red badge over the icon.
+  final int badgeCount;
+
+  const AppNavItem({
+    required this.icon,
+    required this.labelEn,
+    required this.labelMl,
+    this.badgeCount = 0,
+  });
+}
+
+/// Unified bottom navigation bar shared across the student, parent and teacher
+/// portals (and mirrored in the admin panel).
+///
+/// Flat tab style matching the app reference design: a white bar with softly
+/// rounded top corners, an upward shadow and a hairline top border. The active
+/// tab shows a brand-teal icon + label; inactive tabs are muted grey. There is
+/// intentionally no filled pill behind the active icon.
+class AppBottomNavBar extends StatelessWidget {
+  final List<AppNavItem> items;
+  final int currentIndex;
+  final ValueChanged<int> onTap;
+  final bool isMalayalam;
+
+  const AppBottomNavBar({
+    super.key,
+    required this.items,
+    required this.currentIndex,
+    required this.onTap,
+    required this.isMalayalam,
+  });
+
+  static const Color _inactive = Color(0xFF9CA3AF);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        border: Border(top: BorderSide(color: Color(0xFFEEF0F2), width: 1)),
+        boxShadow: [
+          BoxShadow(
+            color: Color(0x14000000),
+            blurRadius: 24,
+            offset: Offset(0, -6),
+          ),
+          BoxShadow(
+            color: Color(0x08000000),
+            blurRadius: 4,
+            offset: Offset(0, -1),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: SizedBox(
+          height: 66,
+          child: Row(
+            children: List.generate(items.length, (index) {
+              final item = items[index];
+              final selected = index == currentIndex;
+              final color = selected ? kGreen : _inactive;
+              return Expanded(
+                child: GestureDetector(
+                  onTap: () => onTap(index),
+                  behavior: HitTestBehavior.opaque,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          AnimatedScale(
+                            scale: selected ? 1.0 : 0.94,
+                            duration: const Duration(milliseconds: 200),
+                            curve: Curves.easeOutCubic,
+                            child: Icon(item.icon, size: 25, color: color),
+                          ),
+                          if (item.badgeCount > 0)
+                            Positioned(
+                              right: -8,
+                              top: -5,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 5,
+                                  vertical: 1,
+                                ),
+                                constraints: const BoxConstraints(minWidth: 16),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFDC2626),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: Colors.white,
+                                    width: 1.5,
+                                  ),
+                                ),
+                                child: Text(
+                                  item.badgeCount > 99
+                                      ? '99+'
+                                      : '${item.badgeCount}',
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        isMalayalam ? item.labelMl : item.labelEn,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 11,
+                          height: 1.0,
+                          fontWeight: selected
+                              ? FontWeight.w700
+                              : FontWeight.w500,
+                          color: color,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }),
+          ),
+        ),
       ),
     );
   }

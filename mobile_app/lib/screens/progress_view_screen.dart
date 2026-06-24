@@ -1,6 +1,9 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import '../constants/app_theme.dart';
 import '../components/portal_ui.dart';
+import '../services/api_service.dart';
 import '../shared/theme/theme.dart';
 
 /// Student progress view with daily, weekly and monthly summaries.
@@ -26,109 +29,52 @@ class ProgressViewScreen extends StatefulWidget {
 class _ProgressViewScreenState extends State<ProgressViewScreen> {
   int _tab = 0; // 0=Daily, 1=Weekly, 2=Monthly
 
-  final List<Map<String, dynamic>> _daily = [
-    {
-      'date': 'Today',
-      'dateML': 'ഇന്ന്',
-      'marks': 32,
-      'pct': 95,
-      'done': 9,
-      'total': 9,
-      'trend': 'up',
-    },
-    {
-      'date': 'Yesterday',
-      'dateML': 'ഇന്നലെ',
-      'marks': 28,
-      'pct': 89,
-      'done': 8,
-      'total': 9,
-      'trend': 'flat',
-    },
-    {
-      'date': 'Mon',
-      'dateML': 'തിങ്കൾ',
-      'marks': 24,
-      'pct': 78,
-      'done': 7,
-      'total': 9,
-      'trend': 'down',
-    },
-    {
-      'date': 'Sun',
-      'dateML': 'ഞായർ',
-      'marks': 30,
-      'pct': 90,
-      'done': 8,
-      'total': 9,
-      'trend': 'up',
-    },
-  ];
+  bool _loading = true;
+  List<Map<String, dynamic>> _daily = [];
+  Map<String, dynamic>? _weekly;
+  Map<String, dynamic>? _monthly;
 
-  final Map<String, dynamic> _weekly = {
-    'totalMarks': 210,
-    'avg': 30,
-    'pct': 92,
-    'best': 32,
-    'done': 63,
-    'total': 70,
-  };
+  @override
+  void initState() {
+    super.initState();
+    _loadProgress();
+  }
 
-  final Map<String, dynamic> _monthly = {
-    'totalMarks': 850,
-    'avg': 27,
-    'pct': 88,
-    'best': 32,
-    'improve': 12,
-    'days': 31,
-  };
+  Future<void> _loadProgress() async {
+    final res = await MobileApiService.getProgress();
+    if (!mounted) return;
+    if (res.success && res.data != null) {
+      final data = res.data!;
+      setState(() {
+        _daily = ((data['daily'] as List?) ?? const [])
+            .whereType<Map>()
+            .map((e) => e.cast<String, dynamic>())
+            .toList();
+        _weekly = (data['weekly'] as Map?)?.cast<String, dynamic>();
+        _monthly = (data['monthly'] as Map?)?.cast<String, dynamic>();
+        _loading = false;
+      });
+    } else {
+      setState(() => _loading = false);
+    }
+  }
 
-  static const List<PortalNotification> _studentNotifications = [
-    PortalNotification(
-      title: 'New badge earned',
-      titleMl: 'പുതിയ ബാഡ്ജ് നേടി',
-      body: 'You earned the "Prayer Master" badge. Keep it up!',
-      bodyMl: 'നിങ്ങൾ "നമസ്കാര വിജയി" ബാഡ്ജ് നേടി. തുടരുക!',
-      timeAgo: '2 hours ago',
-      timeAgoMl: '2 മണിക്കൂർ മുമ്പ്',
-      icon: Icons.military_tech_rounded,
-      color: Color(0xFF8B5CF6),
-      unread: true,
-    ),
-    PortalNotification(
-      title: 'Today\'s marking pending',
-      titleMl: 'ഇന്നത്തെ മാർക്കിംഗ് ബാക്കി',
-      body: 'You haven\'t completed today\'s activity marking yet.',
-      bodyMl: 'ഇന്നത്തെ പ്രവർത്തന മാർക്കിംഗ് ഇതുവരെ പൂർത്തിയായില്ല.',
-      timeAgo: '4 hours ago',
-      timeAgoMl: '4 മണിക്കൂർ മുമ്പ്',
-      icon: Icons.checklist_rounded,
-      color: Color(0xFFF59E0B),
-      unread: true,
-    ),
-    PortalNotification(
-      title: 'You moved up to rank 3',
-      titleMl: 'നിങ്ങൾ റാങ്ക് 3 ലേക്ക് ഉയർന്നു',
-      body: 'Great work! You climbed up in your batch leaderboard.',
-      bodyMl: 'മികച്ച പ്രകടനം! ബാച്ച് ലീഡർബോർഡിൽ നിങ്ങൾ ഉയർന്നു.',
-      timeAgo: 'Yesterday',
-      timeAgoMl: 'ഇന്നലെ',
-      icon: Icons.leaderboard_rounded,
-      color: kGreen,
-      unread: false,
-    ),
-    PortalNotification(
-      title: 'Holiday notice',
-      titleMl: 'അവധി അറിയിപ്പ്',
-      body: 'The school will remain closed this Friday.',
-      bodyMl: 'ഈ വെള്ളിയാഴ്ച സ്കൂൾ അവധിയായിരിക്കും.',
-      timeAgo: '2 days ago',
-      timeAgoMl: '2 ദിവസം മുമ്പ്',
-      icon: Icons.campaign_rounded,
-      color: Color(0xFF3B82F6),
-      unread: false,
-    ),
-  ];
+  /// Human label for a `YYYY-MM-DD` date string relative to today.
+  String _dayLabel(String? isoDate, bool isMalayalam) {
+    if (isoDate == null) return '';
+    final date = DateTime.tryParse(isoDate);
+    if (date == null) return isoDate;
+    final today = DateTime.now();
+    final d0 = DateTime(today.year, today.month, today.day);
+    final d1 = DateTime(date.year, date.month, date.day);
+    final diff = d0.difference(d1).inDays;
+    if (diff == 0) return isMalayalam ? 'ഇന്ന്' : 'Today';
+    if (diff == 1) return isMalayalam ? 'ഇന്നലെ' : 'Yesterday';
+    const en = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const ml = ['തിങ്കൾ', 'ചൊവ്വ', 'ബുധൻ', 'വ്യാഴം', 'വെള്ളി', 'ശനി', 'ഞായർ'];
+    final idx = d1.weekday - 1;
+    return isMalayalam ? ml[idx] : en[idx];
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -150,23 +96,14 @@ class _ProgressViewScreenState extends State<ProgressViewScreen> {
             ),
           )
         else
-          PortalHeader(
+          MinimalHeader(
             title: isMalayalam ? 'പുരോഗതി' : 'Progress',
             subtitle: widget.studentName,
-            icon: Icons.insights_rounded,
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                PortalNotificationBell(
-                  notifications: _studentNotifications,
-                  isMalayalam: isMalayalam,
-                ),
-                const SizedBox(width: 10),
-                PortalProfileAvatar(fallbackName: widget.studentName),
-              ],
-            ),
+            isMalayalam: isMalayalam,
+            notifications: const [],
+            notificationSource: PortalNotificationSource.student,
+            avatarName: widget.studentName,
             bottom: PortalSegmented(
-              onHeader: true,
               index: _tab,
               items: segItems,
               onChanged: (i) => setState(() => _tab = i),
@@ -191,23 +128,28 @@ class _ProgressViewScreenState extends State<ProgressViewScreen> {
 
   // ---- Daily ----
   Widget _dailyView(bool isMalayalam) {
+    if (_loading) return _loadingView();
+    if (_daily.isEmpty) {
+      return _emptyView(isMalayalam);
+    }
     final today = _daily.first;
+    final recent = _daily.length > 1 ? _daily.sublist(1) : const [];
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 18, 16, 28),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
       children: [
         _heroCard(
           isMalayalam ? 'ഇന്നത്തെ മാർക്ക്' : "Today's Marks",
-          '${today['marks']}',
-          '${today['done']}/${today['total']} ${isMalayalam ? 'പൂർത്തിയായി' : 'activities'}',
-          today['pct'] / 100.0,
+          '${_asInt(today['marks'])}',
+          '${_asInt(today['done'])}/${_asInt(today['total'])} ${isMalayalam ? 'പൂർത്തിയായി' : 'activities'}',
+          _asInt(today['pct']) / 100.0,
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
         SectionLabel(
           isMalayalam ? 'കഴിഞ്ഞ ദിവസങ്ങൾ' : 'Recent Days',
           icon: Icons.history_rounded,
         ),
         const SizedBox(height: 12),
-        if (_daily.length <= 1)
+        if (recent.isEmpty)
           EmptyState(
             icon: Icons.history_rounded,
             title: isMalayalam ? 'ഇതുവരെ റെക്കോർഡ് ഇല്ല' : 'No history yet',
@@ -216,10 +158,22 @@ class _ProgressViewScreenState extends State<ProgressViewScreen> {
                 : 'Mark your day to see progress here.',
           )
         else
-          ..._daily.map(
-            (d) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: _dayRow(d, isMalayalam),
+          SoftCard(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Column(
+              children: [
+                for (int i = 0; i < recent.length; i++) ...[
+                  _dayRow(recent[i] as Map<String, dynamic>, isMalayalam),
+                  if (i != recent.length - 1)
+                    const Divider(
+                      height: 1,
+                      thickness: 1,
+                      color: AppColors.borderSoft,
+                      indent: 16,
+                      endIndent: 16,
+                    ),
+                ],
+              ],
             ),
           ),
       ],
@@ -227,43 +181,52 @@ class _ProgressViewScreenState extends State<ProgressViewScreen> {
   }
 
   Widget _dayRow(Map<String, dynamic> d, bool isMalayalam) {
-    final pct = d['pct'] as int;
-    return SoftCard(
-      padding: const EdgeInsets.all(15),
+    final pct = _asInt(d['pct']);
+    final color = _pctColor(pct);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
       child: Row(
         children: [
-          _trendIcon(d['trend']),
-          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  isMalayalam ? d['dateML'] : d['date'],
-                  style: AppTextStyles.cardTitle,
+                Row(
+                  children: [
+                    _trendDot(d['trend'] as String? ?? 'flat'),
+                    const SizedBox(width: 9),
+                    Text(
+                      _dayLabel(d['date'] as String?, isMalayalam),
+                      style: AppTextStyles.cardTitle,
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 11),
                 ClipRRect(
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: BorderRadius.circular(8),
                   child: LinearProgressIndicator(
                     value: pct / 100.0,
-                    minHeight: 8,
-                    backgroundColor: kBorder,
-                    valueColor: AlwaysStoppedAnimation(_pctColor(pct)),
+                    minHeight: 7,
+                    backgroundColor: AppColors.surfaceMuted,
+                    valueColor: AlwaysStoppedAnimation(color),
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(width: 14),
+          const SizedBox(width: 16),
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                '${d['marks']}',
-                style: AppTextStyles.statNumber.copyWith(color: kGreen),
+                '${_asInt(d['marks'])}',
+                style: AppTextStyles.statNumber.copyWith(color: kHeading),
               ),
-              Text('$pct%', style: AppTextStyles.labelSmall),
+              const SizedBox(height: 2),
+              Text(
+                '$pct%',
+                style: AppTextStyles.labelSmall.copyWith(color: color),
+              ),
             ],
           ),
         ],
@@ -273,272 +236,288 @@ class _ProgressViewScreenState extends State<ProgressViewScreen> {
 
   // ---- Weekly ----
   Widget _weeklyView(bool isMalayalam) {
+    if (_loading) return _loadingView();
     final w = _weekly;
+    if (w == null) return _emptyView(isMalayalam);
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 18, 16, 28),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
       children: [
         _heroCard(
           isMalayalam ? 'ഈ ആഴ്ച' : 'This Week',
-          '${w['totalMarks']}',
-          '${w['done']}/${w['total']} ${isMalayalam ? 'പ്രവർത്തനങ്ങൾ' : 'activities'}',
-          w['pct'] / 100.0,
-        ),
-        const SizedBox(height: 16),
-        SectionLabel(
-          isMalayalam ? 'വിശദാംശങ്ങൾ' : 'Breakdown',
-          icon: Icons.bar_chart_rounded,
+          '${_asInt(w['totalMarks'])}',
+          '${_asInt(w['done'])}/${_asInt(w['total'])} ${isMalayalam ? 'പ്രവർത്തനങ്ങൾ' : 'activities'}',
+          _asInt(w['pct']) / 100.0,
+          period: _weekRangeLabel(isMalayalam),
         ),
         const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: StatTile(
-                icon: Icons.trending_up_rounded,
-                value: '${w['avg']}',
-                label: isMalayalam ? 'ശരാശരി' : 'Avg / day',
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: StatTile(
-                icon: Icons.emoji_events_rounded,
-                value: '${w['best']}',
-                label: isMalayalam ? 'മികച്ച ദിനം' : 'Best day',
-                tint: const Color(0xFFF59E0B),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: StatTile(
-                icon: Icons.percent_rounded,
-                value: '${w['pct']}%',
-                label: isMalayalam ? 'പൂർത്തീകരണം' : 'Completion',
-                tint: const Color(0xFF3B82F6),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: StatTile(
-                icon: Icons.check_circle_rounded,
-                value: '${w['done']}',
-                label: isMalayalam ? 'പൂർത്തിയായവ' : 'Completed',
-                tint: const Color(0xFF10B981),
-              ),
-            ),
-          ],
-        ),
+        _metricCard([
+          _MetricItem(
+            Icons.trending_up_rounded,
+            '${_asInt(w['avg'])}',
+            isMalayalam ? 'ശരാശരി' : 'Avg / day',
+            kGreen,
+          ),
+          _MetricItem(
+            Icons.emoji_events_rounded,
+            '${_asInt(w['best'])}',
+            isMalayalam ? 'മികച്ച ദിനം' : 'Best day',
+            const Color(0xFFF59E0B),
+          ),
+          _MetricItem(
+            Icons.check_circle_rounded,
+            '${_asInt(w['done'])}/${_asInt(w['total'])}',
+            isMalayalam ? 'പൂർത്തിയായവ' : 'Completed',
+            const Color(0xFF10B981),
+          ),
+        ]),
       ],
     );
   }
 
   // ---- Monthly ----
   Widget _monthlyView(bool isMalayalam) {
+    if (_loading) return _loadingView();
     final m = _monthly;
+    if (m == null) return _emptyView(isMalayalam);
+    final improve = _asInt(m['improve']);
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 18, 16, 28),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
       children: [
         _heroCard(
           isMalayalam ? 'ഈ മാസം' : 'This Month',
-          '${m['totalMarks']}',
-          '${m['days']} ${isMalayalam ? 'സജീവ ദിനങ്ങൾ' : 'active days'}',
-          m['pct'] / 100.0,
+          '${_asInt(m['totalMarks'])}',
+          '${_asInt(m['days'])} ${isMalayalam ? 'സജീവ ദിനങ്ങൾ' : 'active days'}',
+          _asInt(m['pct']) / 100.0,
+          period: _monthLabel(isMalayalam),
         ),
         const SizedBox(height: 12),
-        SoftCard(
-          color: kGreenSoft,
-          borderColor: kGreen.withValues(alpha: 0.25),
-          child: Row(
-            children: [
-              const Icon(Icons.trending_up_rounded, color: kGreen, size: 26),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  isMalayalam
-                      ? 'കഴിഞ്ഞ മാസത്തേക്കാൾ ${m['improve']}% മെച്ചപ്പെട്ടു'
-                      : '${m['improve']}% better than last month',
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: kGreen,
+        if (improve != 0)
+          SoftCard(
+            color: kGreenSoft,
+            borderColor: kGreen.withValues(alpha: 0.25),
+            child: Row(
+              children: [
+                Icon(
+                  improve > 0
+                      ? Icons.trending_up_rounded
+                      : Icons.trending_down_rounded,
+                  color: kGreen,
+                  size: 26,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    improve > 0
+                        ? (isMalayalam
+                              ? 'കഴിഞ്ഞ മാസത്തേക്കാൾ $improve% മെച്ചപ്പെട്ടു'
+                              : '$improve% better than last month')
+                        : (isMalayalam
+                              ? 'കഴിഞ്ഞ മാസത്തേക്കാൾ ${improve.abs()}% കുറവ്'
+                              : '${improve.abs()}% lower than last month'),
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: kGreen,
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-        const SizedBox(height: 16),
-        SectionLabel(
-          isMalayalam ? 'വിശദാംശങ്ങൾ' : 'Breakdown',
-          icon: Icons.bar_chart_rounded,
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: StatTile(
-                icon: Icons.trending_up_rounded,
-                value: '${m['avg']}',
-                label: isMalayalam ? 'ശരാശരി' : 'Avg / day',
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: StatTile(
-                icon: Icons.emoji_events_rounded,
-                value: '${m['best']}',
-                label: isMalayalam ? 'മികച്ച ദിനം' : 'Best day',
-                tint: const Color(0xFFF59E0B),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: StatTile(
-                icon: Icons.percent_rounded,
-                value: '${m['pct']}%',
-                label: isMalayalam ? 'പൂർത്തീകരണം' : 'Completion',
-                tint: const Color(0xFF3B82F6),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: StatTile(
-                icon: Icons.calendar_month_rounded,
-                value: '${m['days']}',
-                label: isMalayalam ? 'സജീവ ദിനങ്ങൾ' : 'Active days',
-                tint: const Color(0xFF10B981),
-              ),
-            ),
-          ],
-        ),
+        if (improve != 0) const SizedBox(height: 12),
+        _metricCard([
+          _MetricItem(
+            Icons.trending_up_rounded,
+            '${_asInt(m['avg'])}',
+            isMalayalam ? 'ശരാശരി' : 'Avg / day',
+            kGreen,
+          ),
+          _MetricItem(
+            Icons.emoji_events_rounded,
+            '${_asInt(m['best'])}',
+            isMalayalam ? 'മികച്ച ദിനം' : 'Best day',
+            const Color(0xFFF59E0B),
+          ),
+          _MetricItem(
+            Icons.calendar_month_rounded,
+            '${_asInt(m['days'])}',
+            isMalayalam ? 'സജീവ ദിനങ്ങൾ' : 'Active days',
+            const Color(0xFF10B981),
+          ),
+        ]),
       ],
     );
   }
 
   // ---- Shared ----
-  Widget _heroCard(String label, String value, String sub, double progress) {
+  Widget _heroCard(
+    String label,
+    String value,
+    String sub,
+    double progress, {
+    String? period,
+  }) {
+    final p = progress.clamp(0.0, 1.0);
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF115E59), Color(0xFF0F766E)],
+          colors: [
+            AppColors.primaryDeep,
+            AppColors.primary,
+            AppColors.primaryLight,
+          ],
+          stops: [0.0, 0.6, 1.0],
         ),
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: const [
+        borderRadius: BorderRadius.circular(26),
+        boxShadow: [
           BoxShadow(
-            color: Color(0x332D5A34),
-            blurRadius: 18,
-            offset: Offset(0, 8),
+            color: AppColors.primary.withValues(alpha: 0.24),
+            blurRadius: 28,
+            spreadRadius: -10,
+            offset: const Offset(0, 16),
           ),
         ],
       ),
-      child: Row(
+      child: Stack(
+        clipBehavior: Clip.hardEdge,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white.withValues(alpha: 0.85),
-                  ),
+          // Soft decorative orb for a touch of delight.
+          Positioned(
+            right: -34,
+            top: -46,
+            child: Container(
+              width: 130,
+              height: 130,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withValues(alpha: 0.06),
+              ),
+            ),
+          ),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            label,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white.withValues(alpha: 0.85),
+                            ),
+                          ),
+                        ),
+                        if (period != null) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 9,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.16),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              period,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        value,
+                        maxLines: 1,
+                        style: const TextStyle(
+                          fontSize: 34,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                          height: 1,
+                          letterSpacing: -0.5,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      sub,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white.withValues(alpha: 0.8),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 6),
-                FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    value,
-                    maxLines: 1,
-                    style: const TextStyle(
-                      fontSize: 38,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white,
-                      height: 1,
+              ),
+              const SizedBox(width: 14),
+              SizedBox(
+                width: 64,
+                height: 64,
+                child: CustomPaint(
+                  painter: _RingPainter(p),
+                  child: Center(
+                    child: Text(
+                      '${(p * 100).round()}%',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
                 ),
-                const SizedBox(height: 6),
-                Text(
-                  sub,
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white.withValues(alpha: 0.8),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          SizedBox(
-            width: 72,
-            height: 72,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                SizedBox(
-                  width: 72,
-                  height: 72,
-                  child: CircularProgressIndicator(
-                    value: progress,
-                    strokeWidth: 6,
-                    backgroundColor: Colors.white.withValues(alpha: 0.25),
-                    valueColor: const AlwaysStoppedAnimation(Colors.white),
-                  ),
-                ),
-                Text(
-                  '${(progress * 100).round()}%',
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white,
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ],
       ),
     );
   }
 
-  Widget _trendIcon(String trend) {
+  Widget _trendDot(String trend) {
     late IconData icon;
     late Color color;
     switch (trend) {
       case 'up':
-        icon = Icons.trending_up_rounded;
-        color = const Color(0xFF10B981);
+        icon = Icons.arrow_upward_rounded;
+        color = AppColors.success;
         break;
       case 'down':
-        icon = Icons.trending_down_rounded;
-        color = const Color(0xFFEF4444);
+        icon = Icons.arrow_downward_rounded;
+        color = AppColors.error;
         break;
       default:
-        icon = Icons.trending_flat_rounded;
-        color = const Color(0xFFF59E0B);
+        icon = Icons.remove_rounded;
+        color = AppColors.warning;
     }
     return Container(
-      width: 42,
-      height: 42,
+      width: 20,
+      height: 20,
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(12),
+        color: color.withValues(alpha: 0.13),
+        shape: BoxShape.circle,
       ),
-      child: Icon(icon, color: color, size: 22),
+      child: Icon(icon, color: color, size: 13),
     );
   }
 
@@ -547,4 +526,191 @@ class _ProgressViewScreenState extends State<ProgressViewScreen> {
     if (pct >= 50) return const Color(0xFFE0A82E); // fair — amber
     return const Color(0xFFEF4444); // low — red
   }
+
+  int _asInt(dynamic v) => (v is num) ? v.toInt() : 0;
+
+  /// Label for the current Mon–Sun week, e.g. "Jun 18 – 24".
+  String _weekRangeLabel(bool isMalayalam) {
+    final now = DateTime.now();
+    final start = now.subtract(Duration(days: now.weekday - 1));
+    final end = start.add(const Duration(days: 6));
+    const mEn = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    const mMl = [
+      'ജനു',
+      'ഫെബ്',
+      'മാർ',
+      'ഏപ്രി',
+      'മേയ്',
+      'ജൂൺ',
+      'ജൂലൈ',
+      'ഓഗ',
+      'സെപ്',
+      'ഒക്ടോ',
+      'നവം',
+      'ഡിസം',
+    ];
+    final months = isMalayalam ? mMl : mEn;
+    final startLabel = '${months[start.month - 1]} ${start.day}';
+    final endLabel = start.month == end.month
+        ? '${end.day}'
+        : '${months[end.month - 1]} ${end.day}';
+    return '$startLabel – $endLabel';
+  }
+
+  /// Label for the current month, e.g. "June 2026".
+  String _monthLabel(bool isMalayalam) {
+    final now = DateTime.now();
+    const mEn = [
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ];
+    const mMl = [
+      'ജനുവരി',
+      'ഫെബ്രുവരി',
+      'മാർച്ച്',
+      'ഏപ്രിൽ',
+      'മേയ്',
+      'ജൂൺ',
+      'ജൂലൈ',
+      'ഓഗസ്റ്റ്',
+      'സെപ്റ്റംബർ',
+      'ഒക്ടോബർ',
+      'നവംബർ',
+      'ഡിസംബർ',
+    ];
+    final months = isMalayalam ? mMl : mEn;
+    return '${months[now.month - 1]} ${now.year}';
+  }
+
+  /// A single compact card holding several inline metrics (replaces the old
+  /// grid of separate stat tiles).
+  Widget _metricCard(List<_MetricItem> items) {
+    return SoftCard(
+      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 6),
+      child: Row(
+        children: [
+          for (int i = 0; i < items.length; i++) ...[
+            Expanded(child: _metricCol(items[i])),
+            if (i != items.length - 1)
+              Container(width: 1, height: 40, color: kBorder),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _metricCol(_MetricItem m) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(m.icon, color: m.color, size: 20),
+        const SizedBox(height: 6),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            m.value,
+            style: AppTextStyles.statNumber.copyWith(
+              color: kHeading,
+              fontSize: 19,
+            ),
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          m.label,
+          textAlign: TextAlign.center,
+          style: AppTextStyles.labelSmall,
+        ),
+      ],
+    );
+  }
+
+  Widget _loadingView() {
+    return const Center(
+      child: Padding(
+        padding: EdgeInsets.only(top: 80),
+        child: CircularProgressIndicator(color: kGreen),
+      ),
+    );
+  }
+
+  Widget _emptyView(bool isMalayalam) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 40, 16, 28),
+      children: [
+        EmptyState(
+          icon: Icons.insights_rounded,
+          title: isMalayalam ? 'ഡാറ്റ ലഭ്യമല്ല' : 'No data yet',
+          message: isMalayalam
+              ? 'ദിനംപ്രതി മാർക്ക് ചെയ്താൽ പുരോഗതി ഇവിടെ കാണാം.'
+              : 'Mark your activities to see your progress here.',
+        ),
+      ],
+    );
+  }
+}
+
+/// A compact inline metric (icon + value + label) used in [_metricCard].
+class _MetricItem {
+  final IconData icon;
+  final String value;
+  final String label;
+  final Color color;
+
+  const _MetricItem(this.icon, this.value, this.label, this.color);
+}
+
+/// Minimal circular progress ring with a soft track and rounded cap, drawn in
+/// white for use on the teal hero card.
+class _RingPainter extends CustomPainter {
+  final double progress;
+
+  const _RingPainter(this.progress);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const stroke = 7.0;
+    final rect =
+        Offset(stroke / 2, stroke / 2) &
+        Size(size.width - stroke, size.height - stroke);
+    final track = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = stroke
+      ..color = Colors.white.withValues(alpha: 0.22);
+    final fg = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = stroke
+      ..strokeCap = StrokeCap.round
+      ..color = Colors.white;
+    canvas.drawArc(rect, -math.pi / 2, 2 * math.pi, false, track);
+    if (progress > 0) {
+      canvas.drawArc(rect, -math.pi / 2, 2 * math.pi * progress, false, fg);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _RingPainter old) => old.progress != progress;
 }

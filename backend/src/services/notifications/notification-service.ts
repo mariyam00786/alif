@@ -9,6 +9,8 @@ interface NotificationInput {
   body?: string;
   target_type: 'all' | 'batch' | 'class' | 'student';
   target_id?: string;
+  scheduled_at?: string | null;
+  sent_at?: string | null;
   deviceToken?: string;
   topic?: string;
 }
@@ -36,6 +38,8 @@ export class NotificationService {
       .insert({
         ...databasePayload,
         target_id: databasePayload.target_id ?? null,
+        scheduled_at: databasePayload.scheduled_at ?? null,
+        sent_at: databasePayload.sent_at ?? null,
         created_by: actor.profileId,
       })
       .select('*')
@@ -128,5 +132,24 @@ export class NotificationService {
     } catch (error) {
       throw new HttpError(502, 'Notification was saved but Firebase delivery failed.', error);
     }
+  }
+
+  async remove(id: string, actor?: AuthenticatedUser): Promise<void> {
+    const { error } = await getSupabaseClient()
+      .from('notifications')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      throw new HttpError(500, 'Unable to delete notification.', error);
+    }
+
+    await this.auditLogService.log({
+      actor,
+      action: 'delete-notification',
+      entityType: 'notification',
+      entityId: id,
+      metadata: {},
+    });
   }
 }

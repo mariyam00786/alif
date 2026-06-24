@@ -45,6 +45,18 @@ class MobileGoogleAuthService {
   /// Display info for a demo (non-Supabase) session, when set.
   static MobilePortalUser? _demoUser;
 
+  /// Records the signed-in user's display info for a phone/OTP session (which
+  /// has no Supabase session to read the name from), so the portal can greet
+  /// the user by their real name instead of a placeholder.
+  static void setSessionDisplayUser({String? name, String? email}) {
+    final trimmedName = name?.trim();
+    final trimmedEmail = email?.trim();
+    _demoUser = MobilePortalUser(
+      name: trimmedName?.isNotEmpty == true ? trimmedName : null,
+      email: trimmedEmail?.isNotEmpty == true ? trimmedEmail : null,
+    );
+  }
+
   /// Signs a teacher in.
   ///
   /// When Supabase is configured and an email-style username is supplied, this
@@ -115,9 +127,14 @@ class MobileGoogleAuthService {
   /// Signs in with an email and password using Supabase Auth, then exchanges
   /// the resulting session for the backend app token (JWT) and role.
   /// Falls back to offline demo credentials when Supabase is not configured.
+  ///
+  /// [allowedRoles] are the roles accepted for the portal the user picked on
+  /// the sign-in screen (student/parent by default, or teacher/admin for the
+  /// teacher portal). The backend role must be one of them or sign-in fails.
   static Future<MobileGoogleAuthResult> signInWithEmailPassword({
     required String email,
     required String password,
+    Set<String> allowedRoles = const {'student', 'parent'},
   }) async {
     await SupabaseBootstrap.ensureInitialized();
 
@@ -166,7 +183,7 @@ class MobileGoogleAuthService {
       throw StateError('Login failed. Please check your email and password.');
     }
 
-    return _exchangeAccessToken(accessToken);
+    return _exchangeAccessToken(accessToken, allowedRoles: allowedRoles);
   }
 
   static Future<MobileGoogleAuthResult?> restoreSession() async {

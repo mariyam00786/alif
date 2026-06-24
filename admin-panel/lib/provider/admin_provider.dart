@@ -138,6 +138,12 @@ class AdminProvider extends ChangeNotifier {
   /// Fetches the live WhatsApp sender status from the backend. Failures are
   /// swallowed so a status hiccup never blocks the dashboard.
   Future<void> refreshWhatsAppStatus() async {
+    // The status endpoint requires an authenticated admin token. When the panel
+    // is running without one (e.g. login bypassed in dev), the request would
+    // always return 401 and spam the console, so skip it entirely.
+    if (!_apiClient.isConfigured) {
+      return;
+    }
     try {
       final response = await _apiClient.getJson('/api/admin/whatsapp-status');
       final data = response['data'] as Map<String, dynamic>? ?? const {};

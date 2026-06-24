@@ -6,6 +6,34 @@ export class BadgeService extends BaseResourceService {
   constructor() {
     super('badges', 'badge');
   }
+
+  /**
+   * Updates a badge. Overrides the base implementation because the `badges`
+   * table has no `updated_at` column (the base service injects one).
+   */
+  async updateBadge(id: string, payload: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const { data, error } = await getSupabaseClient()
+      .from('badges')
+      .update(payload)
+      .eq('id', id)
+      .select('*')
+      .maybeSingle();
+
+    if (error) {
+      throw new HttpError(500, 'Unable to update badge.', error);
+    }
+    if (!data) {
+      throw new HttpError(404, 'Badge not found.');
+    }
+    return data as Record<string, unknown>;
+  }
+
+  async remove(id: string): Promise<void> {
+    const { error } = await getSupabaseClient().from('badges').delete().eq('id', id);
+    if (error) {
+      throw new HttpError(500, 'Unable to delete badge.', error);
+    }
+  }
 }
 
 export class LeaderboardService {

@@ -44,31 +44,16 @@ class AlifAdminApp extends StatelessWidget {
       home: Consumer<AdminProvider>(
         builder: (context, provider, _) {
           final error = provider.consumeError();
-          if (error != null) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-                SnackBar(
-                  content: Text(error),
-                  backgroundColor: const Color(0xFFDC2626),
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
-            });
-          }
-
           final info = provider.consumeInfo();
-          if (info != null) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-                SnackBar(
-                  content: Text(info),
-                  backgroundColor: const Color(0xFF16A34A),
-                  behavior: SnackBarBehavior.floating,
-                  duration: const Duration(seconds: 8),
-                ),
-              );
-            });
-          }
+
+          final _NoticeData? notice = error != null
+              ? _NoticeData(message: error, color: const Color(0xFFDC2626))
+              : (info != null
+                    ? _NoticeData(
+                        message: info,
+                        color: const Color(0xFF16A34A),
+                      )
+                    : null);
 
           if (!provider.isLoggedIn) {
             return AdminOtpLoginScreen(
@@ -86,6 +71,11 @@ class AlifAdminApp extends StatelessWidget {
                 ? const Center(child: CircularProgressIndicator())
                 : Column(
                     children: [
+                      if (notice != null)
+                        _InlineNoticeBanner(
+                          message: notice.message,
+                          color: notice.color,
+                        ),
                       if (provider.showWhatsAppAlert)
                         WhatsAppAlertBanner(
                           message: provider.whatsAppMessage,
@@ -190,5 +180,49 @@ class AlifAdminApp extends StatelessWidget {
           onDelete: provider.deleteBadge,
         );
     }
+  }
+}
+
+class _NoticeData {
+  const _NoticeData({required this.message, required this.color});
+
+  final String message;
+  final Color color;
+}
+
+class _InlineNoticeBanner extends StatelessWidget {
+  const _InlineNoticeBanner({required this.message, required this.color});
+
+  final String message;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(12, 10, 12, 6),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.info_outline_rounded, size: 18, color: color),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF1F2937),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

@@ -2,11 +2,41 @@ import { Router } from 'express';
 import { asyncHandler } from '../middleware/async-handler';
 import { authenticateRequest } from '../middleware/authentication';
 import { AuthService } from '../services/auth/auth-service';
-import { requestOTP, verifyOTP } from '../services/auth-service';
+import { registerUser, requestOTP, verifyOTP } from '../services/auth-service';
 import { ensureObject, getOptionalString, getRequiredString } from '../utils/validation';
 
 const router = Router();
 const authService = new AuthService();
+
+router.post('/register', asyncHandler(async (req, res) => {
+  const body = ensureObject(req.body);
+  const method = getRequiredString(body.method, 'method');
+  if (method !== 'phone' && method !== 'email') {
+    res.status(400).json({ success: false, message: 'method must be "phone" or "email".' });
+    return;
+  }
+
+  const result = await registerUser({
+    method,
+    fullName: getRequiredString(body.full_name, 'full_name'),
+    role: getRequiredString(body.role, 'role') as 'student' | 'parent' | 'teacher',
+    fullNameMl: getOptionalString(body.full_name_ml, 'full_name_ml'),
+    phone: getOptionalString(body.phone, 'phone'),
+    email: getOptionalString(body.email, 'email'),
+    password: getOptionalString(body.password, 'password'),
+  });
+
+  if (!result.success) {
+    res.status(400).json({ success: false, message: result.message });
+    return;
+  }
+
+  res.json({
+    success: true,
+    message: result.message,
+    data: { phone: result.phone },
+  });
+}));
 
 router.post('/request-otp', asyncHandler(async (req, res) => {
   const body = ensureObject(req.body);

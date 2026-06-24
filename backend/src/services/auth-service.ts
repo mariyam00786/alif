@@ -298,6 +298,197 @@ export async function verifyOTP(
 }
 
 /**
+ * Roles a user is allowed to self-register as. `admin` is intentionally
+ * excluded — admin accounts are provisioned manually, never via public
+ * registration.
+ */
+const SELF_REGISTER_ROLES = new Set<AuthUser['role']>([
+  'student',
+  'parent',
+  'teacher',
+]);
+
+export interface RegisterUserParams {
+  method: 'phone' | 'email';
+  fullName: string;
+  role: AuthUser['role'];
+  fullNameMl?: string;
+  phone?: string;
+  email?: string;
+  password?: string;
+}
+
+export interface RegisterUserResponse {
+  success: boolean;
+  message: string;
+  /** Normalised phone number, returned for the phone method so the client can
+   * immediately proceed to the OTP step. */
+  phone?: string;
+}
+
+/**
+ * Normalises a phone number to `+<digits>` for registration. Accepts a 10-digit
+ * local number (assumes +91) or a full international number.
+ */
+function normalizeRegisterPhone(input?: string): string | null {
+  const raw = (input ?? '').trim();
+  if (!raw) return null;
+  const digits = raw.replace(/\D/g, '');
+  if (raw.startsWith('+')) {
+    return /^\+\d{6,15}$/.test(`+${digits}`) ? `+${digits}` : null;
+  }
+  if (digits.length === 10) return `+91${digits}`;
+  if (digits.length >= 11 && digits.length <= 15) return `+${digits}`;
+  return null;
+}
+
+/**
+ * Inserts a profile row for a newly created auth user. Returns an error message
+ * on failure, or null on success.
+ */
+async function insertRegistrationProfile(
+  id: string,
+  phone: string,
+  fullName: string,
+  role: AuthUser['role'],
+  fullNameMl?: string
+): Promise<string | null> {
+  const { error } = await getSupabaseClient()
+    .from('profiles')
+    .insert({
+      id,
+      phone,
+      full_name: fullName,
+      full_name_ml: fullNameMl ?? null,
+      role,
+      updated_at: new Date().toISOString(),
+    });
+  return error ? error.message : null;
+}
+
+/**
+ * Self-service registration for the mobile portal (student / parent / teacher).
+ *
+ * Two methods are supported, mirroring the two login methods:
+ * - `phone`: creates the account so the user can then receive an OTP.
+ * - `email`: creates an email + password account the user can sign in with.
+ *
+ * Admin accounts can NOT be created here.
+ */
+export async function registerUser(
+  params: RegisterUserParams
+): Promise<RegisterUserResponse> {
+  const fullName = params.fullName?.trim();
+  if (!fullName) {
+    return { success: false, message: 'Full name is required.' };
+  }
+  if (!SELF_REGISTER_ROLES.has(params.role)) {
+    return { success: false, message: 'Invalid account type.' };
+  }
+
+  const supabase = getSupabaseClient();
+
+  try {
+    if (params.method === 'phone') {
+      const phone = normalizeRegisterPhone(params.phone);
+      if (!phone) {
+        return { success: false, message: 'Enter a valid phone number.' };
+      }
+
+      const existing = await getUserByPhone(phone);
+      if (existing) {
+        return {
+          success: false,
+          message: 'This phone number is already registered. Please sign in.',
+        };
+      }
+
+      // Deterministic placeholder email; OTP login never uses it.
+      const email = `otp_${phone.replace(/\D/g, '')}@phone.alifschool.local`;
+      const { data, error } = await supabase.auth.admin.createUser({
+        email,
+        phone,
+        email_confirm: true,
+        phone_confirm: true,
+        user_metadata: { full_name: fullName, role: params.role },
+      });
+      if (error || !data.user) {
+        return {
+          success: false,
+          message: 'This phone number is already registered. Please sign in.',
+        };
+      }
+
+      const profileError = await insertRegistrationProfile(
+        data.user.id,
+        phone,
+        fullName,
+        params.role,
+        params.fullNameMl
+      );
+      if (profileError) {
+        await supabase.auth.admin.deleteUser(data.user.id);
+        return { success: false, message: `Registration failed: ${profileError}` };
+      }
+
+      return {
+        success: true,
+        message: 'Account created. We will send an OTP to your WhatsApp number.',
+        phone,
+      };
+    }
+
+    // ===== email + password =====
+    const email = (params.email ?? '').trim().toLowerCase();
+    const password = params.password ?? '';
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+      return { success: false, message: 'Enter a valid email address.' };
+    }
+    if (password.length < 6) {
+      return {
+        success: false,
+        message: 'Password must be at least 6 characters.',
+      };
+    }
+
+    const { data, error } = await supabase.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: { full_name: fullName, role: params.role },
+    });
+    if (error || !data.user) {
+      return {
+        success: false,
+        message: 'This email is already registered. Please sign in.',
+      };
+    }
+
+    // profiles.phone is UNIQUE NOT NULL; email accounts have no real phone, so
+    // store a synthetic non-login value (same pattern as student child rows).
+    const syntheticPhone = `email:${data.user.id}`;
+    const profileError = await insertRegistrationProfile(
+      data.user.id,
+      syntheticPhone,
+      fullName,
+      params.role,
+      params.fullNameMl
+    );
+    if (profileError) {
+      await supabase.auth.admin.deleteUser(data.user.id);
+      return { success: false, message: `Registration failed: ${profileError}` };
+    }
+
+    return { success: true, message: 'Account created. You can now sign in.' };
+  } catch (error) {
+    return {
+      success: false,
+      message: `Registration failed: ${(error as Error).message}`,
+    };
+  }
+}
+
+/**
  * Gets a user profile by phone number from Supabase.
  *
  * Profiles may store the phone with or without the leading '+', so both forms

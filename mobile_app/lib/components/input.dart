@@ -60,6 +60,8 @@ class AlifInput extends StatefulWidget {
   final bool showCounter;
   final String? Function(String?)? validator;
   final bool isMalayalam;
+  final Iterable<String>? autofillHints;
+  final TextCapitalization textCapitalization;
 
   const AlifInput({
     super.key,
@@ -85,6 +87,8 @@ class AlifInput extends StatefulWidget {
     this.showCounter = false,
     this.validator,
     this.isMalayalam = false,
+    this.autofillHints,
+    this.textCapitalization = TextCapitalization.none,
   });
 
   @override
@@ -92,22 +96,26 @@ class AlifInput extends StatefulWidget {
 }
 
 class _AlifInputState extends State<AlifInput> {
-  late TextEditingController _controller;
+  /// Fallback controller used only when the caller does not supply one.
+  ///
+  /// It is always allocated (and always disposed) so that [_controller] can
+  /// safely fall back to it at any time. The active controller is resolved on
+  /// every build via the getter below, which means that if Flutter reuses this
+  /// State for a field that now points at a *different* `widget.controller`
+  /// (e.g. when a form inserts/removes a field above this one), the text always
+  /// stays bound to the correct controller instead of a stale one.
+  final TextEditingController _fallbackController = TextEditingController();
+
+  TextEditingController get _controller =>
+      widget.controller ?? _fallbackController;
+
   bool _isFocused = false;
   bool _isPasswordVisible = false;
   String? _validationError;
 
   @override
-  void initState() {
-    super.initState();
-    _controller = widget.controller ?? TextEditingController();
-  }
-
-  @override
   void dispose() {
-    if (widget.controller == null) {
-      _controller.dispose();
-    }
+    _fallbackController.dispose();
     super.dispose();
   }
 
@@ -157,6 +165,8 @@ class _AlifInputState extends State<AlifInput> {
                 widget.type == InputType.password && !_isPasswordVisible,
             keyboardType: _getKeyboardType(),
             inputFormatters: _getInputFormatters(),
+            autofillHints: widget.autofillHints,
+            textCapitalization: widget.textCapitalization,
             maxLength: widget.maxLength,
             maxLines: widget.type == InputType.password ? 1 : widget.maxLines,
             minLines:

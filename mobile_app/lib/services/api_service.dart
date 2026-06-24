@@ -224,6 +224,41 @@ class MobileApiService {
     }
   }
 
+  /// Fetch the authenticated student's own activity logs for a date range.
+  ///
+  /// The backend scopes the result to the logged-in student automatically, so
+  /// this returns only the caller's marks. Used to restore already-saved marks
+  /// (locked drafts) when the daily marking screen is reopened.
+  static Future<ApiResponse<List<Map<String, dynamic>>>> getMyActivityLogs({
+    required String from,
+    required String to,
+  }) async {
+    try {
+      final uri = Uri.parse(
+        '$baseUrl/activity-logs',
+      ).replace(queryParameters: {'from': from, 'to': to});
+
+      final response = await http
+          .get(uri, headers: _buildHeaders())
+          .timeout(timeout);
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        final json = jsonDecode(response.body) as Map<String, dynamic>;
+        final list = (json['data'] as List?) ?? const [];
+        return ApiResponse(
+          success: true,
+          data: list
+              .whereType<Map>()
+              .map((e) => Map<String, dynamic>.from(e))
+              .toList(),
+        );
+      }
+      return ApiResponse.error('Failed to fetch activity logs');
+    } catch (e) {
+      return ApiResponse.error('Failed to fetch activity logs');
+    }
+  }
+
   /// Real dashboard summary for the authenticated student (today completion,
   /// points, streak, batch rank).
   static Future<ApiResponse<Map<String, dynamic>>> getHomeSummary() async {
@@ -237,6 +272,21 @@ class MobileApiService {
       return _parseResponse(response);
     } catch (e) {
       return ApiResponse.error('Failed to fetch home summary');
+    }
+  }
+
+  /// Real daily / weekly / monthly progress for the authenticated student.
+  static Future<ApiResponse<Map<String, dynamic>>> getProgress() async {
+    try {
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/students/me/progress'),
+            headers: _buildHeaders(),
+          )
+          .timeout(timeout);
+      return _parseResponse(response);
+    } catch (e) {
+      return ApiResponse.error('Failed to fetch progress');
     }
   }
 
@@ -427,8 +477,31 @@ class MobileApiService {
     }
   }
 
-  // ===== RESPONSE PARSING =====
+  /// Fetch announcements relevant to the signed-in student.
+  static Future<ApiResponse<List<Map<String, dynamic>>>>
+  getStudentNotifications() async {
+    try {
+      final response = await http
+          .get(
+            Uri.parse(Apis.studentNotifications()),
+            headers: _buildHeaders(),
+          )
+          .timeout(timeout);
 
+      final result = _parseResponse(response);
+      if (result.success && result.data is List) {
+        return ApiResponse(
+          success: true,
+          data: List<Map<String, dynamic>>.from(result.data as List),
+        );
+      }
+      return ApiResponse.error('Failed to parse notifications');
+    } catch (e) {
+      return ApiResponse.error('Failed to fetch notifications');
+    }
+  }
+
+  // ===== RESPONSE PARSING =====
   static ApiResponse<Map<String, dynamic>> _parseResponse(
     http.Response response,
   ) {

@@ -10,22 +10,16 @@ import '../services/supabase_bootstrap.dart';
 /// A lightweight notification item shown inside the admin bell dropdown.
 class AdminNotification {
   final String title;
-  final String titleMl;
   final String body;
-  final String bodyMl;
   final String timeAgo;
-  final String timeAgoMl;
   final IconData icon;
   final Color color;
   final bool unread;
 
   const AdminNotification({
     required this.title,
-    required this.titleMl,
     required this.body,
-    required this.bodyMl,
     required this.timeAgo,
-    required this.timeAgoMl,
     required this.icon,
     required this.color,
     this.unread = false,
@@ -36,44 +30,32 @@ class AdminNotification {
 const List<AdminNotification> kAdminNotifications = [
   AdminNotification(
     title: 'New student awaiting approval',
-    titleMl: 'പുതിയ വിദ്യാർത്ഥി അംഗീകാരത്തിനായി',
     body: '3 student registrations are pending your review.',
-    bodyMl: '3 വിദ്യാർത്ഥി രജിസ്ട്രേഷനുകൾ അവലോകനത്തിനായി കാത്തിരിക്കുന്നു.',
     timeAgo: '15 minutes ago',
-    timeAgoMl: '15 മിനിറ്റ് മുമ്പ്',
     icon: Icons.person_add_alt_1_rounded,
     color: Color(0xFF0F766E),
     unread: true,
   ),
   AdminNotification(
     title: 'Teacher verification request',
-    titleMl: 'അധ്യാപക പരിശോധന അഭ്യർത്ഥന',
     body: 'A new teacher submitted documents for verification.',
-    bodyMl: 'ഒരു പുതിയ അധ്യാപകൻ പരിശോധനയ്ക്കായി രേഖകൾ സമർപ്പിച്ചു.',
     timeAgo: '1 hour ago',
-    timeAgoMl: '1 മണിക്കൂർ മുമ്പ്',
     icon: Icons.verified_user_rounded,
     color: Color(0xFFF59E0B),
     unread: true,
   ),
   AdminNotification(
     title: 'Notification campaign approved',
-    titleMl: 'അറിയിപ്പ് കാമ്പെയ്ൻ അംഗീകരിച്ചു',
     body: 'The weekly progress campaign is ready to send.',
-    bodyMl: 'പ്രതിവാര പുരോഗതി കാമ്പെയ്ൻ അയയ്ക്കാൻ തയ്യാറാണ്.',
     timeAgo: '3 hours ago',
-    timeAgoMl: '3 മണിക്കൂർ മുമ്പ്',
     icon: Icons.campaign_rounded,
     color: Color(0xFF3B82F6),
     unread: false,
   ),
   AdminNotification(
     title: 'Monthly reports generated',
-    titleMl: 'മാസ റിപ്പോർട്ടുകൾ തയ്യാറായി',
     body: 'All batch reports for this month are now available.',
-    bodyMl: 'ഈ മാസത്തെ എല്ലാ ബാച്ച് റിപ്പോർട്ടുകളും ലഭ്യമാണ്.',
     timeAgo: 'Yesterday',
-    timeAgoMl: 'ഇന്നലെ',
     icon: Icons.assessment_rounded,
     color: Color(0xFF8B5CF6),
     unread: false,
@@ -118,21 +100,12 @@ List<AdminNotification> adminNotificationsFromCampaigns(
         : c.status == CampaignStatus.scheduled
         ? 'Scheduled'
         : 'Draft';
-    final statusMl = c.status == CampaignStatus.sent
-        ? 'അയച്ചു'
-        : c.status == CampaignStatus.scheduled
-        ? 'ഷെഡ്യൂൾ ചെയ്തു'
-        : 'ഡ്രാഫ്റ്റ്';
     final body = c.audience;
     final time = c.scheduledFor.isNotEmpty ? c.scheduledFor : statusEn;
-    final timeMl = c.scheduledFor.isNotEmpty ? c.scheduledFor : statusMl;
     return AdminNotification(
       title: c.title,
-      titleMl: c.title,
       body: body,
-      bodyMl: body,
       timeAgo: time,
-      timeAgoMl: timeMl,
       icon: icon,
       color: color,
       unread: c.status == CampaignStatus.draft,
@@ -143,13 +116,11 @@ List<AdminNotification> adminNotificationsFromCampaigns(
 /// A circular bell button with an unread badge that opens an anchored dropdown
 /// listing recent admin notifications inline — no separate page.
 class AdminNotificationBell extends StatelessWidget {
-  final bool isMalayalam;
   final double size;
   final List<AdminNotification> notifications;
 
   const AdminNotificationBell({
     super.key,
-    required this.isMalayalam,
     this.size = 44,
     this.notifications = kAdminNotifications,
   });
@@ -161,7 +132,7 @@ class AdminNotificationBell extends StatelessWidget {
     final unread = notifications.where((n) => n.unread).length;
 
     return Tooltip(
-      message: isMalayalam ? 'അറിയിപ്പുകൾ' : 'Notifications',
+      message: 'Notifications',
       child: GestureDetector(
         onTap: () => _open(context),
         behavior: HitTestBehavior.opaque,
@@ -258,7 +229,6 @@ class AdminNotificationBell extends StatelessWidget {
           enabled: false,
           padding: EdgeInsets.zero,
           child: _AdminNotificationPanel(
-            isMalayalam: isMalayalam,
             width: width,
             notifications: notifications,
           ),
@@ -269,12 +239,10 @@ class AdminNotificationBell extends StatelessWidget {
 }
 
 class _AdminNotificationPanel extends StatelessWidget {
-  final bool isMalayalam;
   final double width;
   final List<AdminNotification> notifications;
 
   const _AdminNotificationPanel({
-    required this.isMalayalam,
     required this.width,
     required this.notifications,
   });
@@ -300,7 +268,7 @@ class _AdminNotificationPanel extends StatelessWidget {
                   Icon(Icons.notifications_rounded, color: primary, size: 20),
                   const SizedBox(width: 8),
                   Text(
-                    isMalayalam ? 'അറിയിപ്പുകൾ' : 'Notifications',
+                    'Notifications',
                     style: GoogleFonts.inter(
                       fontSize: 16,
                       fontWeight: FontWeight.w800,
@@ -319,7 +287,7 @@ class _AdminNotificationPanel extends StatelessWidget {
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
-                        isMalayalam ? '$unread പുതിയത്' : '$unread new',
+                        '$unread new',
                         style: GoogleFonts.inter(
                           fontSize: 11.5,
                           fontWeight: FontWeight.w800,
@@ -340,7 +308,6 @@ class _AdminNotificationPanel extends StatelessWidget {
                     const Divider(height: 1, color: Color(0xFFF1F4F1)),
                 itemBuilder: (context, i) => _AdminNotificationTile(
                   n: notifications[i],
-                  isMalayalam: isMalayalam,
                 ),
               ),
             ),
@@ -353,9 +320,8 @@ class _AdminNotificationPanel extends StatelessWidget {
 
 class _AdminNotificationTile extends StatelessWidget {
   final AdminNotification n;
-  final bool isMalayalam;
 
-  const _AdminNotificationTile({required this.n, required this.isMalayalam});
+  const _AdminNotificationTile({required this.n});
 
   @override
   Widget build(BuildContext context) {
@@ -383,7 +349,7 @@ class _AdminNotificationTile extends StatelessWidget {
                   children: [
                     Expanded(
                       child: Text(
-                        isMalayalam ? n.titleMl : n.title,
+                        n.title,
                         style: GoogleFonts.inter(
                           fontSize: 14,
                           fontWeight: FontWeight.w800,
@@ -405,7 +371,7 @@ class _AdminNotificationTile extends StatelessWidget {
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  isMalayalam ? n.bodyMl : n.body,
+                  n.body,
                   style: GoogleFonts.inter(
                     fontSize: 12.8,
                     fontWeight: FontWeight.w500,
@@ -415,7 +381,7 @@ class _AdminNotificationTile extends StatelessWidget {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  isMalayalam ? n.timeAgoMl : n.timeAgo,
+                  n.timeAgo,
                   style: GoogleFonts.inter(
                     fontSize: 11.5,
                     fontWeight: FontWeight.w600,
@@ -434,13 +400,11 @@ class _AdminNotificationTile extends StatelessWidget {
 /// A circular avatar button that opens a dropdown with the signed-in admin's
 /// identity, role and a sign-out action — mirrors the student/parent profile.
 class AdminProfileButton extends StatelessWidget {
-  final bool isMalayalam;
   final Future<void> Function() onSignOut;
   final double size;
 
   const AdminProfileButton({
     super.key,
-    required this.isMalayalam,
     required this.onSignOut,
     this.size = 44,
   });
@@ -452,11 +416,11 @@ class AdminProfileButton extends StatelessWidget {
     final email = _currentAdminEmail();
     final name = (email != null && email.isNotEmpty)
         ? email.split('@').first
-        : (isMalayalam ? 'അഡ്മിൻ' : 'Administrator');
+        : 'Administrator';
     final initial = name.trim().isNotEmpty ? name.trim()[0].toUpperCase() : 'A';
 
     return Tooltip(
-      message: isMalayalam ? 'പ്രൊഫൈൽ' : 'Profile',
+      message: 'Profile',
       child: GestureDetector(
         onTap: () => _open(context, name, email, initial),
         behavior: HitTestBehavior.opaque,
@@ -523,7 +487,6 @@ class AdminProfileButton extends StatelessWidget {
           enabled: false,
           padding: EdgeInsets.zero,
           child: _AdminProfilePanel(
-            isMalayalam: isMalayalam,
             name: name,
             email: email,
             initial: initial,
@@ -540,7 +503,6 @@ class AdminProfileButton extends StatelessWidget {
 }
 
 class _AdminProfilePanel extends StatelessWidget {
-  final bool isMalayalam;
   final String name;
   final String? email;
   final String initial;
@@ -548,7 +510,6 @@ class _AdminProfilePanel extends StatelessWidget {
   final Future<void> Function() onSignOut;
 
   const _AdminProfilePanel({
-    required this.isMalayalam,
     required this.name,
     required this.email,
     required this.initial,
@@ -594,7 +555,7 @@ class _AdminProfilePanel extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  isMalayalam ? 'ലോഗിൻ ചെയ്തിരിക്കുന്നത്' : 'Signed in as',
+                  'Signed in as',
                   style: GoogleFonts.inter(
                     fontSize: 11.5,
                     fontWeight: FontWeight.w600,
@@ -643,7 +604,7 @@ class _AdminProfilePanel extends StatelessWidget {
                       ),
                       const SizedBox(width: 6),
                       Text(
-                        isMalayalam ? 'അഡ്മിൻ' : 'Admin',
+                        'Admin',
                         style: GoogleFonts.inter(
                           fontSize: 12.5,
                           fontWeight: FontWeight.w700,
@@ -664,7 +625,7 @@ class _AdminProfilePanel extends StatelessWidget {
               child: OutlinedButton.icon(
                 onPressed: onSignOut,
                 icon: const Icon(Icons.logout_rounded, size: 18),
-                label: Text(isMalayalam ? 'സൈൻ ഔട്ട്' : 'Sign out'),
+                label: Text('Sign out'),
               ),
             ),
           ),

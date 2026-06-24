@@ -46,4 +46,5 @@ class Apis {
 
   // ===== Notifications =====
   static String parentNotifications() => '$baseUrl/parents/me/notifications';
+  static String studentNotifications() => '$baseUrl/students/me/notifications';
 }

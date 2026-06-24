@@ -93,6 +93,12 @@ class _BadgeManagementScreenState extends State<BadgeManagementScreen> {
               label: 'Active',
               icon: Icons.verified_outlined,
             ),
+            StatItem(
+              value:
+                  '${widget.badges.fold<int>(0, (sum, b) => sum + b.bonusPoints)}',
+              label: 'Bonus points',
+              icon: Icons.stars_outlined,
+            ),
           ],
         ),
         if (widget.badges.isEmpty)
@@ -182,15 +188,6 @@ class _BadgeCard extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
-          if (badge.nameMl.isNotEmpty)
-            Text(
-              badge.nameMl,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: const Color(0xFF6B7280),
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
           const SizedBox(height: 4),
           Expanded(
             child: Text(
@@ -284,7 +281,6 @@ class _BadgeFormSheetState extends State<BadgeFormSheet> {
 
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _name;
-  late final TextEditingController _nameMl;
   late final TextEditingController _criteria;
   late final TextEditingController _bonus;
   late String _icon;
@@ -295,7 +291,6 @@ class _BadgeFormSheetState extends State<BadgeFormSheet> {
     super.initState();
     final e = widget.existing;
     _name = TextEditingController(text: e?.name ?? '');
-    _nameMl = TextEditingController(text: e?.nameMl ?? '');
     _criteria = TextEditingController(text: e?.criteria ?? '');
     _bonus = TextEditingController(text: (e?.bonusPoints ?? 0).toString());
     _icon = e?.icon ?? _icons.first;
@@ -305,7 +300,6 @@ class _BadgeFormSheetState extends State<BadgeFormSheet> {
   @override
   void dispose() {
     _name.dispose();
-    _nameMl.dispose();
     _criteria.dispose();
     _bonus.dispose();
     super.dispose();
@@ -317,7 +311,6 @@ class _BadgeFormSheetState extends State<BadgeFormSheet> {
     final record = BadgeDefinition(
       id: e?.id ?? 'BDG-${DateTime.now().millisecondsSinceEpoch % 100000}',
       name: _name.text.trim(),
-      nameMl: _nameMl.text.trim(),
       criteria: _criteria.text.trim(),
       icon: _icon,
       bonusPoints: int.tryParse(_bonus.text.trim()) ?? 0,
@@ -396,7 +389,6 @@ class _BadgeFormSheetState extends State<BadgeFormSheet> {
                           field(
                             _text(_name, 'Badge Name *', validator: _required),
                           ),
-                          field(_text(_nameMl, 'Name (Malayalam)')),
                           field(
                             _text(
                               _bonus,
@@ -406,12 +398,16 @@ class _BadgeFormSheetState extends State<BadgeFormSheet> {
                             ),
                           ),
                           field(
-                            SwitchListTile.adaptive(
-                              contentPadding: EdgeInsets.zero,
-                              activeThumbColor: theme.colorScheme.primary,
-                              value: _isActive,
-                              onChanged: (v) => setState(() => _isActive = v),
-                              title: const Text('Active'),
+                            Material(
+                              type: MaterialType.transparency,
+                              child: SwitchListTile.adaptive(
+                                contentPadding: EdgeInsets.zero,
+                                activeThumbColor: theme.colorScheme.primary,
+                                value: _isActive,
+                                onChanged: (v) =>
+                                    setState(() => _isActive = v),
+                                title: const Text('Active'),
+                              ),
                             ),
                           ),
                           SizedBox(

@@ -10,7 +10,19 @@ import 'services/supabase_bootstrap.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await SupabaseBootstrap.ensureInitialized();
+
+  // Initialise Supabase, but never let it block the first frame. If the call
+  // hangs (e.g. a web auth lock held by another tab) or throws, we still render
+  // the UI so the user does not get a permanent blank page.
+  try {
+    await SupabaseBootstrap.ensureInitialized().timeout(
+      const Duration(seconds: 8),
+    );
+  } catch (error, stackTrace) {
+    debugPrint('Supabase initialisation failed or timed out: $error');
+    debugPrintStack(stackTrace: stackTrace);
+  }
+
   runApp(
     MultiProvider(
       providers: [ChangeNotifierProvider(create: (_) => AppStateProvider())],

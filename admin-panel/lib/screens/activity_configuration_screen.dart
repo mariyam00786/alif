@@ -56,7 +56,6 @@ class _ActivityConfigurationScreenState
     return widget.activities.where((a) {
       return query.isEmpty ||
           a.name.toLowerCase().contains(query) ||
-          a.nameMl.toLowerCase().contains(query) ||
           a.category.toLowerCase().contains(query);
     }).toList();
   }
@@ -261,13 +260,6 @@ class _ActivityTile extends StatelessWidget {
                   fontWeight: FontWeight.w600,
                 ),
               ),
-              if (activity.nameMl.isNotEmpty)
-                Text(
-                  activity.nameMl,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: const Color(0xFF6B7280),
-                  ),
-                ),
             ],
           );
 
@@ -364,7 +356,6 @@ class ActivityFormSheet extends StatefulWidget {
 class _ActivityFormSheetState extends State<ActivityFormSheet> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _name;
-  late final TextEditingController _nameMl;
   late final TextEditingController _category;
   late final TextEditingController _points;
   bool _hasQuantity = false;
@@ -375,7 +366,6 @@ class _ActivityFormSheetState extends State<ActivityFormSheet> {
     super.initState();
     final e = widget.existing;
     _name = TextEditingController(text: e?.name ?? '');
-    _nameMl = TextEditingController(text: e?.nameMl ?? '');
     _category = TextEditingController(text: e?.category ?? '');
     _points = TextEditingController(text: (e?.points ?? 0).toString());
     _hasQuantity = e?.hasQuantity ?? false;
@@ -385,7 +375,6 @@ class _ActivityFormSheetState extends State<ActivityFormSheet> {
   @override
   void dispose() {
     _name.dispose();
-    _nameMl.dispose();
     _category.dispose();
     _points.dispose();
     super.dispose();
@@ -397,7 +386,6 @@ class _ActivityFormSheetState extends State<ActivityFormSheet> {
     final record = ActivityRule(
       id: e?.id ?? 'ACT-${DateTime.now().millisecondsSinceEpoch % 100000}',
       name: _name.text.trim(),
-      nameMl: _nameMl.text.trim(),
       category: _category.text.trim(),
       points: int.tryParse(_points.text.trim()) ?? 0,
       hasQuantity: _hasQuantity,
@@ -479,7 +467,6 @@ class _ActivityFormSheetState extends State<ActivityFormSheet> {
                               validator: _required,
                             ),
                           ),
-                          field(_text(_nameMl, 'Name (Malayalam)')),
                           field(_categoryField()),
                           field(
                             _text(
@@ -491,26 +478,33 @@ class _ActivityFormSheetState extends State<ActivityFormSheet> {
                           ),
                           SizedBox(
                             width: constraints.maxWidth,
-                            child: SwitchListTile.adaptive(
-                              contentPadding: EdgeInsets.zero,
-                              activeThumbColor: theme.colorScheme.primary,
-                              value: _hasQuantity,
-                              onChanged: (v) =>
-                                  setState(() => _hasQuantity = v),
-                              title: const Text('Measured by quantity'),
-                              subtitle: const Text(
-                                'Points multiply by the count (e.g. Quran pages).',
+                            child: Material(
+                              type: MaterialType.transparency,
+                              child: SwitchListTile.adaptive(
+                                contentPadding: EdgeInsets.zero,
+                                activeThumbColor: theme.colorScheme.primary,
+                                value: _hasQuantity,
+                                onChanged: (v) =>
+                                    setState(() => _hasQuantity = v),
+                                title: const Text('Measured by quantity'),
+                                subtitle: const Text(
+                                  'Points multiply by the count (e.g. Quran pages).',
+                                ),
                               ),
                             ),
                           ),
                           SizedBox(
                             width: constraints.maxWidth,
-                            child: SwitchListTile.adaptive(
-                              contentPadding: EdgeInsets.zero,
-                              activeThumbColor: theme.colorScheme.primary,
-                              value: _isActive,
-                              onChanged: (v) => setState(() => _isActive = v),
-                              title: const Text('Active'),
+                            child: Material(
+                              type: MaterialType.transparency,
+                              child: SwitchListTile.adaptive(
+                                contentPadding: EdgeInsets.zero,
+                                activeThumbColor: theme.colorScheme.primary,
+                                value: _isActive,
+                                onChanged: (v) =>
+                                    setState(() => _isActive = v),
+                                title: const Text('Active'),
+                              ),
                             ),
                           ),
                         ],

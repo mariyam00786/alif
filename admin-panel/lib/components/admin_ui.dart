@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter/services.dart';
 
 class AdminPageFrame extends StatelessWidget {
   const AdminPageFrame({
@@ -93,7 +93,7 @@ class AdminPageFrame extends StatelessWidget {
                 itemCount: children.length,
                 separatorBuilder: (_, _) =>
                     SizedBox(height: isCompact ? 10 : 14),
-                padding: const EdgeInsets.only(bottom: 10),
+                padding: EdgeInsets.only(bottom: isCompact ? 96 : 16),
                 itemBuilder: (context, index) => children[index],
               ),
             ),
@@ -108,7 +108,6 @@ class MetricCard extends StatelessWidget {
   const MetricCard({
     super.key,
     required this.label,
-    this.subtitleMalayalam,
     required this.value,
     required this.supportingText,
     required this.tint,
@@ -116,7 +115,6 @@ class MetricCard extends StatelessWidget {
   });
 
   final String label;
-  final String? subtitleMalayalam;
   final String value;
   final String supportingText;
   final Color tint;
@@ -155,19 +153,6 @@ class MetricCard extends StatelessWidget {
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  if (subtitleMalayalam != null) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitleMalayalam!,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.notoSansMalayalam(
-                        textStyle: theme.textTheme.bodySmall?.copyWith(
-                          color: const Color(0xFF9CA3AF),
-                        ),
-                      ),
-                    ),
-                  ],
                   const SizedBox(height: 8),
                   Text(
                     value,
@@ -559,5 +544,52 @@ class StatusPill extends StatelessWidget {
 }
 
 void showInlineMessage(BuildContext context, String message) {
-  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  final messenger = ScaffoldMessenger.of(context);
+  messenger.hideCurrentMaterialBanner();
+
+  final isError = message.toLowerCase().contains('could not') ||
+      message.toLowerCase().contains('cannot') ||
+      message.toLowerCase().contains('failed') ||
+      message.toLowerCase().contains('error');
+  final color = isError ? const Color(0xFFDC2626) : const Color(0xFF0F766E);
+
+  if (isError) {
+    HapticFeedback.heavyImpact();
+  } else {
+    HapticFeedback.selectionClick();
+  }
+
+  messenger.showMaterialBanner(
+    MaterialBanner(
+      backgroundColor: color.withValues(alpha: 0.10),
+      surfaceTintColor: Colors.transparent,
+      leading: Icon(
+        isError ? Icons.error_outline_rounded : Icons.check_circle_outline,
+        color: color,
+      ),
+      content: Text(
+        message,
+        style: const TextStyle(
+          color: Color(0xFF1F2937),
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: messenger.hideCurrentMaterialBanner,
+          child: Text(
+            'Dismiss',
+            style: TextStyle(color: color, fontWeight: FontWeight.w700),
+          ),
+        ),
+      ],
+    ),
+  );
+
+  Future<void>.delayed(const Duration(seconds: 4), () {
+    if (messenger.mounted) {
+      messenger.hideCurrentMaterialBanner();
+    }
+  });
 }

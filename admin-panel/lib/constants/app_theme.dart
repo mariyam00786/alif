@@ -94,14 +94,14 @@ ThemeData buildAlifAdminTheme() {
       surfaceTintColor: Colors.transparent,
     ),
     cardTheme: CardThemeData(
-      elevation: 8,
-      shadowColor: const Color(0xFF112617).withValues(alpha: 0.08),
+      elevation: 4,
+      shadowColor: const Color(0xFF101729).withValues(alpha: 0.06),
       surfaceTintColor: Colors.transparent,
       color: surfaceWhite,
       margin: EdgeInsets.zero,
       clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(20),
         side: BorderSide(color: borderLight.withValues(alpha: 0.6), width: 1),
       ),
     ),

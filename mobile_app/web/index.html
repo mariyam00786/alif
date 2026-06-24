@@ -34,6 +34,15 @@
 </head>
 <body>
   <!--
+    Corbado Passkeys Web SDK. Required by the transitive `passkeys_web` plugin
+    (pulled in via supabase_flutter). Without this script the plugin throws
+    during web start-up, which prevents the Flutter app from rendering and
+    leaves a blank white page. Loaded before flutter_bootstrap.js so the SDK
+    is available when the plugin registers.
+  -->
+  <script src="passkeys_bundle.js"></script>
+
+  <!--
     You can customize the "flutter_bootstrap.js" script.
     This is useful to provide a custom configuration to the Flutter loader
     or to give the user feedback during the initialization process.
@@ -41,7 +50,6 @@
     For more details:
     * https://docs.flutter.dev/platform-integration/web/initialization
   -->
-  <script src="https://github.com/corbado/flutter-passkeys/releases/download/2.4.0/bundle.js"></script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

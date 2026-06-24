@@ -26,7 +26,6 @@ class StudentRecord {
   StudentRecord({
     required this.id,
     required this.name,
-    this.nameMl = '',
     this.mobile = '',
     this.email = '',
     this.fatherName = '',
@@ -46,7 +45,6 @@ class StudentRecord {
 
   final String id;
   String name;
-  String nameMl;
   String mobile;
   String email;
   String fatherName;
@@ -69,7 +67,6 @@ class TeacherRecord {
   TeacherRecord({
     required this.id,
     required this.name,
-    this.nameMl = '',
     this.mobile = '',
     this.email = '',
     this.qualification = '',
@@ -81,7 +78,6 @@ class TeacherRecord {
 
   final String id;
   String name;
-  String nameMl;
   String mobile;
   String email;
   String qualification;
@@ -121,7 +117,6 @@ class ActivityRule {
   ActivityRule({
     required this.id,
     required this.name,
-    this.nameMl = '',
     this.category = '',
     this.points = 0,
     this.hasQuantity = false,
@@ -130,7 +125,6 @@ class ActivityRule {
 
   final String id;
   String name;
-  String nameMl;
   String category;
   int points;
   bool hasQuantity;
@@ -142,7 +136,6 @@ class RatingRule {
   RatingRule({
     required this.id,
     required this.label,
-    this.labelMl = '',
     this.minScore = 0,
     this.maxScore = 100,
     this.colorName = 'Green',
@@ -153,7 +146,6 @@ class RatingRule {
 
   final String id;
   String label;
-  String labelMl;
   int minScore;
   int maxScore;
   String colorName;
@@ -201,7 +193,6 @@ class BadgeDefinition {
   BadgeDefinition({
     required this.id,
     required this.name,
-    this.nameMl = '',
     this.criteria = '',
     this.icon = '🏅',
     this.bonusPoints = 0,
@@ -211,7 +202,6 @@ class BadgeDefinition {
 
   final String id;
   String name;
-  String nameMl;
   String criteria;
   String icon;
   int bonusPoints;

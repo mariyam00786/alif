@@ -50,8 +50,6 @@ class _MobileStudentDashboardState extends State<MobileStudentDashboard> {
   bool _notifyDailyReminder = true;
   bool _notifyResults = true;
   bool _notifyBadges = true;
-  bool _privacyInitialsOnly = false;
-  bool _privacyHideRank = false;
 
   // Real home-dashboard summary fetched from the backend.
   Map<String, dynamic>? _homeSummary;
@@ -124,10 +122,20 @@ class _MobileStudentDashboardState extends State<MobileStudentDashboard> {
         onOpenRanking: () => _goToTab(3),
         onOpenBadges: _openBadges,
         todayDone: (_homeSummary?['today_done'] as num?)?.toInt() ?? 0,
-        todayTotal: (_homeSummary?['today_total'] as num?)?.toInt() ?? 9,
+        todayTotal: (_homeSummary?['today_total'] as num?)?.toInt() ?? 0,
+        todayMarks: (_homeSummary?['today_marks'] as num?)?.toInt() ?? 0,
+        todayMaxMarks: (_homeSummary?['today_max_marks'] as num?)?.toInt() ?? 0,
         streakDays: (_homeSummary?['streak_days'] as num?)?.toInt() ?? 0,
         weekPoints: (_homeSummary?['week_points'] as num?)?.toInt() ?? 0,
         batchRank: (_homeSummary?['batch_rank'] as num?)?.toInt() ?? 0,
+        batchSize: (_homeSummary?['batch_size'] as num?)?.toInt() ?? 0,
+        weekDays:
+            (_homeSummary?['week_days'] as List?)?.cast<dynamic>() ?? const [],
+        badgesEarned: (_homeSummary?['badges_earned'] as num?)?.toInt() ?? 0,
+        badgesTotal: (_homeSummary?['badges_total'] as num?)?.toInt() ?? 0,
+        badges:
+            (_homeSummary?['badges'] as List?)?.cast<dynamic>() ?? const [],
+        summaryLoaded: _homeSummary != null,
       ),
       ProgressViewScreen(
         studentId: widget.studentId,
@@ -217,22 +225,30 @@ class _MobileStudentDashboardState extends State<MobileStudentDashboard> {
     final initial = (name.isNotEmpty ? name.trim()[0] : '?').toUpperCase();
     return Column(
       children: [
-        PortalHeader(
+        MinimalHeader(
           title: isMalayalam ? 'പ്രൊഫൈൽ' : 'Profile',
           subtitle: email,
-          icon: Icons.person_rounded,
+          isMalayalam: isMalayalam,
         ),
         Expanded(
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
             children: [
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: const Color(0xFFE5E7EB)),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: const Color(0xFFEFF1F3)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.04),
+                      blurRadius: 18,
+                      spreadRadius: -6,
+                      offset: const Offset(0, 10),
+                    ),
+                  ],
                 ),
                 child: Row(
                   children: [
@@ -299,29 +315,24 @@ class _MobileStudentDashboardState extends State<MobileStudentDashboard> {
                         ],
                       ),
                     ),
+                    IconButton(
+                      onPressed: () => _openEditProfile(isMalayalam, name),
+                      tooltip: isMalayalam
+                          ? 'പ്രൊഫൈൽ എഡിറ്റ് ചെയ്യുക'
+                          : 'Edit profile',
+                      icon: const Icon(
+                        Icons.edit_rounded,
+                        color: Color(0xFF0F766E),
+                        size: 22,
+                      ),
+                    ),
                   ],
                 ),
               ),
-              const SizedBox(height: 16),
-              _profileTile(
-                icon: Icons.edit_rounded,
-                label: isMalayalam ? 'പ്രൊഫൈൽ എഡിറ്റ് ചെയ്യുക' : 'Edit profile',
-                onTap: () => _openEditProfile(isMalayalam, name),
-              ),
-              const SizedBox(height: 10),
-              _batchInfoCard(isMalayalam),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
               SectionLabel(
                 isMalayalam ? 'ക്രമീകരണങ്ങൾ' : 'Settings',
                 icon: Icons.tune_rounded,
-              ),
-              const SizedBox(height: 12),
-              _profileTile(
-                icon: Icons.military_tech_rounded,
-                label: isMalayalam
-                    ? 'ബാഡ്ജുകൾ & നേട്ടങ്ങൾ'
-                    : 'Badges & achievements',
-                onTap: _openBadges,
               ),
               const SizedBox(height: 10),
               _profileTile(
@@ -330,12 +341,6 @@ class _MobileStudentDashboardState extends State<MobileStudentDashboard> {
                     ? 'അറിയിപ്പ് ക്രമീകരണം'
                     : 'Notification settings',
                 onTap: () => _openNotificationSettings(isMalayalam),
-              ),
-              const SizedBox(height: 10),
-              _profileTile(
-                icon: Icons.shield_outlined,
-                label: isMalayalam ? 'സ്വകാര്യത' : 'Privacy settings',
-                onTap: () => _openPrivacySettings(isMalayalam),
               ),
               const SizedBox(height: 10),
               if (widget.onExit != null)
@@ -386,7 +391,7 @@ class _MobileStudentDashboardState extends State<MobileStudentDashboard> {
         onTap: onTap,
         borderRadius: BorderRadius.circular(14),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
             border: Border.all(color: const Color(0xFFE5E7EB)),
@@ -420,13 +425,17 @@ class _MobileStudentDashboardState extends State<MobileStudentDashboard> {
     );
   }
 
-  Widget _batchInfoCard(bool isMalayalam) {
-    Widget row(IconData icon, String label, String value) => Padding(
-      padding: const EdgeInsets.symmetric(vertical: 7),
+  Widget _readOnlyField(String label, String value) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF3F4F6),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
       child: Row(
         children: [
-          Icon(icon, size: 20, color: const Color(0xFF0F766E)),
-          const SizedBox(width: 12),
           Text(
             label,
             style: const TextStyle(
@@ -443,36 +452,6 @@ class _MobileStudentDashboardState extends State<MobileStudentDashboard> {
               fontWeight: FontWeight.w700,
               color: Color(0xFF0F1729),
             ),
-          ),
-        ],
-      ),
-    );
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-      ),
-      child: Column(
-        children: [
-          row(
-            Icons.groups_rounded,
-            isMalayalam ? 'ബാച്ച്' : 'Batch',
-            (_homeSummary?['batch_name'] as String?) ?? '—',
-          ),
-          const Divider(height: 1, color: Color(0xFFEFF1F3)),
-          row(
-            Icons.class_rounded,
-            isMalayalam ? 'ക്ലാസ്' : 'Class',
-            isMalayalam ? '7-ാം ക്ലാസ്' : 'Grade 7',
-          ),
-          const Divider(height: 1, color: Color(0xFFEFF1F3)),
-          row(
-            Icons.badge_rounded,
-            isMalayalam ? 'റോൾ നമ്പർ' : 'Roll No.',
-            '12',
           ),
         ],
       ),
@@ -539,6 +518,21 @@ class _MobileStudentDashboardState extends State<MobileStudentDashboard> {
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
+            ),
+            const SizedBox(height: 14),
+            _readOnlyField(
+              isMalayalam ? 'ബാച്ച്' : 'Batch',
+              (_homeSummary?['batch_name'] as String?) ?? '—',
+            ),
+            const SizedBox(height: 14),
+            _readOnlyField(
+              isMalayalam ? 'ക്ലാസ്' : 'Class',
+              isMalayalam ? '7-ാം ക്ലാസ്' : 'Grade 7',
+            ),
+            const SizedBox(height: 14),
+            _readOnlyField(
+              isMalayalam ? 'റോൾ നമ്പർ' : 'Roll No.',
+              '12',
             ),
             const SizedBox(height: 20),
             SizedBox(
@@ -660,67 +654,6 @@ class _MobileStudentDashboardState extends State<MobileStudentDashboard> {
     );
   }
 
-  void _openPrivacySettings(bool isMalayalam) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
-      ),
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setSheet) => Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 42,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFE5E7EB),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                isMalayalam ? 'സ്വകാര്യത' : 'Privacy Settings',
-                style: const TextStyle(
-                  fontSize: 19,
-                  fontWeight: FontWeight.w800,
-                  color: Color(0xFF0F1729),
-                ),
-              ),
-              const SizedBox(height: 8),
-              _switchTile(
-                isMalayalam
-                    ? 'റാങ്കിംഗിൽ ഇനീഷ്യൽ മാത്രം കാണിക്കുക'
-                    : 'Show initials only in ranking',
-                _privacyInitialsOnly,
-                (v) {
-                  setSheet(() {});
-                  setState(() => _privacyInitialsOnly = v);
-                },
-              ),
-              _switchTile(
-                isMalayalam
-                    ? 'മറ്റുള്ളവരിൽ നിന്ന് റാങ്ക് മറയ്ക്കുക'
-                    : 'Hide my rank from others',
-                _privacyHideRank,
-                (v) {
-                  setSheet(() {});
-                  setState(() => _privacyHideRank = v);
-                },
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _switchTile(String label, bool value, ValueChanged<bool> onChanged) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -747,89 +680,18 @@ class _MobileStudentDashboardState extends State<MobileStudentDashboard> {
   }
 
   Widget _buildBottomNav(bool isMalayalam) {
-    return SafeArea(
-      top: false,
-      child: Container(
-        margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(22),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x14000000),
-              blurRadius: 20,
-              offset: Offset(0, 4),
-            ),
-            BoxShadow(
-              color: Color(0x08000000),
-              blurRadius: 6,
-              offset: Offset(0, 1),
-            ),
-          ],
-        ),
-        child: Row(
-          children: List.generate(_navItems.length, (index) {
-            final item = _navItems[index];
-            final selected = _selectedIndex == index;
-            return Expanded(
-              child: GestureDetector(
-                onTap: () => setState(() => _selectedIndex = index),
-                behavior: HitTestBehavior.opaque,
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 220),
-                  curve: Curves.easeOutCubic,
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  decoration: BoxDecoration(
-                    color: selected
-                        ? const Color(0xFF0F766E).withValues(alpha: 0.1)
-                        : Colors.transparent,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      AnimatedContainer(
-                        duration: const Duration(milliseconds: 220),
-                        width: selected ? 40 : 36,
-                        height: selected ? 40 : 36,
-                        decoration: BoxDecoration(
-                          color: selected
-                              ? const Color(0xFF0F766E)
-                              : Colors.transparent,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Icon(
-                          item.icon,
-                          size: 20,
-                          color: selected
-                              ? Colors.white
-                              : const Color(0xFF9CA3AF),
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        isMalayalam ? item.labelMl : item.labelEn,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: selected
-                              ? FontWeight.w700
-                              : FontWeight.w500,
-                          color: selected
-                              ? const Color(0xFF0F766E)
-                              : const Color(0xFF9CA3AF),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          }),
-        ),
-      ),
+    return AppBottomNavBar(
+      isMalayalam: isMalayalam,
+      currentIndex: _selectedIndex,
+      onTap: (index) => setState(() => _selectedIndex = index),
+      items: [
+        for (final item in _navItems)
+          AppNavItem(
+            icon: item.icon,
+            labelEn: item.labelEn,
+            labelMl: item.labelMl,
+          ),
+      ],
     );
   }
 }

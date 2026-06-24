@@ -7,7 +7,6 @@ class DemoData {
         StudentRecord(
           id: 'STU-104',
           name: 'Amina Rahman',
-          nameMl: 'ആമിന റഹ്മാൻ',
           mobile: '9847012104',
           fatherName: 'Abdul Rahman',
           motherName: 'Saleena Rahman',
@@ -25,7 +24,6 @@ class DemoData {
         StudentRecord(
           id: 'STU-118',
           name: 'Ibrahim Nizar',
-          nameMl: 'ഇബ്രാഹിം നിസാർ',
           mobile: '9847012118',
           fatherName: 'Nizar P.',
           motherName: 'Fathima Nizar',
@@ -43,7 +41,6 @@ class DemoData {
         StudentRecord(
           id: 'STU-122',
           name: 'Mariam Shifa',
-          nameMl: 'മറിയം ഷിഫ',
           mobile: '9847012122',
           fatherName: 'Ashraf A.',
           motherName: 'Shifa A.',
@@ -61,7 +58,6 @@ class DemoData {
         StudentRecord(
           id: 'STU-135',
           name: 'Yusuf Sameer',
-          nameMl: 'യൂസുഫ് സമീർ',
           mobile: '9847012135',
           fatherName: 'Sameer T.',
           motherName: 'Najma Sameer',
@@ -81,7 +77,6 @@ class DemoData {
         TeacherRecord(
           id: 'TCH-11',
           name: 'Usthad Fasal',
-          nameMl: 'ഉസ്താദ് ഫസൽ',
           mobile: '9847022011',
           email: 'fasal@alifschool.in',
           qualification: 'Hifz, Bachelor of Islamic Studies',
@@ -92,7 +87,6 @@ class DemoData {
         TeacherRecord(
           id: 'TCH-14',
           name: 'Shameema Ali',
-          nameMl: 'ഷമീമ അലി',
           mobile: '9847022014',
           email: 'shameema@alifschool.in',
           qualification: 'MA Islamic History, B.Ed',
@@ -103,7 +97,6 @@ class DemoData {
         TeacherRecord(
           id: 'TCH-17',
           name: 'Muhsin Basheer',
-          nameMl: 'മുഹ്സിൻ ബഷീർ',
           mobile: '9847022017',
           email: 'muhsin@alifschool.in',
           qualification: 'Diploma in Arabic Language',
@@ -119,9 +112,9 @@ class DemoData {
           className: 'Qaida',
           teacherId: 'TCH-11',
           teacherName: 'Usthad Fasal',
-          studentCount: 24,
+          studentCount: 2,
           schedule: 'Mon, Wed, Fri · 7:00 PM',
-          capacity: 30,
+          capacity: 12,
           status: RecordStatus.active,
         ),
         BatchClassRecord(
@@ -130,9 +123,9 @@ class DemoData {
           className: 'Nazrah',
           teacherId: 'TCH-17',
           teacherName: 'Muhsin Basheer',
-          studentCount: 19,
+          studentCount: 1,
           schedule: 'Tue, Thu · 7:30 PM',
-          capacity: 24,
+          capacity: 12,
           status: RecordStatus.active,
         ),
         BatchClassRecord(
@@ -141,9 +134,9 @@ class DemoData {
           className: 'Hifz',
           teacherId: 'TCH-14',
           teacherName: 'Shameema Ali',
-          studentCount: 28,
+          studentCount: 1,
           schedule: 'Sat, Sun · 9:00 AM',
-          capacity: 32,
+          capacity: 12,
           status: RecordStatus.active,
         ),
       ],
@@ -151,7 +144,6 @@ class DemoData {
         ActivityRule(
           id: 'ACT-01',
           name: 'Jamaah Prayer',
-          nameMl: 'ജമാഅത്ത് നമസ്കാരം',
           category: 'Prayer',
           points: 10,
           hasQuantity: false,
@@ -160,7 +152,6 @@ class DemoData {
         ActivityRule(
           id: 'ACT-02',
           name: 'Quran Reading',
-          nameMl: 'ഖുർആൻ പാരായണം',
           category: 'Quran',
           points: 10,
           hasQuantity: true,
@@ -169,7 +160,6 @@ class DemoData {
         ActivityRule(
           id: 'ACT-03',
           name: 'Quran Memorization',
-          nameMl: 'ഹിഫ്ള്',
           category: 'Quran',
           points: 20,
           hasQuantity: true,
@@ -178,7 +168,6 @@ class DemoData {
         ActivityRule(
           id: 'ACT-04',
           name: 'Morning Adhkar',
-          nameMl: 'പ്രഭാത ദിക്ർ',
           category: 'Dhikr',
           points: 5,
           hasQuantity: false,
@@ -187,7 +176,6 @@ class DemoData {
         ActivityRule(
           id: 'ACT-05',
           name: 'Helping Parents',
-          nameMl: 'മാതാപിതാക്കളെ സഹായിക്കൽ',
           category: 'Good Deeds',
           points: 5,
           hasQuantity: false,
@@ -198,7 +186,6 @@ class DemoData {
         RatingRule(
           id: 'RATE-01',
           label: 'Excellent',
-          labelMl: 'മികച്ചത്',
           minScore: 90,
           maxScore: 100,
           colorName: 'Green',
@@ -207,7 +194,6 @@ class DemoData {
         RatingRule(
           id: 'RATE-02',
           label: 'Good',
-          labelMl: 'നല്ലത്',
           minScore: 75,
           maxScore: 89,
           colorName: 'Light Green',
@@ -216,7 +202,6 @@ class DemoData {
         RatingRule(
           id: 'RATE-03',
           label: 'Satisfactory',
-          labelMl: 'തൃപ്തികരം',
           minScore: 50,
           maxScore: 74,
           colorName: 'Gold',
@@ -225,7 +210,6 @@ class DemoData {
         RatingRule(
           id: 'RATE-04',
           label: 'Needs Improvement',
-          labelMl: 'മെച്ചപ്പെടേണ്ടത്',
           minScore: 0,
           maxScore: 49,
           colorName: 'Orange',
@@ -288,7 +272,6 @@ class DemoData {
         BadgeDefinition(
           id: 'BDG-01',
           name: 'Consistency Star',
-          nameMl: 'സ്ഥിരത താരം',
           criteria: '7-day activity streak',
           icon: '⭐',
           bonusPoints: 50,
@@ -298,7 +281,6 @@ class DemoData {
         BadgeDefinition(
           id: 'BDG-02',
           name: 'Monthly Champion',
-          nameMl: 'മാസ ചാമ്പ്യൻ',
           criteria: '30-day activity streak',
           icon: '🏆',
           bonusPoints: 200,
@@ -308,7 +290,6 @@ class DemoData {
         BadgeDefinition(
           id: 'BDG-03',
           name: 'Quran Sprint',
-          nameMl: 'ഖുർആൻ സ്പ്രിന്റ്',
           criteria: '50 Quran pages in a week',
           icon: '📖',
           bonusPoints: 100,

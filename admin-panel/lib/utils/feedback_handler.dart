@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 /// Unified error and feedback handler
 /// 
 /// Features:
-/// - SnackBar notifications (success, error, info, warning)
+/// - Non-popup top banners (success, error, info, warning)
 /// - Dialog alerts and confirmations
-/// - Toast-like notifications
+/// - Inline, accessible status feedback
 /// - Error logging
 /// - Bilingual support
 class FeedbackHandler {
@@ -65,7 +66,7 @@ class FeedbackHandler {
     );
   }
 
-  /// Internal snackbar handler
+  /// Internal non-popup feedback banner handler
   static void _showSnackBar(
     BuildContext context,
     String message,
@@ -73,33 +74,48 @@ class FeedbackHandler {
     required Duration duration,
   }) {
     final colors = _getTypeColors(type);
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentMaterialBanner();
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Icon(colors.icon, color: Colors.white),
-            SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                message,
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 14,
-                ),
+    if (type == SnackBarType.error) {
+      HapticFeedback.heavyImpact();
+    } else {
+      HapticFeedback.selectionClick();
+    }
+
+    messenger.showMaterialBanner(
+      MaterialBanner(
+        backgroundColor: colors.backgroundColor.withValues(alpha: 0.10),
+        surfaceTintColor: Colors.transparent,
+        leading: Icon(colors.icon, color: colors.backgroundColor),
+        content: Text(
+          message,
+          style: const TextStyle(
+            color: Color(0xFF1F2937),
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: messenger.hideCurrentMaterialBanner,
+            child: Text(
+              'Dismiss',
+              style: TextStyle(
+                color: colors.backgroundColor,
+                fontWeight: FontWeight.w700,
               ),
             ),
-          ],
-        ),
-        backgroundColor: colors.backgroundColor,
-        duration: duration,
-        behavior: SnackBarBehavior.floating,
-        margin: EdgeInsets.all(16),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
+          ),
+        ],
       ),
     );
+
+    Future<void>.delayed(duration, () {
+      if (messenger.mounted) {
+        messenger.hideCurrentMaterialBanner();
+      }
+    });
   }
 
   /// Show confirmation dialog
@@ -188,7 +204,7 @@ class FeedbackHandler {
   }
 }
 
-/// Snackbar type enum
+/// Feedback type enum
 enum SnackBarType { success, error, info, warning }
 
 /// Type colors configuration
