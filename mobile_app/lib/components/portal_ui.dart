@@ -366,6 +366,9 @@ class PortalProfileAvatar extends StatelessWidget {
         : kGreen.withValues(alpha: 0.25);
     final bgColor = onDark ? Colors.white.withValues(alpha: 0.18) : kGreenSoft;
     final fgColor = onDark ? Colors.white : kGreen;
+    final avatarShadow = onDark
+        ? Colors.black.withValues(alpha: 0.22)
+        : kGreen.withValues(alpha: 0.16);
 
     return GestureDetector(
       onTap: () => _showProfile(context, name, user?.email, avatarUrl, initial),
@@ -376,6 +379,13 @@ class PortalProfileAvatar extends StatelessWidget {
           color: bgColor,
           shape: BoxShape.circle,
           border: Border.all(color: ringColor, width: 2),
+          boxShadow: [
+            BoxShadow(
+              color: avatarShadow,
+              blurRadius: onDark ? 8 : 10,
+              offset: const Offset(0, 3),
+            ),
+          ],
           image: avatarUrl != null
               ? DecorationImage(
                   image: NetworkImage(avatarUrl),
@@ -408,13 +418,28 @@ class PortalProfileAvatar extends StatelessWidget {
     final state = context.appState;
     final isMalayalam = state.isMalayalam;
     final roleLabel = _roleLabel(state.activeRole, isMalayalam);
+    final canSwitchToParent = state.canSwitchToParent;
+    final canSwitchToStudent = state.canSwitchToStudent;
+    final showSwitchAction = canSwitchToParent || canSwitchToStudent;
+    final switchLabel = canSwitchToParent
+        ? (isMalayalam ? 'രക്ഷിതാവ് പോർട്ടൽ തുറക്കുക' : 'Open parent portal')
+        : (isMalayalam ? 'വിദ്യാർഥി പോർട്ടൽ തുറക്കുക' : 'Open student portal');
+    final switchTitle = isMalayalam
+        ? (canSwitchToParent ? 'രക്ഷിതാവ് പോർട്ടൽ' : 'വിദ്യാർത്ഥി പോർട്ടൽ')
+        : (canSwitchToParent ? 'Parent portal' : 'Student portal');
+    final switchIcon = canSwitchToParent
+        ? Icons.family_restroom_rounded
+        : Icons.school_rounded;
+    final switchAction = canSwitchToParent
+        ? state.switchToParentView
+        : state.switchToStudentView;
 
     // Anchor the profile card just below the avatar (same in-place behaviour as
     // the notification bell) so all details + logout are visible at once.
     final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
     final button = context.findRenderObject() as RenderBox;
     final media = MediaQuery.of(context);
-    final width = math.min(280.0, media.size.width - 24);
+    final width = math.min(252.0, media.size.width - 32);
 
     final bottomLeft = button.localToGlobal(
       button.size.bottomLeft(Offset.zero),
@@ -440,7 +465,7 @@ class PortalProfileAvatar extends StatelessWidget {
       context: context,
       position: position,
       color: Colors.white,
-      elevation: 14,
+      elevation: 12,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       constraints: BoxConstraints(minWidth: width, maxWidth: width),
       items: [
@@ -450,20 +475,34 @@ class PortalProfileAvatar extends StatelessWidget {
           child: SizedBox(
             width: width,
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Container(
-                    width: 60,
-                    height: 60,
+                    width: 64,
+                    height: 64,
                     decoration: BoxDecoration(
-                      color: kGreenSoft,
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          kGreen.withValues(alpha: 0.18),
+                          kGreen.withValues(alpha: 0.06),
+                        ],
+                      ),
                       shape: BoxShape.circle,
                       border: Border.all(
-                        color: kGreen.withValues(alpha: 0.2),
+                        color: kGreen.withValues(alpha: 0.26),
                         width: 2,
                       ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: kGreen.withValues(alpha: 0.15),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
                       image: avatarUrl != null
                           ? DecorationImage(
                               image: NetworkImage(avatarUrl),
@@ -479,11 +518,11 @@ class PortalProfileAvatar extends StatelessWidget {
                             style: const TextStyle(
                               color: kGreen,
                               fontWeight: FontWeight.w800,
-                              fontSize: 26,
+                              fontSize: 28,
                             ),
                           ),
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 8),
                   Text(
                     isMalayalam ? 'ലോഗിൻ ചെയ്തിരിക്കുന്നത്' : 'Signed in as',
                     style: const TextStyle(
@@ -506,7 +545,7 @@ class PortalProfileAvatar extends StatelessWidget {
                     ),
                   ),
                   if (email != null && email.isNotEmpty) ...[
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 1),
                     Text(
                       email,
                       textAlign: TextAlign.center,
@@ -515,7 +554,7 @@ class PortalProfileAvatar extends StatelessWidget {
                       style: const TextStyle(fontSize: 12.5, color: kMuted),
                     ),
                   ],
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 8),
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 12,
@@ -545,7 +584,79 @@ class PortalProfileAvatar extends StatelessWidget {
                       ],
                     ),
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 10),
+                  if (showSwitchAction) ...[
+                    Material(
+                      color: const Color(0xFFF8FAFA),
+                      borderRadius: BorderRadius.circular(12),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(12),
+                        onTap: () {
+                          Navigator.pop(context);
+                          switchAction();
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 9,
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 34,
+                                height: 34,
+                                decoration: BoxDecoration(
+                                  color: kGreenSoft,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                alignment: Alignment.center,
+                                child: Icon(
+                                  switchIcon,
+                                  size: 18,
+                                  color: kGreen,
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      switchTitle,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                        color: kHeading,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      switchLabel,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        color: kMuted,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              const Icon(
+                                Icons.chevron_right_rounded,
+                                color: kMuted,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton.icon(

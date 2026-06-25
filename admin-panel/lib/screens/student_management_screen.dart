@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../model/app_models.dart';
 import '../components/admin_ui.dart';
+import '../constants/admin_spacing.dart';
 
 /// Student Management (FRP Sec 4.1.2).
 ///
@@ -83,10 +84,14 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
     try {
       if (existing == null) {
         await widget.onAdd(result);
-        if (mounted) showInlineMessage(context, 'Student added successfully.');
+        if (mounted) {
+          showInlineMessage(context, 'Student added successfully.');
+        }
       } else {
         await widget.onUpdate(result);
-        if (mounted) showInlineMessage(context, 'Student updated successfully.');
+        if (mounted) {
+          showInlineMessage(context, 'Student updated successfully.');
+        }
       }
     } catch (error) {
       if (mounted) {
@@ -96,25 +101,12 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
   }
 
   Future<void> _confirmDelete(StudentRecord student) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete student'),
-        content: Text('Remove ${student.name}? This action cannot be undone.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Colors.red.shade600),
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
+    final confirmed = await showDeleteConfirmationDialog(
+      context,
+      title: 'Delete student',
+      message: 'Remove ${student.name}? This action cannot be undone.',
     );
-    if (confirmed == true) {
+    if (confirmed) {
       try {
         await widget.onDelete(student.id);
         if (mounted) showInlineMessage(context, 'Student removed.');
@@ -212,34 +204,55 @@ class _StudentList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          children: [
-            for (final student in students)
-              _StudentTile(
-                student: student,
-                onEdit: () => onEdit(student),
-                onDelete: () => onDelete(student),
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Column(
+        children: [
+          for (var i = 0; i < students.length; i++)
+            Dismissible(
+              key: ValueKey('student-${students[i].id}'),
+              direction: DismissDirection.horizontal,
+              background: const _SwipeActionBackground(
+                icon: Icons.edit_outlined,
+                label: 'Edit',
+                color: Color(0xFF0F766E),
+                alignment: Alignment.centerLeft,
               ),
-          ],
-        ),
+              secondaryBackground: const _SwipeActionBackground(
+                icon: Icons.delete_outline,
+                label: 'Delete',
+                color: Color(0xFFDC2626),
+                alignment: Alignment.centerRight,
+              ),
+              confirmDismiss: (direction) async {
+                final student = students[i];
+                if (direction == DismissDirection.startToEnd) {
+                  onEdit(student);
+                } else {
+                  onDelete(student);
+                }
+                return false;
+              },
+              child: _StudentTile(
+                student: students[i],
+                showDivider: i < students.length - 1,
+              ),
+            ),
+        ],
       ),
     );
   }
 }
 
 class _StudentTile extends StatelessWidget {
-  const _StudentTile({
-    required this.student,
-    required this.onEdit,
-    required this.onDelete,
-  });
+  const _StudentTile({required this.student, required this.showDivider});
 
   final StudentRecord student;
-  final VoidCallback onEdit;
-  final VoidCallback onDelete;
+  final bool showDivider;
 
   Color get _statusColor {
     switch (student.status) {
@@ -252,6 +265,11 @@ class _StudentTile extends StatelessWidget {
     }
   }
 
+  String get _statusLabel {
+    final raw = student.status.name;
+    return raw.isEmpty ? '-' : '${raw[0].toUpperCase()}${raw.substring(1)}';
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -259,23 +277,27 @@ class _StudentTile extends StatelessWidget {
         ? student.name.trim()[0].toUpperCase()
         : '?';
     return Container(
-      margin: const EdgeInsets.symmetric(vertical: 6),
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AdminSpacing.md + 2,
+        vertical: AdminSpacing.md,
+      ),
       decoration: BoxDecoration(
-        color: const Color(0xFFFCFDFC),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border(
+          bottom: showDivider
+              ? const BorderSide(color: Color(0xFFF1F4F1))
+              : BorderSide.none,
+        ),
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final isCompact = constraints.maxWidth < 560;
+          final isCompact = constraints.maxWidth < 620;
           final info = Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               CircleAvatar(
-                radius: 22,
+                radius: 19,
                 backgroundColor: theme.colorScheme.primary.withValues(
-                  alpha: 0.12,
+                  alpha: 0.10,
                 ),
                 child: Text(
                   initials,
@@ -285,28 +307,33 @@ class _StudentTile extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: AdminSpacing.md),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       student.name,
-                      style: theme.textTheme.titleMedium?.copyWith(
+                      style: theme.textTheme.bodyLarge?.copyWith(
                         fontWeight: FontWeight.w700,
+                        color: const Color(0xFF111827),
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 1),
                     Text(
                       '${student.batch}'
                       '${student.className.isNotEmpty ? ' · ${student.className}' : ''}',
-                      style: theme.textTheme.bodySmall,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: const Color(0xFF6B7280),
+                      ),
                     ),
                     if (student.mobile.isNotEmpty)
                       Text(
-                        '📞 ${student.mobile}',
+                        student.mobile,
                         style: theme.textTheme.bodySmall?.copyWith(
-                          color: const Color(0xFF6B7280),
+                          color: const Color(0xFF64748B),
                         ),
                       ),
                   ],
@@ -318,18 +345,12 @@ class _StudentTile extends StatelessWidget {
           final trailing = Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              StatusPill(label: student.status.name, color: _statusColor),
-              IconButton(
-                tooltip: 'Edit',
-                icon: const Icon(Icons.edit_outlined),
-                color: theme.colorScheme.primary,
-                onPressed: onEdit,
-              ),
-              IconButton(
-                tooltip: 'Delete',
-                icon: const Icon(Icons.delete_outline),
-                color: Colors.red.shade400,
-                onPressed: onDelete,
+              StatusPill(label: _statusLabel, color: _statusColor),
+              const SizedBox(width: AdminSpacing.xs + 6),
+              Icon(
+                Icons.swipe_left_rounded,
+                size: 18,
+                color: const Color(0xFF94A3B8),
               ),
             ],
           );
@@ -339,18 +360,77 @@ class _StudentTile extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 info,
-                const SizedBox(height: 10),
-                Align(alignment: Alignment.centerRight, child: trailing),
+                const SizedBox(height: AdminSpacing.xs + 4),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: trailing,
+                  ),
+                ),
               ],
             );
           }
           return Row(
             children: [
               Expanded(child: info),
-              trailing,
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: trailing,
+              ),
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+class _SwipeActionBackground extends StatelessWidget {
+  const _SwipeActionBackground({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.alignment,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color color;
+  final Alignment alignment;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      alignment: alignment,
+      padding: const EdgeInsets.symmetric(horizontal: AdminSpacing.md),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 18, color: color),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(color: color, fontWeight: FontWeight.w700),
+          ),
+        ],
       ),
     );
   }
@@ -364,7 +444,10 @@ class _EmptyState extends StatelessWidget {
     final theme = Theme.of(context);
     return Card(
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
+        padding: const EdgeInsets.symmetric(
+          vertical: 48,
+          horizontal: AdminSpacing.xxl,
+        ),
         child: Column(
           children: [
             Icon(
@@ -372,9 +455,9 @@ class _EmptyState extends StatelessWidget {
               size: 48,
               color: theme.colorScheme.primary.withValues(alpha: 0.4),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: AdminSpacing.md),
             Text('No students found', style: theme.textTheme.titleMedium),
-            const SizedBox(height: 4),
+            const SizedBox(height: AdminSpacing.xs),
             Text(
               'Try adjusting filters or add a new student.',
               style: theme.textTheme.bodySmall,
@@ -458,10 +541,7 @@ class _StudentFormSheetState extends State<StudentFormSheet> {
   void _submit() {
     if (!_formKey.currentState!.validate()) return;
     if (_batch == null || _dob == null) {
-      showInlineMessage(
-        context,
-        'Please complete batch and date of birth.',
-      );
+      showInlineMessage(context, 'Please complete batch and date of birth.');
       return;
     }
     final e = widget.existing;
@@ -497,12 +577,14 @@ class _StudentFormSheetState extends State<StudentFormSheet> {
         constraints: BoxConstraints(maxHeight: media.size.height * 0.92),
         decoration: const BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          borderRadius: BorderRadius.vertical(
+            top: Radius.circular(AdminSpacing.xxl),
+          ),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const SizedBox(height: 12),
+            const SizedBox(height: AdminSpacing.md),
             Container(
               width: 44,
               height: 4,
@@ -512,14 +594,19 @@ class _StudentFormSheetState extends State<StudentFormSheet> {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+              padding: const EdgeInsets.fromLTRB(
+                AdminSpacing.xl,
+                AdminSpacing.lg,
+                AdminSpacing.xl,
+                AdminSpacing.sm,
+              ),
               child: Row(
                 children: [
                   Icon(
                     isEdit ? Icons.edit : Icons.person_add_alt_1,
                     color: theme.colorScheme.primary,
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: AdminSpacing.xs + 6),
                   Text(
                     isEdit ? 'Edit Student' : 'Add Student',
                     style: theme.textTheme.titleLarge?.copyWith(
@@ -536,7 +623,12 @@ class _StudentFormSheetState extends State<StudentFormSheet> {
             ),
             Flexible(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+                padding: const EdgeInsets.fromLTRB(
+                  AdminSpacing.xl,
+                  AdminSpacing.sm,
+                  AdminSpacing.xl,
+                  AdminSpacing.xl,
+                ),
                 child: Form(
                   key: _formKey,
                   child: LayoutBuilder(
@@ -549,8 +641,8 @@ class _StudentFormSheetState extends State<StudentFormSheet> {
                         child: child,
                       );
                       return Wrap(
-                        spacing: 16,
-                        runSpacing: 16,
+                        spacing: AdminSpacing.lg,
+                        runSpacing: AdminSpacing.lg,
                         children: [
                           field(
                             _text(
@@ -622,7 +714,12 @@ class _StudentFormSheetState extends State<StudentFormSheet> {
             SafeArea(
               top: false,
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
+                padding: const EdgeInsets.fromLTRB(
+                  AdminSpacing.xl,
+                  AdminSpacing.xs,
+                  AdminSpacing.xl,
+                  AdminSpacing.lg,
+                ),
                 child: Row(
                   children: [
                     Expanded(
@@ -631,7 +728,7 @@ class _StudentFormSheetState extends State<StudentFormSheet> {
                         child: const Text('Cancel'),
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: AdminSpacing.md),
                     Expanded(
                       child: ElevatedButton(
                         onPressed: _submit,

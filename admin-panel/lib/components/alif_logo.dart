@@ -8,74 +8,28 @@ class AlifLogo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final primary = Theme.of(context).colorScheme.primary;
-    final size = height;
-    final radius = size * 0.22;
-
+    final iconSize = height * 0.54;
     return Container(
-      height: size,
-      width: size,
-      padding: EdgeInsets.all(size * 0.08),
+      height: height,
+      width: height,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(radius),
-        gradient: LinearGradient(
+        shape: BoxShape.circle,
+        gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            primary.withValues(alpha: 0.22),
-            const Color(0xFFFFA000).withValues(alpha: 0.16),
-          ],
+          colors: [Color(0xFF1A9A96), Color(0xFF0F766E)],
         ),
-        border: Border.all(color: primary.withValues(alpha: 0.30), width: 1.2),
+        border: Border.all(color: const Color(0xFF8ED1CC), width: 1.2),
         boxShadow: [
           BoxShadow(
-            color: primary.withValues(alpha: 0.22),
-            blurRadius: 16,
-            offset: const Offset(0, 8),
+            color: const Color(0xFF0F766E).withValues(alpha: 0.28),
+            blurRadius: 12,
+            offset: const Offset(0, 5),
           ),
         ],
       ),
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(radius * 0.72),
-          color: const Color(0xFF102A16),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.22)),
-        ),
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            Positioned(
-              top: size * 0.16,
-              right: size * 0.16,
-              child: Container(
-                width: size * 0.14,
-                height: size * 0.14,
-                decoration: const BoxDecoration(
-                  color: Color(0xFFFFA000),
-                  shape: BoxShape.circle,
-                ),
-              ),
-            ),
-            Icon(
-              Icons.auto_stories,
-              color: Colors.white,
-              size: size * 0.36,
-            ),
-            Positioned(
-              bottom: size * 0.14,
-              child: Text(
-                'ALIF',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: size * 0.12,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1.1,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
+      alignment: Alignment.center,
+      child: Icon(Icons.school_rounded, color: Colors.white, size: iconSize),
     );
   }
 }

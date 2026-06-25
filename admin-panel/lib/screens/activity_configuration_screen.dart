@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../model/app_models.dart';
 import '../components/admin_ui.dart';
+import '../constants/admin_spacing.dart';
 
 /// Activity Configuration (FRP Sec 4.4).
 ///
@@ -30,6 +31,7 @@ class ActivityConfigurationScreen extends StatefulWidget {
 class _ActivityConfigurationScreenState
     extends State<ActivityConfigurationScreen> {
   final TextEditingController _searchController = TextEditingController();
+  String _categoryFilter = 'All categories';
 
   @override
   void initState() {
@@ -54,9 +56,14 @@ class _ActivityConfigurationScreenState
   List<ActivityRule> get _filtered {
     final query = _searchController.text.trim().toLowerCase();
     return widget.activities.where((a) {
-      return query.isEmpty ||
+      final matchesQuery =
+          query.isEmpty ||
           a.name.toLowerCase().contains(query) ||
           a.category.toLowerCase().contains(query);
+      final category = a.category.isEmpty ? 'Uncategorized' : a.category;
+      final matchesCategory =
+          _categoryFilter == 'All categories' || category == _categoryFilter;
+      return matchesQuery && matchesCategory;
     }).toList();
   }
 
@@ -105,6 +112,7 @@ class _ActivityConfigurationScreenState
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = MediaQuery.of(context).size.width < 560;
     final filtered = _filtered;
     final grouped = <String, List<ActivityRule>>{};
     for (final a in filtered) {
@@ -127,10 +135,11 @@ class _ActivityConfigurationScreenState
         FilterBar(
           searchController: _searchController,
           searchHint: 'Search by activity or category',
-          filterLabel: 'Categories',
-          filterValue: '${_categories.length} categories',
-          filterOptions: ['${_categories.length} categories'],
-          onFilterChanged: (_) {},
+          filterLabel: 'Category',
+          filterValue: _categoryFilter,
+          filterOptions: ['All categories', ..._categories],
+          onFilterChanged: (value) =>
+              setState(() => _categoryFilter = value ?? 'All categories'),
         ),
         StatGrid(
           items: [
@@ -151,6 +160,7 @@ class _ActivityConfigurationScreenState
             ),
           ],
         ),
+        const _SwipeGuideCard(),
         if (filtered.isEmpty)
           const _EmptyState()
         else
@@ -158,6 +168,7 @@ class _ActivityConfigurationScreenState
             _CategoryGroup(
               category: key,
               activities: grouped[key]!,
+              compact: isMobile,
               onEdit: (a) => _openForm(existing: a),
               onDelete: _confirmDelete,
             ),
@@ -170,57 +181,91 @@ class _CategoryGroup extends StatelessWidget {
   const _CategoryGroup({
     required this.category,
     required this.activities,
+    this.compact = false,
     required this.onEdit,
     required this.onDelete,
   });
 
   final String category;
   final List<ActivityRule> activities;
+  final bool compact;
   final ValueChanged<ActivityRule> onEdit;
   final ValueChanged<ActivityRule> onDelete;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Card(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(
-                    Icons.folder_outlined,
-                    size: 18,
-                    color: theme.colorScheme.primary,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    category,
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  StatusPill(
-                    label: '${activities.length}',
-                    color: const Color(0xFF1E293B),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              for (final a in activities)
-                _ActivityTile(
-                  activity: a,
-                  onEdit: () => onEdit(a),
-                  onDelete: () => onDelete(a),
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(compact ? 14 : 18),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: EdgeInsets.fromLTRB(
+              compact ? AdminSpacing.sm + 2 : AdminSpacing.md + 2,
+              compact ? AdminSpacing.sm : AdminSpacing.md,
+              compact ? AdminSpacing.sm + 2 : AdminSpacing.md + 2,
+              compact ? AdminSpacing.xs + 2 : AdminSpacing.sm,
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.folder_outlined,
+                  size: compact ? 16 : 18,
+                  color: theme.colorScheme.primary,
                 ),
-            ],
+                SizedBox(
+                  width: compact ? AdminSpacing.xs + 2 : AdminSpacing.sm,
+                ),
+                Expanded(
+                  child: Text(
+                    category,
+                    style:
+                        (compact
+                                ? theme.textTheme.titleSmall
+                                : theme.textTheme.titleMedium)
+                            ?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
+          for (var i = 0; i < activities.length; i++)
+            Dismissible(
+              key: ValueKey('activity-${activities[i].id}'),
+              direction: DismissDirection.horizontal,
+              background: const _SwipeActionBackground(
+                icon: Icons.edit_outlined,
+                label: 'Edit',
+                color: Color(0xFF0F766E),
+                alignment: Alignment.centerLeft,
+              ),
+              secondaryBackground: const _SwipeActionBackground(
+                icon: Icons.delete_outline,
+                label: 'Delete',
+                color: Color(0xFFDC2626),
+                alignment: Alignment.centerRight,
+              ),
+              confirmDismiss: (direction) async {
+                final activity = activities[i];
+                if (direction == DismissDirection.startToEnd) {
+                  onEdit(activity);
+                } else {
+                  onDelete(activity);
+                }
+                return false;
+              },
+              child: _ActivityTile(
+                activity: activities[i],
+                compact: compact,
+                showDivider: i < activities.length - 1,
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -229,43 +274,54 @@ class _CategoryGroup extends StatelessWidget {
 class _ActivityTile extends StatelessWidget {
   const _ActivityTile({
     required this.activity,
-    required this.onEdit,
-    required this.onDelete,
+    required this.showDivider,
+    this.compact = false,
   });
 
   final ActivityRule activity;
-  final VoidCallback onEdit;
-  final VoidCallback onDelete;
+  final bool showDivider;
+  final bool compact;
+
+  String get _statusLabel => activity.isActive ? 'Active' : 'Inactive';
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Container(
-      margin: const EdgeInsets.symmetric(vertical: 5),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? AdminSpacing.sm + 2 : AdminSpacing.md + 2,
+        vertical: compact ? AdminSpacing.sm : AdminSpacing.sm + 2,
+      ),
       decoration: BoxDecoration(
-        color: const Color(0xFFFCFDFC),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border(
+          bottom: showDivider
+              ? const BorderSide(color: Color(0xFFF1F4F1))
+              : BorderSide.none,
+        ),
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final isCompact = constraints.maxWidth < 460;
+          final isCompact = compact || constraints.maxWidth < 620;
           final info = Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 activity.name,
-                style: theme.textTheme.bodyLarge?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
+                style:
+                    (isCompact
+                            ? theme.textTheme.bodyMedium
+                            : theme.textTheme.bodyLarge)
+                        ?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFF111827),
+                        ),
               ),
             ],
           );
 
-          final meta = Wrap(
-            spacing: 6,
-            crossAxisAlignment: WrapCrossAlignment.center,
+          final chips = Wrap(
+            spacing: isCompact ? AdminSpacing.xs : AdminSpacing.xs + 2,
+            runSpacing: isCompact ? 2 : AdminSpacing.xs,
             children: [
               StatusPill(
                 label: '${activity.points} pts',
@@ -274,22 +330,10 @@ class _ActivityTile extends StatelessWidget {
               if (activity.hasQuantity)
                 const StatusPill(label: 'per qty', color: Color(0xFF1E293B)),
               StatusPill(
-                label: activity.isActive ? 'active' : 'inactive',
+                label: _statusLabel,
                 color: activity.isActive
                     ? const Color(0xFF2E7D32)
                     : const Color(0xFF9E9E9E),
-              ),
-              IconButton(
-                tooltip: 'Edit',
-                icon: const Icon(Icons.edit_outlined),
-                color: theme.colorScheme.primary,
-                onPressed: onEdit,
-              ),
-              IconButton(
-                tooltip: 'Delete',
-                icon: const Icon(Icons.delete_outline),
-                color: Colors.red.shade400,
-                onPressed: onDelete,
               ),
             ],
           );
@@ -297,16 +341,139 @@ class _ActivityTile extends StatelessWidget {
           if (isCompact) {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: [info, const SizedBox(height: 6), meta],
+              children: [
+                info,
+                SizedBox(
+                  height: isCompact ? AdminSpacing.xs : AdminSpacing.xs + 2,
+                ),
+                Row(
+                  children: [
+                    Expanded(child: chips),
+                    if (!compact)
+                      const Padding(
+                        padding: EdgeInsets.only(left: AdminSpacing.xs + 2),
+                        child: _SwipeHintChip(),
+                      ),
+                  ],
+                ),
+              ],
             );
           }
           return Row(
             children: [
               Expanded(child: info),
-              meta,
+              const SizedBox(width: AdminSpacing.md),
+              Flexible(child: chips),
+              const SizedBox(width: AdminSpacing.xs + 6),
+              const _SwipeHintChip(),
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+class _SwipeActionBackground extends StatelessWidget {
+  const _SwipeActionBackground({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.alignment,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color color;
+  final Alignment alignment;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      alignment: alignment,
+      padding: const EdgeInsets.symmetric(horizontal: AdminSpacing.md),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 18, color: color),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(color: color, fontWeight: FontWeight.w700),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SwipeHintChip extends StatelessWidget {
+  const _SwipeHintChip();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.touch_app_rounded, size: 14, color: Color(0xFF64748B)),
+          SizedBox(width: 4),
+          Icon(Icons.swipe_left_rounded, size: 14, color: Color(0xFF94A3B8)),
+          SizedBox(width: 4),
+          Text(
+            'Swipe',
+            style: TextStyle(
+              color: Color(0xFF64748B),
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SwipeGuideCard extends StatelessWidget {
+  const _SwipeGuideCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AdminSpacing.md,
+        vertical: AdminSpacing.xs + 2,
+      ),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: const Row(
+        children: [
+          Icon(Icons.touch_app_rounded, size: 16, color: Color(0xFF64748B)),
+          SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Swipe right to edit, left to delete',
+              style: TextStyle(
+                color: Color(0xFF64748B),
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -320,7 +487,10 @@ class _EmptyState extends StatelessWidget {
     final theme = Theme.of(context);
     return Card(
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
+        padding: const EdgeInsets.symmetric(
+          vertical: 48,
+          horizontal: AdminSpacing.xxl,
+        ),
         child: Column(
           children: [
             Icon(
@@ -328,9 +498,9 @@ class _EmptyState extends StatelessWidget {
               size: 48,
               color: theme.colorScheme.primary.withValues(alpha: 0.4),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: AdminSpacing.md),
             Text('No activities found', style: theme.textTheme.titleMedium),
-            const SizedBox(height: 4),
+            const SizedBox(height: AdminSpacing.xs),
             Text(
               'Add an activity to start scoring student deeds.',
               style: theme.textTheme.bodySmall,
@@ -402,15 +572,17 @@ class _ActivityFormSheetState extends State<ActivityFormSheet> {
     return Padding(
       padding: EdgeInsets.only(bottom: media.viewInsets.bottom),
       child: Container(
-        constraints: BoxConstraints(maxHeight: media.size.height * 0.92),
+        constraints: BoxConstraints(maxHeight: media.size.height * 0.90),
         decoration: const BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          borderRadius: BorderRadius.vertical(
+            top: Radius.circular(AdminSpacing.xxl),
+          ),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const SizedBox(height: 12),
+            const SizedBox(height: AdminSpacing.md),
             Container(
               width: 44,
               height: 4,
@@ -420,14 +592,19 @@ class _ActivityFormSheetState extends State<ActivityFormSheet> {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+              padding: const EdgeInsets.fromLTRB(
+                AdminSpacing.md + 2,
+                AdminSpacing.md,
+                AdminSpacing.md + 2,
+                AdminSpacing.xs + 2,
+              ),
               child: Row(
                 children: [
                   Icon(
                     isEdit ? Icons.edit : Icons.add_task,
                     color: theme.colorScheme.primary,
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: AdminSpacing.xs + 6),
                   Text(
                     isEdit ? 'Edit Activity' : 'Add Activity',
                     style: theme.textTheme.titleLarge?.copyWith(
@@ -444,12 +621,17 @@ class _ActivityFormSheetState extends State<ActivityFormSheet> {
             ),
             Flexible(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+                padding: const EdgeInsets.fromLTRB(
+                  AdminSpacing.md + 2,
+                  AdminSpacing.xs + 2,
+                  AdminSpacing.md + 2,
+                  AdminSpacing.md + 2,
+                ),
                 child: Form(
                   key: _formKey,
                   child: LayoutBuilder(
                     builder: (context, constraints) {
-                      final twoCol = constraints.maxWidth > 520;
+                      final twoCol = constraints.maxWidth > 700;
                       Widget field(Widget child) => SizedBox(
                         width: twoCol
                             ? (constraints.maxWidth - 16) / 2
@@ -457,8 +639,8 @@ class _ActivityFormSheetState extends State<ActivityFormSheet> {
                         child: child,
                       );
                       return Wrap(
-                        spacing: 16,
-                        runSpacing: 16,
+                        spacing: AdminSpacing.md,
+                        runSpacing: AdminSpacing.md,
                         children: [
                           field(
                             _text(
@@ -501,8 +683,7 @@ class _ActivityFormSheetState extends State<ActivityFormSheet> {
                                 contentPadding: EdgeInsets.zero,
                                 activeThumbColor: theme.colorScheme.primary,
                                 value: _isActive,
-                                onChanged: (v) =>
-                                    setState(() => _isActive = v),
+                                onChanged: (v) => setState(() => _isActive = v),
                                 title: const Text('Active'),
                               ),
                             ),
@@ -517,7 +698,12 @@ class _ActivityFormSheetState extends State<ActivityFormSheet> {
             SafeArea(
               top: false,
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
+                padding: const EdgeInsets.fromLTRB(
+                  AdminSpacing.md + 2,
+                  AdminSpacing.xs,
+                  AdminSpacing.md + 2,
+                  AdminSpacing.md,
+                ),
                 child: Row(
                   children: [
                     Expanded(
@@ -526,7 +712,7 @@ class _ActivityFormSheetState extends State<ActivityFormSheet> {
                         child: const Text('Cancel'),
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: AdminSpacing.md),
                     Expanded(
                       child: ElevatedButton(
                         onPressed: _submit,

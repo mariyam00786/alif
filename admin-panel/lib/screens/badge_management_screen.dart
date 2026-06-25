@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../model/app_models.dart';
 import '../components/admin_ui.dart';
+import '../constants/admin_spacing.dart';
 
 /// Badge Management (FRP Sec 4.6).
 ///
@@ -34,37 +35,36 @@ class _BadgeManagementScreenState extends State<BadgeManagementScreen> {
       builder: (_) => BadgeFormSheet(existing: existing),
     );
     if (result == null) return;
-    if (existing == null) {
-      widget.onAdd(result);
-      if (mounted) showInlineMessage(context, 'Badge added successfully.');
-    } else {
-      widget.onUpdate(result);
-      if (mounted) showInlineMessage(context, 'Badge updated successfully.');
+    try {
+      if (existing == null) {
+        widget.onAdd(result);
+        if (mounted) showInlineMessage(context, 'Badge added successfully.');
+      } else {
+        widget.onUpdate(result);
+        if (mounted) showInlineMessage(context, 'Badge updated successfully.');
+      }
+    } catch (error) {
+      if (mounted) {
+        showInlineMessage(context, 'Could not save badge: $error');
+      }
     }
   }
 
   Future<void> _confirmDelete(BadgeDefinition badge) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete badge'),
-        content: Text('Remove ${badge.name}? This action cannot be undone.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Colors.red.shade600),
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
+    final confirmed = await showDeleteConfirmationDialog(
+      context,
+      title: 'Delete badge',
+      message: 'Remove ${badge.name}? This action cannot be undone.',
     );
-    if (confirmed == true) {
-      widget.onDelete(badge.id);
-      if (mounted) showInlineMessage(context, 'Badge removed.');
+    if (confirmed) {
+      try {
+        widget.onDelete(badge.id);
+        if (mounted) showInlineMessage(context, 'Badge removed.');
+      } catch (error) {
+        if (mounted) {
+          showInlineMessage(context, 'Could not remove badge: $error');
+        }
+      }
     }
   }
 
@@ -106,26 +106,90 @@ class _BadgeManagementScreenState extends State<BadgeManagementScreen> {
         else
           LayoutBuilder(
             builder: (context, constraints) {
+              final isMobile = constraints.maxWidth < 560;
+
+              if (isMobile) {
+                return ListView.separated(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: widget.badges.length,
+                  separatorBuilder: (_, _) =>
+                      const SizedBox(height: AdminSpacing.sm),
+                  itemBuilder: (context, index) {
+                    final badge = widget.badges[index];
+                    return Dismissible(
+                      key: ValueKey('badge-mobile-${badge.id}'),
+                      direction: DismissDirection.horizontal,
+                      background: const _SwipeActionBackground(
+                        icon: Icons.edit_outlined,
+                        label: 'Edit',
+                        color: Color(0xFF0F766E),
+                        alignment: Alignment.centerLeft,
+                      ),
+                      secondaryBackground: const _SwipeActionBackground(
+                        icon: Icons.delete_outline,
+                        label: 'Delete',
+                        color: Color(0xFFDC2626),
+                        alignment: Alignment.centerRight,
+                      ),
+                      confirmDismiss: (direction) async {
+                        if (direction == DismissDirection.startToEnd) {
+                          await _openForm(existing: badge);
+                        } else {
+                          await _confirmDelete(badge);
+                        }
+                        return false;
+                      },
+                      child: _BadgeCard(badge: badge, compact: true),
+                    );
+                  },
+                );
+              }
+
               final columns = constraints.maxWidth >= 900
                   ? 3
                   : constraints.maxWidth >= 560
                   ? 2
                   : 1;
-              return GridView.count(
-                crossAxisCount: columns,
+
+              return GridView.builder(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                crossAxisSpacing: 14,
-                mainAxisSpacing: 14,
-                childAspectRatio: columns == 1 ? 2.6 : 1.5,
-                children: [
-                  for (final badge in widget.badges)
-                    _BadgeCard(
-                      badge: badge,
-                      onEdit: () => _openForm(existing: badge),
-                      onDelete: () => _confirmDelete(badge),
+                itemCount: widget.badges.length,
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: columns,
+                  crossAxisSpacing: AdminSpacing.md,
+                  mainAxisSpacing: AdminSpacing.md,
+                  childAspectRatio: columns == 2 ? 1.38 : 1.3,
+                ),
+                itemBuilder: (context, index) {
+                  final badge = widget.badges[index];
+                  return Dismissible(
+                    key: ValueKey('badge-grid-${badge.id}'),
+                    direction: DismissDirection.horizontal,
+                    background: const _SwipeActionBackground(
+                      icon: Icons.edit_outlined,
+                      label: 'Edit',
+                      color: Color(0xFF0F766E),
+                      alignment: Alignment.centerLeft,
                     ),
-                ],
+                    secondaryBackground: const _SwipeActionBackground(
+                      icon: Icons.delete_outline,
+                      label: 'Delete',
+                      color: Color(0xFFDC2626),
+                      alignment: Alignment.centerRight,
+                    ),
+                    confirmDismiss: (direction) async {
+                      if (direction == DismissDirection.startToEnd) {
+                        await _openForm(existing: badge);
+                      } else {
+                        await _confirmDelete(badge);
+                      }
+                      return false;
+                    },
+                    child: _BadgeCard(badge: badge, compact: false),
+                  );
+                },
               );
             },
           ),
@@ -135,24 +199,19 @@ class _BadgeManagementScreenState extends State<BadgeManagementScreen> {
 }
 
 class _BadgeCard extends StatelessWidget {
-  const _BadgeCard({
-    required this.badge,
-    required this.onEdit,
-    required this.onDelete,
-  });
+  const _BadgeCard({required this.badge, this.compact = false});
 
   final BadgeDefinition badge;
-  final VoidCallback onEdit;
-  final VoidCallback onDelete;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(compact ? AdminSpacing.sm : AdminSpacing.md),
       decoration: BoxDecoration(
         color: const Color(0xFFFCFDFC),
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(AdminSpacing.lg),
         border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
       child: Column(
@@ -161,14 +220,17 @@ class _BadgeCard extends StatelessWidget {
           Row(
             children: [
               Container(
-                width: 44,
-                height: 44,
+                width: compact ? 34 : 44,
+                height: compact ? 34 : 44,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: theme.colorScheme.primary.withValues(alpha: 0.10),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(AdminSpacing.md),
                 ),
-                child: Text(badge.icon, style: const TextStyle(fontSize: 22)),
+                child: Text(
+                  badge.icon,
+                  style: TextStyle(fontSize: compact ? 17 : 22),
+                ),
               ),
               const Spacer(),
               StatusPill(
@@ -179,25 +241,25 @@ class _BadgeCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          SizedBox(height: compact ? AdminSpacing.xs : AdminSpacing.sm),
           Text(
             badge.name,
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w700,
-            ),
+            style:
+                (compact
+                        ? theme.textTheme.titleSmall
+                        : theme.textTheme.titleMedium)
+                    ?.copyWith(fontWeight: FontWeight.w700),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
-          const SizedBox(height: 4),
-          Expanded(
-            child: Text(
-              badge.criteria,
-              style: theme.textTheme.bodySmall,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
+          SizedBox(height: compact ? 2 : AdminSpacing.xs),
+          Text(
+            badge.criteria,
+            style: theme.textTheme.bodySmall,
+            maxLines: compact ? 1 : 2,
+            overflow: TextOverflow.ellipsis,
           ),
-          const SizedBox(height: 6),
+          SizedBox(height: compact ? AdminSpacing.xs : AdminSpacing.sm),
           Row(
             children: [
               StatusPill(
@@ -205,19 +267,49 @@ class _BadgeCard extends StatelessWidget {
                 color: theme.colorScheme.primary,
               ),
               const Spacer(),
-              IconButton(
-                tooltip: 'Edit',
-                icon: const Icon(Icons.edit_outlined),
-                color: theme.colorScheme.primary,
-                onPressed: onEdit,
-              ),
-              IconButton(
-                tooltip: 'Delete',
-                icon: const Icon(Icons.delete_outline),
-                color: Colors.red.shade400,
-                onPressed: onDelete,
+              const Icon(
+                Icons.swipe_left_rounded,
+                size: 18,
+                color: Color(0xFF94A3B8),
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SwipeActionBackground extends StatelessWidget {
+  const _SwipeActionBackground({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.alignment,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color color;
+  final Alignment alignment;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      alignment: alignment,
+      padding: const EdgeInsets.symmetric(horizontal: AdminSpacing.md),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 18, color: color),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(color: color, fontWeight: FontWeight.w700),
           ),
         ],
       ),
@@ -233,7 +325,10 @@ class _EmptyState extends StatelessWidget {
     final theme = Theme.of(context);
     return Card(
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
+        padding: const EdgeInsets.symmetric(
+          vertical: 48,
+          horizontal: AdminSpacing.xxl,
+        ),
         child: Column(
           children: [
             Icon(
@@ -241,9 +336,9 @@ class _EmptyState extends StatelessWidget {
               size: 48,
               color: theme.colorScheme.primary.withValues(alpha: 0.4),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: AdminSpacing.md),
             Text('No badges yet', style: theme.textTheme.titleMedium),
-            const SizedBox(height: 4),
+            const SizedBox(height: AdminSpacing.xs),
             Text(
               'Create a badge to recognise student achievements.',
               style: theme.textTheme.bodySmall,
@@ -328,15 +423,17 @@ class _BadgeFormSheetState extends State<BadgeFormSheet> {
     return Padding(
       padding: EdgeInsets.only(bottom: media.viewInsets.bottom),
       child: Container(
-        constraints: BoxConstraints(maxHeight: media.size.height * 0.92),
+        constraints: BoxConstraints(maxHeight: media.size.height * 0.90),
         decoration: const BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          borderRadius: BorderRadius.vertical(
+            top: Radius.circular(AdminSpacing.xxl),
+          ),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const SizedBox(height: 12),
+            const SizedBox(height: AdminSpacing.md),
             Container(
               width: 44,
               height: 4,
@@ -346,19 +443,22 @@ class _BadgeFormSheetState extends State<BadgeFormSheet> {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+              padding: const EdgeInsets.fromLTRB(
+                AdminSpacing.md + 2,
+                AdminSpacing.md,
+                AdminSpacing.md + 2,
+                AdminSpacing.xs + 2,
+              ),
               child: Row(
                 children: [
                   Icon(
                     isEdit ? Icons.edit : Icons.add,
                     color: theme.colorScheme.primary,
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: AdminSpacing.xs + 6),
                   Text(
                     isEdit ? 'Edit Badge' : 'Add Badge',
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
+                    style: theme.textTheme.titleLarge,
                   ),
                   const Spacer(),
                   IconButton(
@@ -370,12 +470,17 @@ class _BadgeFormSheetState extends State<BadgeFormSheet> {
             ),
             Flexible(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+                padding: const EdgeInsets.fromLTRB(
+                  AdminSpacing.md + 2,
+                  AdminSpacing.xs + 2,
+                  AdminSpacing.md + 2,
+                  AdminSpacing.md + 2,
+                ),
                 child: Form(
                   key: _formKey,
                   child: LayoutBuilder(
                     builder: (context, constraints) {
-                      final twoCol = constraints.maxWidth > 520;
+                      final twoCol = constraints.maxWidth > 700;
                       Widget field(Widget child) => SizedBox(
                         width: twoCol
                             ? (constraints.maxWidth - 16) / 2
@@ -383,8 +488,8 @@ class _BadgeFormSheetState extends State<BadgeFormSheet> {
                         child: child,
                       );
                       return Wrap(
-                        spacing: 16,
-                        runSpacing: 16,
+                        spacing: AdminSpacing.md,
+                        runSpacing: AdminSpacing.md,
                         children: [
                           field(
                             _text(_name, 'Badge Name *', validator: _required),
@@ -404,8 +509,7 @@ class _BadgeFormSheetState extends State<BadgeFormSheet> {
                                 contentPadding: EdgeInsets.zero,
                                 activeThumbColor: theme.colorScheme.primary,
                                 value: _isActive,
-                                onChanged: (v) =>
-                                    setState(() => _isActive = v),
+                                onChanged: (v) => setState(() => _isActive = v),
                                 title: const Text('Active'),
                               ),
                             ),
@@ -433,7 +537,12 @@ class _BadgeFormSheetState extends State<BadgeFormSheet> {
             SafeArea(
               top: false,
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
+                padding: const EdgeInsets.fromLTRB(
+                  AdminSpacing.md + 2,
+                  AdminSpacing.xs,
+                  AdminSpacing.md + 2,
+                  AdminSpacing.md,
+                ),
                 child: Row(
                   children: [
                     Expanded(
@@ -442,7 +551,7 @@ class _BadgeFormSheetState extends State<BadgeFormSheet> {
                         child: const Text('Cancel'),
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: AdminSpacing.md),
                     Expanded(
                       child: ElevatedButton(
                         onPressed: _submit,
@@ -496,10 +605,10 @@ class _BadgeFormSheetState extends State<BadgeFormSheet> {
             color: const Color(0xFF6B7280),
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: AdminSpacing.sm),
         Wrap(
-          spacing: 8,
-          runSpacing: 8,
+          spacing: AdminSpacing.sm,
+          runSpacing: AdminSpacing.sm,
           children: _icons.map((emoji) {
             final selected = emoji == _icon;
             return GestureDetector(
@@ -512,7 +621,7 @@ class _BadgeFormSheetState extends State<BadgeFormSheet> {
                   color: selected
                       ? theme.colorScheme.primary.withValues(alpha: 0.12)
                       : const Color(0xFFF4F8F4),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(AdminSpacing.md),
                   border: Border.all(
                     color: selected
                         ? theme.colorScheme.primary

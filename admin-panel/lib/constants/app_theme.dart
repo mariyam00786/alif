@@ -67,7 +67,7 @@ ThemeData buildAlifAdminTheme() {
       ),
       bodySmall: interTextTheme.bodySmall?.copyWith(
         fontSize: 13,
-        color: const Color(0xFF64748B),
+        color: const Color(0xFF475569),
         height: 1.4,
       ),
       labelLarge: interTextTheme.labelLarge?.copyWith(
@@ -78,7 +78,7 @@ ThemeData buildAlifAdminTheme() {
       labelMedium: interTextTheme.labelMedium?.copyWith(
         fontSize: 12,
         fontWeight: FontWeight.w700,
-        color: const Color(0xFF64748B),
+        color: const Color(0xFF4B5563),
         letterSpacing: 0.2,
       ),
     ),

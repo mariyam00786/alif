@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../model/app_models.dart';
 import '../components/admin_ui.dart';
+import '../constants/admin_spacing.dart';
 
 /// Rating / Scoring Configuration (FRP Sec 4.5).
 ///
@@ -48,37 +49,36 @@ class _RatingConfigurationScreenState extends State<RatingConfigurationScreen> {
           RatingFormSheet(existing: existing, colors: _palette.keys.toList()),
     );
     if (result == null) return;
-    if (existing == null) {
-      widget.onAdd(result);
-      if (mounted) showInlineMessage(context, 'Rating band added.');
-    } else {
-      widget.onUpdate(result);
-      if (mounted) showInlineMessage(context, 'Rating band updated.');
+    try {
+      if (existing == null) {
+        widget.onAdd(result);
+        if (mounted) showInlineMessage(context, 'Rating band added.');
+      } else {
+        widget.onUpdate(result);
+        if (mounted) showInlineMessage(context, 'Rating band updated.');
+      }
+    } catch (error) {
+      if (mounted) {
+        showInlineMessage(context, 'Could not save rating band: $error');
+      }
     }
   }
 
   Future<void> _confirmDelete(RatingRule rule) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete rating band'),
-        content: Text('Remove ${rule.label}? This action cannot be undone.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Colors.red.shade600),
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
+    final confirmed = await showDeleteConfirmationDialog(
+      context,
+      title: 'Delete rating band',
+      message: 'Remove ${rule.label}? This action cannot be undone.',
     );
-    if (confirmed == true) {
-      widget.onDelete(rule.id);
-      if (mounted) showInlineMessage(context, 'Rating band removed.');
+    if (confirmed) {
+      try {
+        widget.onDelete(rule.id);
+        if (mounted) showInlineMessage(context, 'Rating band removed.');
+      } catch (error) {
+        if (mounted) {
+          showInlineMessage(context, 'Could not remove rating band: $error');
+        }
+      }
     }
   }
 
@@ -133,24 +133,54 @@ class _RatingConfigurationScreenState extends State<RatingConfigurationScreen> {
           for (final activity in groupNames)
             Card(
               child: Padding(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(AdminSpacing.md),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(4, 4, 4, 8),
+                      padding: const EdgeInsets.fromLTRB(
+                        AdminSpacing.xs,
+                        AdminSpacing.xs,
+                        AdminSpacing.xs,
+                        AdminSpacing.sm,
+                      ),
                       child: Text(
                         activity,
                         style: Theme.of(context).textTheme.titleMedium
                             ?.copyWith(fontWeight: FontWeight.w700),
                       ),
                     ),
-                    for (final rule in groups[activity]!)
-                      _RatingTile(
-                        rule: rule,
-                        color: _colorFor(rule.colorName),
-                        onEdit: () => _openForm(existing: rule),
-                        onDelete: () => _confirmDelete(rule),
+                    for (var i = 0; i < groups[activity]!.length; i++)
+                      Dismissible(
+                        key: ValueKey(
+                          'rating-${groups[activity]![i].id}-$activity',
+                        ),
+                        direction: DismissDirection.horizontal,
+                        background: const _SwipeActionBackground(
+                          icon: Icons.edit_outlined,
+                          label: 'Edit',
+                          color: Color(0xFF0F766E),
+                          alignment: Alignment.centerLeft,
+                        ),
+                        secondaryBackground: const _SwipeActionBackground(
+                          icon: Icons.delete_outline,
+                          label: 'Delete',
+                          color: Color(0xFFDC2626),
+                          alignment: Alignment.centerRight,
+                        ),
+                        confirmDismiss: (direction) async {
+                          final rule = groups[activity]![i];
+                          if (direction == DismissDirection.startToEnd) {
+                            await _openForm(existing: rule);
+                          } else {
+                            await _confirmDelete(rule);
+                          }
+                          return false;
+                        },
+                        child: _RatingTile(
+                          rule: groups[activity]![i],
+                          color: _colorFor(groups[activity]![i].colorName),
+                        ),
                       ),
                   ],
                 ),
@@ -162,27 +192,20 @@ class _RatingConfigurationScreenState extends State<RatingConfigurationScreen> {
 }
 
 class _RatingTile extends StatelessWidget {
-  const _RatingTile({
-    required this.rule,
-    required this.color,
-    required this.onEdit,
-    required this.onDelete,
-  });
+  const _RatingTile({required this.rule, required this.color});
 
   final RatingRule rule;
   final Color color;
-  final VoidCallback onEdit;
-  final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Container(
-      margin: const EdgeInsets.symmetric(vertical: 6),
-      padding: const EdgeInsets.all(14),
+      margin: const EdgeInsets.symmetric(vertical: AdminSpacing.xs + 2),
+      padding: const EdgeInsets.all(AdminSpacing.md + 2),
       decoration: BoxDecoration(
         color: const Color(0xFFFCFDFC),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(AdminSpacing.lg),
         border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
       child: Row(
@@ -192,10 +215,10 @@ class _RatingTile extends StatelessWidget {
             height: 44,
             decoration: BoxDecoration(
               color: color,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(AdminSpacing.sm),
             ),
           ),
-          const SizedBox(width: 14),
+          const SizedBox(width: AdminSpacing.md + 2),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -211,7 +234,7 @@ class _RatingTile extends StatelessWidget {
                       ),
                     ),
                     if (rule.isDefault) ...[
-                      const SizedBox(width: 8),
+                      const SizedBox(width: AdminSpacing.sm),
                       const StatusPill(
                         label: 'Default',
                         color: Color(0xFF2E7D32),
@@ -229,17 +252,48 @@ class _RatingTile extends StatelessWidget {
               ],
             ),
           ),
-          IconButton(
-            tooltip: 'Edit',
-            icon: const Icon(Icons.edit_outlined),
-            color: theme.colorScheme.primary,
-            onPressed: onEdit,
+          const SizedBox(width: AdminSpacing.xs + 6),
+          const Icon(
+            Icons.swipe_left_rounded,
+            size: 18,
+            color: Color(0xFF94A3B8),
           ),
-          IconButton(
-            tooltip: 'Delete',
-            icon: const Icon(Icons.delete_outline),
-            color: Colors.red.shade400,
-            onPressed: onDelete,
+        ],
+      ),
+    );
+  }
+}
+
+class _SwipeActionBackground extends StatelessWidget {
+  const _SwipeActionBackground({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.alignment,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color color;
+  final Alignment alignment;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      alignment: alignment,
+      padding: const EdgeInsets.symmetric(horizontal: AdminSpacing.md),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 18, color: color),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(color: color, fontWeight: FontWeight.w700),
           ),
         ],
       ),
@@ -255,7 +309,10 @@ class _EmptyState extends StatelessWidget {
     final theme = Theme.of(context);
     return Card(
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
+        padding: const EdgeInsets.symmetric(
+          vertical: 48,
+          horizontal: AdminSpacing.xxl,
+        ),
         child: Column(
           children: [
             Icon(
@@ -263,9 +320,9 @@ class _EmptyState extends StatelessWidget {
               size: 48,
               color: theme.colorScheme.primary.withValues(alpha: 0.4),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: AdminSpacing.md),
             Text('No rating bands yet', style: theme.textTheme.titleMedium),
-            const SizedBox(height: 4),
+            const SizedBox(height: AdminSpacing.xs),
             Text(
               'Add a score band to classify student progress.',
               style: theme.textTheme.bodySmall,
@@ -347,12 +404,14 @@ class _RatingFormSheetState extends State<RatingFormSheet> {
         constraints: BoxConstraints(maxHeight: media.size.height * 0.92),
         decoration: const BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          borderRadius: BorderRadius.vertical(
+            top: Radius.circular(AdminSpacing.xxl),
+          ),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const SizedBox(height: 12),
+            const SizedBox(height: AdminSpacing.md),
             Container(
               width: 44,
               height: 4,
@@ -362,19 +421,22 @@ class _RatingFormSheetState extends State<RatingFormSheet> {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+              padding: const EdgeInsets.fromLTRB(
+                AdminSpacing.xl,
+                AdminSpacing.lg,
+                AdminSpacing.xl,
+                AdminSpacing.sm,
+              ),
               child: Row(
                 children: [
                   Icon(
                     isEdit ? Icons.edit : Icons.add,
                     color: theme.colorScheme.primary,
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: AdminSpacing.xs + 6),
                   Text(
                     isEdit ? 'Edit Band' : 'Add Band',
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
+                    style: theme.textTheme.titleLarge,
                   ),
                   const Spacer(),
                   IconButton(
@@ -386,7 +448,12 @@ class _RatingFormSheetState extends State<RatingFormSheet> {
             ),
             Flexible(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+                padding: const EdgeInsets.fromLTRB(
+                  AdminSpacing.xl,
+                  AdminSpacing.sm,
+                  AdminSpacing.xl,
+                  AdminSpacing.xl,
+                ),
                 child: Form(
                   key: _formKey,
                   child: LayoutBuilder(
@@ -399,8 +466,8 @@ class _RatingFormSheetState extends State<RatingFormSheet> {
                         child: child,
                       );
                       return Wrap(
-                        spacing: 16,
-                        runSpacing: 16,
+                        spacing: AdminSpacing.lg,
+                        runSpacing: AdminSpacing.lg,
                         children: [
                           field(_text(_label, 'Label *', validator: _required)),
                           field(
@@ -444,7 +511,12 @@ class _RatingFormSheetState extends State<RatingFormSheet> {
             SafeArea(
               top: false,
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
+                padding: const EdgeInsets.fromLTRB(
+                  AdminSpacing.xl,
+                  AdminSpacing.xs,
+                  AdminSpacing.xl,
+                  AdminSpacing.lg,
+                ),
                 child: Row(
                   children: [
                     Expanded(
@@ -453,7 +525,7 @@ class _RatingFormSheetState extends State<RatingFormSheet> {
                         child: const Text('Cancel'),
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: AdminSpacing.md),
                     Expanded(
                       child: ElevatedButton(
                         onPressed: _submit,

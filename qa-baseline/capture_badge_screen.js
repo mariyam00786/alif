@@ -1,0 +1,45 @@
+const puppeteer = require('puppeteer');
+const path = require('path');
+
+async function clickByText(page, text) {
+  await page.evaluate((label) => {
+    const nodes = Array.from(document.querySelectorAll('flt-semantics, [role="button"], button, div, span'));
+    const exact = nodes.filter((n) => ((n.innerText || n.textContent || '').trim() === label));
+    const target = exact[exact.length - 1];
+    if (target) target.click();
+  }, text);
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function main() {
+  const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox'] });
+  const page = await browser.newPage();
+  await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 2 });
+
+  await page.goto('http://localhost:5002', { waitUntil: 'domcontentloaded', timeout: 120000 });
+  await page.waitForFunction(() => !!document.querySelector('flutter-view'), { timeout: 120000 });
+
+  await page.evaluate(() => {
+    const ph = document.querySelector('flt-semantics-placeholder, [aria-label="Enable accessibility"]');
+    if (ph) ph.click();
+  });
+
+  await clickByText(page, 'More');
+  await sleep(400);
+  await clickByText(page, 'Badges');
+  await sleep(800);
+
+  const out = path.join(process.cwd(), 'qa-baseline', 'admin-mobile-2026-06-24', '06-badge-add-sheet-mobile.png');
+  await page.screenshot({ path: out, fullPage: true });
+
+  console.log(out);
+  await browser.close();
+}
+
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

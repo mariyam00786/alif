@@ -4,7 +4,7 @@ enum AdminSection {
   teachers('Teacher Management', 'Verification and class assignment'),
   batches('Batch/Class Management', 'Roster planning and ownership'),
   activities('Activity Configuration', 'Rules, categories, and approvals'),
-  rating('Rating/Scoring', 'Score bands and defaults'),
+  rating('Rating & Scoring', 'Define score bands and defaults'),
   reports('Reports Dashboard', 'Operational insights and exports'),
   notifications('Notification Management', 'Campaign planning and approval'),
   badges('Badge Management', 'Recognition logic and publishing');
