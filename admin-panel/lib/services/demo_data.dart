@@ -40,7 +40,7 @@ class DemoData {
         ),
         StudentRecord(
           id: 'STU-122',
-          name: 'Mariam Shifa',
+          name: 'Afrin',
           mobile: '9847012122',
           fatherName: 'Ashraf A.',
           motherName: 'Shifa A.',

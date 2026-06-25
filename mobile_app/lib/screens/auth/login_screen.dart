@@ -38,7 +38,7 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
 
   /// The portal selected at the top of the screen. Decides which board opens
   /// after a successful sign-in.
-  LoginPortal _portal = LoginPortal.studentParent;
+  final LoginPortal _portal = LoginPortal.studentParent;
 
   /// When true the optional email + password form is shown instead of the
   /// primary phone + OTP flow.
@@ -55,6 +55,7 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
   final _phoneController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _instituteCodeController = TextEditingController();
   final _nameController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
 
@@ -63,6 +64,7 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
     _phoneController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
+    _instituteCodeController.dispose();
     _nameController.dispose();
     super.dispose();
   }
@@ -79,7 +81,7 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [ColorPalette.white, ColorPalette.primaryMuted],
+            colors: [ColorPalette.white, ColorPalette.neutral100],
           ),
         ),
         child: SafeArea(
@@ -90,14 +92,10 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
                 vertical: SpacingScale.xl,
               ),
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 420),
+                constraints: const BoxConstraints(maxWidth: 360),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _buildHero(isMalayalam),
-                    SizedBox(height: SpacingScale.xl),
-                    _buildCard(isMalayalam),
-                  ],
+                  children: [_buildCard(isMalayalam)],
                 ),
               ),
             ),
@@ -125,8 +123,28 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          Text(
+            isMalayalam ? 'സൈൻ ഇൻ' : 'Sign In',
+            style: const TextStyle(
+              fontSize: 48 / 1.6,
+              fontWeight: FontWeight.w800,
+              color: ColorPalette.textPrimary,
+              letterSpacing: -0.2,
+            ),
+          ),
+          SizedBox(height: SpacingScale.xs),
+          Container(
+            width: 92,
+            height: 6,
+            decoration: BoxDecoration(
+              color: ColorPalette.primaryLight,
+              borderRadius: BorderRadius.circular(999),
+            ),
+          ),
           _buildPortalSelector(isMalayalam),
           SizedBox(height: SpacingScale.lg),
+          if (_step == LoginStep.phone) _buildAuthMethodTabs(isMalayalam),
+          if (_step == LoginStep.phone) SizedBox(height: SpacingScale.lg),
           if (_useEmail)
             _buildEmailForm(isMalayalam)
           else if (_step == LoginStep.phone)
@@ -184,7 +202,6 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
             ),
           ] else ...[
             SizedBox(height: SpacingScale.sm),
-            _buildMethodSwitch(isMalayalam),
             _buildAuthModeSwitch(isMalayalam),
           ],
           SizedBox(height: SpacingScale.md),
@@ -236,24 +253,13 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
                           valueColor: AlwaysStoppedAnimation(Colors.white),
                         ),
                       )
-                    : Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            _primaryLabel(isMalayalam),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          const Icon(
-                            Icons.arrow_forward_rounded,
-                            color: Colors.white,
-                            size: 20,
-                          ),
-                        ],
+                    : Text(
+                        _primaryLabel(isMalayalam),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
               ),
             ),
@@ -272,26 +278,69 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
       ? Icons.co_present_rounded
       : Icons.school_rounded;
 
-  String _portalTitle(bool isMalayalam) {
-    switch (_portal) {
-      case LoginPortal.teacher:
-        return isMalayalam ? 'അധ്യാപക പോർട്ടൽ' : 'Teacher Portal';
-      case LoginPortal.studentParent:
-        return isMalayalam
-            ? 'വിദ്യാർത്ഥി / രക്ഷിതാവ് പോർട്ടൽ'
-            : 'Student / Parent Portal';
-    }
-  }
-
-  void _selectPortal(LoginPortal portal) {
-    if (_portal == portal) return;
-    setState(() {
-      _portal = portal;
-      _error = null;
-    });
-  }
-
   Widget _buildPortalSelector(bool isMalayalam) {
+    final heading = _portal == LoginPortal.teacher
+        ? (isMalayalam ? 'അധ്യാപക പോർട്ടൽ' : 'Teacher Portal')
+        : (isMalayalam
+              ? 'വിദ്യാർത്ഥി / രക്ഷിതാവ് പോർട്ടൽ'
+              : 'Student / Parent Portal');
+
+    final subtitle = _isRegister
+        ? (isMalayalam
+              ? 'ഒരു പുതിയ അക്കൗണ്ട് ഉണ്ടാക്കാം'
+              : 'Create your account')
+        : (isMalayalam
+              ? 'നിങ്ങളുടെ അക്കൗണ്ടിൽ സൈൻ ഇൻ ചെയ്യുക'
+              : 'Sign in to your account');
+
+    return Column(
+      children: [
+        SizedBox(height: SpacingScale.lg),
+        Container(
+          width: 64,
+          height: 64,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [ColorPalette.primaryDark, ColorPalette.primaryLight],
+            ),
+            borderRadius: BorderRadius.circular(18),
+            boxShadow: [
+              BoxShadow(
+                color: ColorPalette.primaryDark.withValues(alpha: 0.22),
+                blurRadius: 14,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Icon(_portalIcon, size: 28, color: Colors.white),
+        ),
+        SizedBox(height: SpacingScale.md),
+        Text(
+          heading,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            color: ColorPalette.textPrimary,
+          ),
+        ),
+        SizedBox(height: SpacingScale.xs),
+        Text(
+          subtitle,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            fontSize: 13,
+            color: ColorPalette.textTertiary,
+            height: 1.35,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAuthMethodTabs(bool isMalayalam) {
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
@@ -302,22 +351,18 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
       child: Row(
         children: [
           Expanded(
-            child: _portalTab(
-              label: isMalayalam
-                  ? 'വിദ്യാർത്ഥി / രക്ഷിതാവ്'
-                  : 'Student / Parent',
-              icon: Icons.school_rounded,
-              selected: _portal == LoginPortal.studentParent,
-              onTap: () => _selectPortal(LoginPortal.studentParent),
+            child: _methodTab(
+              label: isMalayalam ? 'ഇമെയിൽ' : 'Email',
+              selected: _useEmail,
+              onTap: _switchToEmail,
             ),
           ),
           const SizedBox(width: 4),
           Expanded(
-            child: _portalTab(
-              label: isMalayalam ? 'അധ്യാപകൻ' : 'Teacher',
-              icon: Icons.co_present_rounded,
-              selected: _portal == LoginPortal.teacher,
-              onTap: () => _selectPortal(LoginPortal.teacher),
+            child: _methodTab(
+              label: isMalayalam ? 'മൊബൈൽ നമ്പർ' : 'Mobile Number',
+              selected: !_useEmail,
+              onTap: _switchToPhone,
             ),
           ),
         ],
@@ -325,9 +370,8 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
     );
   }
 
-  Widget _portalTab({
+  Widget _methodTab({
     required String label,
-    required IconData icon,
     required bool selected,
     required VoidCallback onTap,
   }) {
@@ -353,19 +397,12 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              icon,
-              size: 16,
-              color: selected
-                  ? ColorPalette.primaryDark
-                  : ColorPalette.neutral500,
-            ),
-            const SizedBox(width: 6),
             Flexible(
               child: Text(
                 label,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 12.5,
                   fontWeight: FontWeight.w700,
@@ -378,74 +415,6 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildHero(bool isMalayalam) {
-    final String subtitle;
-    if (_isRegister) {
-      subtitle = _useEmail
-          ? (isMalayalam
-                ? 'ഇമെയിലും പാസ്‌വേഡും ഉപയോഗിച്ച് അക്കൗണ്ട് ഉണ്ടാക്കുക'
-                : 'Create your account with email and password')
-          : (isMalayalam
-                ? 'ഫോൺ നമ്പർ ഉപയോഗിച്ച് അക്കൗണ്ട് ഉണ്ടാക്കുക'
-                : 'Create your account with your phone number');
-    } else {
-      subtitle = _useEmail
-          ? (isMalayalam
-                ? 'ഇമെയിലും പാസ്‌വേഡും ഉപയോഗിച്ച് സൈൻ ഇൻ ചെയ്യുക'
-                : 'Sign in with your email and password')
-          : (isMalayalam
-                ? 'ഫോൺ നമ്പറും OTP-യും ഉപയോഗിച്ച് സൈൻ ഇൻ ചെയ്യുക'
-                : 'Sign in with your phone number and OTP');
-    }
-
-    return Column(
-      children: [
-        Container(
-          width: 72,
-          height: 72,
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [ColorPalette.primaryDark, ColorPalette.primaryLight],
-            ),
-            borderRadius: BorderRadius.circular(22),
-            boxShadow: [
-              BoxShadow(
-                color: ColorPalette.primaryDark.withValues(alpha: 0.28),
-                blurRadius: 22,
-                offset: const Offset(0, 12),
-              ),
-            ],
-          ),
-          child: Icon(_portalIcon, size: 34, color: Colors.white),
-        ),
-        SizedBox(height: SpacingScale.lg),
-        Text(
-          _portalTitle(isMalayalam),
-          textAlign: TextAlign.center,
-          style: const TextStyle(
-            fontSize: 26,
-            height: 1.15,
-            fontWeight: FontWeight.w800,
-            color: ColorPalette.textPrimary,
-            letterSpacing: -0.4,
-          ),
-        ),
-        SizedBox(height: SpacingScale.xs),
-        Text(
-          subtitle,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: 14,
-            height: 1.4,
-            color: ColorPalette.textTertiary,
-          ),
-        ),
-      ],
     );
   }
 
@@ -469,18 +438,13 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
       key: _formKey,
       child: _buildFormStepShell(
         accent: ColorPalette.primaryLight,
-        icon: Icons.phone_iphone,
         child: Column(
           children: [
             if (_isRegister) ...[
               _buildNameField(isMalayalam),
               SizedBox(height: SpacingScale.md),
             ],
-            Text(
-              isMalayalam ? 'ഫോൺ നമ്പർ നൽകുക' : 'Enter your phone number',
-              style: TextStyle(fontSize: 14, color: ColorPalette.neutral600),
-              textAlign: TextAlign.center,
-            ),
+            _buildInstituteCodeField(isMalayalam),
             SizedBox(height: SpacingScale.md),
             AlifInput(
               label: isMalayalam ? 'ഫോൺ നമ്പർ' : 'Phone Number',
@@ -560,6 +524,8 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
               _buildNameField(isMalayalam),
               SizedBox(height: SpacingScale.md),
             ],
+            _buildInstituteCodeField(isMalayalam),
+            SizedBox(height: SpacingScale.md),
             AlifInput(
               label: isMalayalam ? 'ഇമെയിൽ' : 'Email',
               placeholder: 'you@example.com',
@@ -585,31 +551,45 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
               autofillHints: const [AutofillHints.password],
               onChanged: (_) => _clearError(),
             ),
+            SizedBox(height: SpacingScale.xs),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: _isLoading ? null : _onForgotPassword,
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  minimumSize: const Size(0, 0),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: Text(
+                  isMalayalam ? 'പാസ്‌വേഡ് മറന്നോ?' : 'Forgot Password?',
+                  style: const TextStyle(
+                    color: ColorPalette.primaryDark,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 
-  /// The link that toggles between the primary phone flow and the optional
-  /// email flow.
-  Widget _buildMethodSwitch(bool isMalayalam) {
-    if (_useEmail) {
-      return TextButton.icon(
-        onPressed: _isLoading ? null : _switchToPhone,
-        icon: Icon(Icons.phone_iphone, size: 18),
-        label: Text(
-          isMalayalam
-              ? 'ഫോൺ നമ്പർ ഉപയോഗിച്ച് സൈൻ ഇൻ ചെയ്യുക'
-              : 'Sign in with phone number',
-        ),
-      );
-    }
-    return TextButton(
-      onPressed: _isLoading ? null : _switchToEmail,
-      child: Text(
-        isMalayalam ? 'പകരം ഇമെയിൽ ഉപയോഗിക്കുക' : 'Use email instead',
-      ),
+  Widget _buildInstituteCodeField(bool isMalayalam) {
+    return AlifInput(
+      label: isMalayalam ? 'ഇൻസ്റ്റിറ്റ്യൂട്ട് കോഡ്' : 'Institute Code',
+      placeholder: isMalayalam
+          ? 'ഇൻസ്റ്റിറ്റ്യൂട്ട് കോഡ് നൽകുക'
+          : 'Enter Institute Code',
+      type: InputType.text,
+      controller: _instituteCodeController,
+      required: false,
+      validator: null,
+      isMalayalam: isMalayalam,
+      textCapitalization: TextCapitalization.characters,
+      onChanged: (_) => _clearError(),
     );
   }
 
@@ -779,6 +759,15 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
     if (_error != null) {
       setState(() => _error = null);
     }
+  }
+
+  void _onForgotPassword() {
+    final message = context.isMalayalam
+        ? 'പാസ്‌വേഡ് റീസെറ്റ് ഓപ്‌ഷൻ ഉടൻ ലഭ്യമാകും'
+        : 'Password reset option will be available soon';
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   void _handlePrimaryAction() {

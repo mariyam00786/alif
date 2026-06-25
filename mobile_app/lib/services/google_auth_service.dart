@@ -57,6 +57,15 @@ class MobileGoogleAuthService {
     );
   }
 
+  /// Backward-compatible wrapper for login flow that passes the backend user
+  /// map after OTP verification.
+  static void rememberSessionUser(Map<String, dynamic> user) {
+    setSessionDisplayUser(
+      name: user['name']?.toString() ?? user['full_name']?.toString(),
+      email: user['email']?.toString(),
+    );
+  }
+
   /// Signs a teacher in.
   ///
   /// When Supabase is configured and an email-style username is supplied, this

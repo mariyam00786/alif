@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../components/alif_logo.dart';
 import '../services/google_auth_service.dart';
 import '../components/otp_box_field.dart';
 
@@ -38,6 +39,25 @@ class _AdminOtpLoginScreenState extends State<AdminOtpLoginScreen> {
   String _phone = '';
   String _otp = '';
 
+  String _friendlyError(Object error) {
+    final raw = error.toString().replaceFirst('Bad state: ', '').trim();
+    final lower = raw.toLowerCase();
+
+    if (lower.contains('failed to fetch') ||
+        lower.contains('clientexception') ||
+        lower.contains('request-otp') ||
+        lower.contains('verify-otp') ||
+        lower.contains('unable to connect')) {
+      return 'Cannot reach the server. Please ensure backend API is running on localhost:3000 and try again.';
+    }
+
+    if (lower.contains('timeout') || lower.contains('timed out')) {
+      return 'Server request timed out. Please try again.';
+    }
+
+    return raw.isEmpty ? 'Something went wrong. Please try again.' : raw;
+  }
+
   @override
   void dispose() {
     _phoneController.dispose();
@@ -47,9 +67,19 @@ class _AdminOtpLoginScreenState extends State<AdminOtpLoginScreen> {
     super.dispose();
   }
 
-  void _toggleMode() {
+  void _switchToEmail() {
     setState(() {
-      _useEmail = !_useEmail;
+      _useEmail = true;
+      _step = _OtpStep.phone;
+      _otp = '';
+      _otpController.clear();
+      _error = null;
+    });
+  }
+
+  void _switchToPhone() {
+    setState(() {
+      _useEmail = false;
       _step = _OtpStep.phone;
       _otp = '';
       _otpController.clear();
@@ -58,7 +88,13 @@ class _AdminOtpLoginScreenState extends State<AdminOtpLoginScreen> {
   }
 
   String? _normalizePhone(String? value) {
-    final digits = (value ?? '').replaceAll(RegExp(r'\D'), '');
+    var digits = (value ?? '').replaceAll(RegExp(r'\D'), '');
+    // Tolerate a leading India country code (91) if the user pasted a full
+    // number like +919876543210 -> 12 digits. Strip the leading 91 so we keep
+    // only the 10-digit local number.
+    if (digits.length == 12 && digits.startsWith('91')) {
+      digits = digits.substring(2);
+    }
     if (digits.length != 10) {
       return null;
     }
@@ -67,7 +103,7 @@ class _AdminOtpLoginScreenState extends State<AdminOtpLoginScreen> {
 
   String? _validatePhone(String? value) {
     if (_normalizePhone(value) == null) {
-      return 'Enter a valid 10-digit mobile number';
+      return 'Enter your 10-digit mobile number (e.g. 9876543210)';
     }
     return null;
   }
@@ -105,7 +141,7 @@ class _AdminOtpLoginScreenState extends State<AdminOtpLoginScreen> {
       if (!mounted) {
         return;
       }
-      setState(() => _error = error.toString().replaceFirst('Bad state: ', ''));
+      setState(() => _error = _friendlyError(error));
     } finally {
       if (mounted) {
         setState(() => _isBusy = false);
@@ -137,7 +173,7 @@ class _AdminOtpLoginScreenState extends State<AdminOtpLoginScreen> {
       if (!mounted) {
         return;
       }
-      setState(() => _error = error.toString().replaceFirst('Bad state: ', ''));
+      setState(() => _error = _friendlyError(error));
     } finally {
       if (mounted) {
         setState(() => _isBusy = false);
@@ -170,7 +206,7 @@ class _AdminOtpLoginScreenState extends State<AdminOtpLoginScreen> {
       if (!mounted) {
         return;
       }
-      setState(() => _error = error.toString().replaceFirst('Bad state: ', ''));
+      setState(() => _error = _friendlyError(error));
     } finally {
       if (mounted) {
         setState(() => _isBusy = false);
@@ -224,73 +260,16 @@ class _AdminOtpLoginScreenState extends State<AdminOtpLoginScreen> {
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 440),
+                constraints: const BoxConstraints(maxWidth: 360),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _buildHero(isOtpStep),
-                    const SizedBox(height: 28),
-                    _buildCard(isOtpStep),
-                  ],
+                  children: [_buildCard(isOtpStep)],
                 ),
               ),
             ),
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildHero(bool isOtpStep) {
-    return Column(
-      children: [
-        Container(
-          width: 76,
-          height: 76,
-          decoration: BoxDecoration(
-            gradient: _brandGradient,
-            borderRadius: BorderRadius.circular(22),
-            boxShadow: [
-              BoxShadow(
-                color: _brandDark.withValues(alpha: 0.28),
-                blurRadius: 22,
-                offset: const Offset(0, 12),
-              ),
-            ],
-          ),
-          child: const Icon(
-            Icons.admin_panel_settings_rounded,
-            size: 36,
-            color: Colors.white,
-          ),
-        ),
-        const SizedBox(height: 20),
-        const Text(
-          'Alif Admin',
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: 26,
-            height: 1.15,
-            fontWeight: FontWeight.w800,
-            color: _textPrimary,
-            letterSpacing: -0.4,
-          ),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          _useEmail
-              ? 'Sign in with your admin email and password'
-              : isOtpStep
-              ? 'Enter the one-time code sent to $_phone on WhatsApp'
-              : 'Secure phone-based access for administrators',
-          textAlign: TextAlign.center,
-          style: const TextStyle(
-            fontSize: 14,
-            height: 1.4,
-            color: _textTertiary,
-          ),
-        ),
-      ],
     );
   }
 
@@ -314,10 +293,10 @@ class _AdminOtpLoginScreenState extends State<AdminOtpLoginScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (!_useEmail) ...[
-              _buildStepIndicator(),
-              const SizedBox(height: 22),
-            ],
+            _buildBrandHeader(isOtpStep),
+            const SizedBox(height: 18),
+            _buildAuthMethodTabs(),
+            const SizedBox(height: 18),
             if (_useEmail)
               _buildEmailStep()
             else if (isOtpStep)
@@ -361,15 +340,6 @@ class _AdminOtpLoginScreenState extends State<AdminOtpLoginScreen> {
                 child: const Text('Use a different number'),
               ),
             ],
-            const SizedBox(height: 4),
-            TextButton(
-              onPressed: _isBusy ? null : _toggleMode,
-              child: Text(
-                _useEmail
-                    ? 'Use phone number instead'
-                    : 'Sign in with email instead',
-              ),
-            ),
             const SizedBox(height: 12),
             const Divider(color: _neutral200, height: 1),
             const SizedBox(height: 16),
@@ -378,6 +348,110 @@ class _AdminOtpLoginScreenState extends State<AdminOtpLoginScreen> {
               style: TextStyle(fontSize: 12, color: _neutral500),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBrandHeader(bool isOtpStep) {
+    final subtitle = _useEmail
+        ? 'Sign in with your admin email and password'
+        : isOtpStep
+        ? 'Enter the one-time code sent to $_phone on WhatsApp'
+        : 'Secure phone-based access for administrators';
+
+    return Column(
+      children: [
+        const AlifLogo(height: 82),
+        const SizedBox(height: 14),
+        const Text(
+          'Admin Portal',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 28 / 1.6,
+            fontWeight: FontWeight.w800,
+            color: _textPrimary,
+            letterSpacing: -0.2,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          subtitle,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            fontSize: 13,
+            height: 1.35,
+            color: _textTertiary,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAuthMethodTabs() {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: _neutral100,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: _neutral200),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _methodTab(
+              label: 'Email',
+              selected: _useEmail,
+              onTap: _switchToEmail,
+            ),
+          ),
+          const SizedBox(width: 4),
+          Expanded(
+            child: _methodTab(
+              label: 'Mobile Number',
+              selected: !_useEmail,
+              onTap: _switchToPhone,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _methodTab({
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: _isBusy ? null : onTap,
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
+        decoration: BoxDecoration(
+          color: selected ? Colors.white : Colors.transparent,
+          borderRadius: BorderRadius.circular(11),
+          boxShadow: selected
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.08),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
+        ),
+        child: Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 12.5,
+            fontWeight: FontWeight.w700,
+            color: selected ? _brandDark : _neutral500,
+          ),
         ),
       ),
     );
@@ -433,7 +507,8 @@ class _AdminOtpLoginScreenState extends State<AdminOtpLoginScreen> {
               hintText: '98XXXXXXXX',
               prefixText: '$_countryCode ',
               prefixIcon: const Icon(Icons.phone_iphone),
-              helperText: '10-digit mobile number',
+              helperText:
+                  'Enter 10-digit mobile (e.g. 9876543210). +91 is added automatically.',
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(16),
               ),
@@ -591,42 +666,6 @@ class _AdminOtpLoginScreenState extends State<AdminOtpLoginScreen> {
               ),
             ),
           ),
-        ),
-      ),
-    );
-  }
-
-  /// Step progress indicator (Phone -> Verify).
-  Widget _buildStepIndicator() {
-    final isOtpStep = _step == _OtpStep.otp;
-    return Row(
-      children: [
-        _buildStepChip(label: '1  Phone', active: !isOtpStep),
-        Expanded(
-          child: Container(
-            height: 2,
-            margin: const EdgeInsets.symmetric(horizontal: 8),
-            color: _neutral200,
-          ),
-        ),
-        _buildStepChip(label: '2  Verify', active: isOtpStep),
-      ],
-    );
-  }
-
-  Widget _buildStepChip({required String label, required bool active}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: active ? _brandDark.withValues(alpha: 0.12) : _neutral100,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w700,
-          color: active ? _brandDark : _neutral500,
         ),
       ),
     );

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../model/app_models.dart';
 import '../components/admin_ui.dart';
+import '../constants/admin_spacing.dart';
 
 /// Reports Dashboard (FRP Sec 4.8).
 ///
@@ -57,7 +58,7 @@ class ReportsDashboardScreen extends StatelessWidget {
           builder: (context, constraints) {
             final width = constraints.maxWidth;
             final crossAxisCount = width >= 760 ? 4 : 2;
-            final cardHeight = width < 600 ? 96.0 : 100.0;
+            final cardHeight = width < 600 ? 92.0 : 98.0;
 
             return GridView.builder(
               shrinkWrap: true,
@@ -65,8 +66,8 @@ class ReportsDashboardScreen extends StatelessWidget {
               itemCount: state.reports.length,
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: crossAxisCount,
-                crossAxisSpacing: 16,
-                mainAxisSpacing: 16,
+                crossAxisSpacing: AdminSpacing.md,
+                mainAxisSpacing: AdminSpacing.md,
                 mainAxisExtent: cardHeight,
               ),
               itemBuilder: (context, index) {
@@ -83,29 +84,32 @@ class ReportsDashboardScreen extends StatelessWidget {
         ),
         Card(
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(AdminSpacing.md + 2),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('Report views', style: theme.textTheme.titleLarge),
-                const SizedBox(height: 4),
+                const SizedBox(height: AdminSpacing.xs),
                 Text(
                   'Open a view to drill into the underlying data.',
                   style: theme.textTheme.bodySmall,
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: AdminSpacing.md),
                 LayoutBuilder(
                   builder: (context, constraints) {
                     final columns = constraints.maxWidth >= 720 ? 2 : 1;
+                    final viewTileHeight = constraints.maxWidth >= 720
+                        ? 108.0
+                        : 120.0;
                     return GridView.builder(
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
                       itemCount: _reportViews.length,
                       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                         crossAxisCount: columns,
-                        crossAxisSpacing: 14,
-                        mainAxisSpacing: 12,
-                        mainAxisExtent: 80,
+                        crossAxisSpacing: AdminSpacing.md,
+                        mainAxisSpacing: AdminSpacing.xs + 6,
+                        mainAxisExtent: viewTileHeight,
                       ),
                       itemBuilder: (context, index) {
                         final view = _reportViews[index];
@@ -141,52 +145,71 @@ class _ReportViewTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Material(
-      color: const Color(0xFFFCFDFC),
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: () {
-          showInlineMessage(context, '$title view is coming soon.');
-        },
-        child: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFFE2E8F0)),
+    return Container(
+      padding: const EdgeInsets.all(AdminSpacing.xs + 6),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFCFDFC),
+        borderRadius: BorderRadius.circular(AdminSpacing.lg),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primary.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(AdminSpacing.md),
+            ),
+            child: Icon(icon, color: theme.colorScheme.primary),
           ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primary.withValues(alpha: 0.10),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(icon, color: theme.colorScheme.primary),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+          const SizedBox(width: AdminSpacing.xs + 6),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   children: [
-                    Text(
-                      title,
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w700,
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 2),
-                    Text(description, style: theme.textTheme.bodySmall),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEFF6FF),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        'Planned',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: const Color(0xFF1D4ED8),
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
                   ],
                 ),
-              ),
-            ],
+                const SizedBox(height: 2),
+                Text(
+                  description,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall,
+                ),
+              ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }

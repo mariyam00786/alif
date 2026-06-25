@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../constants/admin_spacing.dart';
 import '../model/app_models.dart';
 import 'admin_top_actions.dart';
 import 'alif_logo.dart';
@@ -39,7 +40,16 @@ class _AdminShellState extends State<AdminShell> {
         // that point forces the fixed-size app-bar actions to overflow and logs
         // a RenderFlex error, so wait until a realistic width is available.
         if (constraints.maxWidth < 300) {
-          return const ColoredBox(color: Color(0xFFF8FAFC));
+          return const Scaffold(
+            backgroundColor: Color(0xFFF8FAFC),
+            body: Center(
+              child: SizedBox(
+                width: 26,
+                height: 26,
+                child: CircularProgressIndicator(strokeWidth: 2.4),
+              ),
+            ),
+          );
         }
 
         final viewport = _viewportForWidth(constraints.maxWidth);
@@ -79,7 +89,12 @@ class _AdminShellState extends State<AdminShell> {
         body: SafeArea(
           bottom: false,
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(10, 10, 10, 0),
+            padding: const EdgeInsets.fromLTRB(
+              AdminSpacing.xs + 6,
+              AdminSpacing.xs + 6,
+              AdminSpacing.xs + 6,
+              0,
+            ),
             child: widget.child,
           ),
         ),
@@ -194,11 +209,11 @@ class _AdminShellState extends State<AdminShell> {
       elevation: 0,
       scrolledUnderElevation: 1,
       automaticallyImplyLeading: false,
-      titleSpacing: 16,
+      titleSpacing: AdminSpacing.lg,
       title: Row(
         children: [
           const AlifLogo(height: 30),
-          const SizedBox(width: 12),
+          const SizedBox(width: AdminSpacing.md),
           Expanded(
             child: Text(
               'Alif Online Moral School',
@@ -214,9 +229,9 @@ class _AdminShellState extends State<AdminShell> {
       ),
       actions: [
         AdminNotificationBell(size: 40, notifications: widget.notifications),
-        const SizedBox(width: 8),
+        const SizedBox(width: AdminSpacing.sm),
         AdminProfileButton(onSignOut: widget.onSignOut, size: 40),
-        const SizedBox(width: 12),
+        const SizedBox(width: AdminSpacing.md),
       ],
       bottom: PreferredSize(
         preferredSize: const Size.fromHeight(1),
@@ -307,7 +322,7 @@ class _TopBar extends StatelessWidget {
             ),
           ),
           AdminNotificationBell(notifications: notifications),
-          const SizedBox(width: 10),
+          const SizedBox(width: AdminSpacing.xs + 6),
           AdminProfileButton(onSignOut: onSignOut),
         ],
       ),
@@ -341,10 +356,10 @@ class _SidebarContent extends StatelessWidget {
       child: SafeArea(
         child: Padding(
           padding: EdgeInsets.fromLTRB(
-            collapsed ? 12 : 18,
-            22,
-            collapsed ? 12 : 18,
-            18,
+            collapsed ? AdminSpacing.md : AdminSpacing.md + 6,
+            AdminSpacing.xxl,
+            collapsed ? AdminSpacing.md : AdminSpacing.md + 6,
+            AdminSpacing.md + 6,
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -356,7 +371,7 @@ class _SidebarContent extends StatelessWidget {
                 Row(
                   children: [
                     const AlifLogo(height: 38),
-                    const SizedBox(width: 11),
+                    const SizedBox(width: AdminSpacing.xs + 7),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -385,10 +400,13 @@ class _SidebarContent extends StatelessWidget {
                     ),
                   ],
                 ),
-              const SizedBox(height: 26),
+              const SizedBox(height: AdminSpacing.xxl + 2),
               if (!collapsed)
                 Padding(
-                  padding: const EdgeInsets.only(left: 4, bottom: 10),
+                  padding: const EdgeInsets.only(
+                    left: AdminSpacing.xs,
+                    bottom: AdminSpacing.xs + 6,
+                  ),
                   child: Text(
                     'MENU',
                     style: theme.textTheme.labelSmall?.copyWith(
@@ -401,7 +419,8 @@ class _SidebarContent extends StatelessWidget {
               Expanded(
                 child: ListView.separated(
                   itemCount: sections.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 4),
+                  separatorBuilder: (_, _) =>
+                      const SizedBox(height: AdminSpacing.xs),
                   itemBuilder: (context, index) {
                     final section = sections[index];
                     return _SidebarTile(
@@ -449,18 +468,18 @@ class _SidebarTile extends StatelessWidget {
         HapticFeedback.selectionClick();
         onTap();
       },
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(AdminSpacing.md),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 160),
         padding: EdgeInsets.symmetric(
-          horizontal: collapsed ? 0 : 12,
-          vertical: 11,
+          horizontal: collapsed ? 0 : AdminSpacing.md,
+          vertical: AdminSpacing.xs + 7,
         ),
         decoration: BoxDecoration(
           color: selected
               ? primary.withValues(alpha: 0.10)
               : Colors.transparent,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(AdminSpacing.md),
         ),
         child: collapsed
             ? Center(
@@ -477,16 +496,14 @@ class _SidebarTile extends StatelessWidget {
                     size: 20,
                     color: selected ? activeColor : inactiveColor,
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: AdminSpacing.xs),
                   Expanded(
                     child: Text(
                       label,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.bodyMedium?.copyWith(
-                        color: selected
-                            ? activeColor
-                            : const Color(0xFF475569),
+                        color: selected ? activeColor : const Color(0xFF475569),
                         fontWeight: selected
                             ? FontWeight.w700
                             : FontWeight.w500,
@@ -595,7 +612,7 @@ class _NavItem extends StatefulWidget {
 }
 
 class _NavItemState extends State<_NavItem> {
-  bool _pressed = false;
+  final bool _pressed = false;
 
   @override
   Widget build(BuildContext context) {
@@ -669,7 +686,12 @@ class _MoreSheet extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+      padding: const EdgeInsets.fromLTRB(
+        AdminSpacing.xl,
+        AdminSpacing.md,
+        AdminSpacing.xl,
+        AdminSpacing.xxl,
+      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -684,7 +706,7 @@ class _MoreSheet extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: AdminSpacing.xl),
           Text(
             'More',
             style: theme.textTheme.titleLarge?.copyWith(
@@ -692,13 +714,13 @@ class _MoreSheet extends StatelessWidget {
               fontWeight: FontWeight.w700,
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: AdminSpacing.lg),
           GridView.count(
             crossAxisCount: 2,
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
+            crossAxisSpacing: AdminSpacing.md,
+            mainAxisSpacing: AdminSpacing.md,
             childAspectRatio: 2.8,
             children: sections.map((section) {
               final icon = _sectionIcons[section] ?? Icons.circle;
@@ -707,15 +729,15 @@ class _MoreSheet extends StatelessWidget {
 
               return InkWell(
                 onTap: () => onSectionSelected(section),
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(AdminSpacing.md + 2),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 180),
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 12,
+                    horizontal: AdminSpacing.md + 2,
+                    vertical: AdminSpacing.md,
                   ),
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(AdminSpacing.md + 2),
                     color: selected
                         ? theme.colorScheme.primary.withValues(alpha: 0.10)
                         : const Color(0xFFF1F5F9),
@@ -734,7 +756,7 @@ class _MoreSheet extends StatelessWidget {
                             ? theme.colorScheme.primary
                             : const Color(0xFF475569),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: AdminSpacing.sm),
                       Expanded(
                         child: Text(
                           label,
@@ -777,13 +799,13 @@ const Map<AdminSection, String> _sectionLabels = {
 };
 
 const Map<AdminSection, IconData> _sectionIcons = {
-  AdminSection.dashboard: Icons.dashboard_rounded,
-  AdminSection.students: Icons.groups_rounded,
-  AdminSection.teachers: Icons.school_rounded,
+  AdminSection.dashboard: Icons.home_rounded,
+  AdminSection.students: Icons.trending_up_rounded,
+  AdminSection.teachers: Icons.fact_check_outlined,
   AdminSection.batches: Icons.class_rounded,
-  AdminSection.activities: Icons.fact_check_rounded,
+  AdminSection.activities: Icons.auto_graph_rounded,
   AdminSection.rating: Icons.star_rate_rounded,
   AdminSection.badges: Icons.workspace_premium_rounded,
   AdminSection.notifications: Icons.notifications_rounded,
-  AdminSection.reports: Icons.stacked_line_chart_rounded,
+  AdminSection.reports: Icons.leaderboard_rounded,
 };

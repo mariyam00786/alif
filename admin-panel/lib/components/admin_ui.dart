@@ -1,18 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../constants/admin_spacing.dart';
+
 class AdminPageFrame extends StatelessWidget {
   const AdminPageFrame({
     super.key,
     required this.title,
     required this.subtitle,
     this.actions = const [],
+    this.titleWidget,
     required this.children,
   });
 
   final String title;
   final String subtitle;
   final List<Widget> actions;
+
+  /// Optional custom header widget. When provided, it replaces the default
+  /// title + subtitle text block (used by the Dashboard hero card so it keeps
+  /// its visuals while sharing the frame's spacing and list rhythm).
+  final Widget? titleWidget;
+
   final List<Widget> children;
 
   @override
@@ -30,7 +39,9 @@ class AdminPageFrame extends StatelessWidget {
                 children: actions
                     .map(
                       (action) => Padding(
-                        padding: const EdgeInsets.only(bottom: 6),
+                        padding: const EdgeInsets.only(
+                          bottom: AdminSpacing.xs + 2,
+                        ),
                         child: SizedBox(
                           width: double.infinity,
                           height: 46,
@@ -40,7 +51,11 @@ class AdminPageFrame extends StatelessWidget {
                     )
                     .toList(),
               )
-            : Wrap(spacing: 12, runSpacing: 12, children: actions);
+            : Wrap(
+                spacing: AdminSpacing.md,
+                runSpacing: AdminSpacing.md,
+                children: actions,
+              );
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -48,36 +63,38 @@ class AdminPageFrame extends StatelessWidget {
             Container(
               width: double.infinity,
               padding: EdgeInsets.symmetric(
-                horizontal: 4,
-                vertical: isCompact ? 2 : 6,
+                horizontal: AdminSpacing.xs,
+                vertical: isCompact ? 2 : AdminSpacing.xs + 2,
               ),
               child: Wrap(
                 alignment: WrapAlignment.spaceBetween,
                 crossAxisAlignment: WrapCrossAlignment.center,
-                runSpacing: 14,
-                spacing: 16,
+                runSpacing: AdminSpacing.md + 2,
+                spacing: AdminSpacing.lg,
                 children: [
                   SizedBox(
                     width: contentWidth,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          title,
-                          style: theme.textTheme.headlineMedium?.copyWith(
-                            fontWeight: FontWeight.w800,
-                            color: theme.colorScheme.primary,
-                          ),
+                    child:
+                        titleWidget ??
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              title,
+                              style: theme.textTheme.headlineMedium?.copyWith(
+                                fontWeight: FontWeight.w800,
+                                color: theme.colorScheme.primary,
+                              ),
+                            ),
+                            const SizedBox(height: AdminSpacing.xs),
+                            Text(
+                              subtitle,
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: const Color(0xFF6B7280),
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          subtitle,
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: const Color(0xFF6B7280),
-                          ),
-                        ),
-                      ],
-                    ),
                   ),
                   if (actions.isNotEmpty)
                     SizedBox(
@@ -87,13 +104,16 @@ class AdminPageFrame extends StatelessWidget {
                 ],
               ),
             ),
-            SizedBox(height: isCompact ? 10 : 16),
+            SizedBox(height: isCompact ? AdminSpacing.xs + 6 : AdminSpacing.lg),
             Expanded(
               child: ListView.separated(
                 itemCount: children.length,
-                separatorBuilder: (_, _) =>
-                    SizedBox(height: isCompact ? 10 : 14),
-                padding: EdgeInsets.only(bottom: isCompact ? 96 : 16),
+                separatorBuilder: (_, _) => SizedBox(
+                  height: isCompact ? AdminSpacing.xs + 6 : AdminSpacing.md + 2,
+                ),
+                padding: EdgeInsets.only(
+                  bottom: isCompact ? AdminSpacing.xxl * 4 : AdminSpacing.lg,
+                ),
                 itemBuilder: (context, index) => children[index],
               ),
             ),
@@ -125,7 +145,10 @@ class MetricCard extends StatelessWidget {
     final theme = Theme.of(context);
     return Card(
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AdminSpacing.lg,
+          vertical: AdminSpacing.md,
+        ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -134,11 +157,11 @@ class MetricCard extends StatelessWidget {
               height: 40,
               decoration: BoxDecoration(
                 color: tint.withValues(alpha: 0.10),
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(AdminSpacing.md),
               ),
-              child: Icon(icon, color: tint, size: 20),
+              child: Icon(icon, color: tint, size: AdminSpacing.xl),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: AdminSpacing.md),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -153,7 +176,7 @@ class MetricCard extends StatelessWidget {
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: AdminSpacing.sm),
                   Text(
                     value,
                     maxLines: 1,
@@ -205,7 +228,9 @@ class StatGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final spacing = constraints.maxWidth < 380 ? 8.0 : 12.0;
+        final spacing = constraints.maxWidth < 380
+            ? AdminSpacing.sm
+            : AdminSpacing.md;
         return IntrinsicHeight(
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -250,7 +275,10 @@ class _StatTile extends StatelessWidget {
     return Card(
       margin: EdgeInsets.zero,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AdminSpacing.xs + 6,
+          vertical: AdminSpacing.md,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
@@ -264,7 +292,7 @@ class _StatTile extends StatelessWidget {
               ),
               child: Icon(item.icon, color: iconColor, size: 18),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: AdminSpacing.xs + 6),
             FittedBox(
               fit: BoxFit.scaleDown,
               alignment: Alignment.centerLeft,
@@ -321,7 +349,7 @@ class FilterBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(AdminSpacing.md),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -335,11 +363,13 @@ class FilterBar extends StatelessWidget {
                   isDense: true,
                   prefixIcon: const Icon(Icons.search, size: 20),
                   hintText: searchHint,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: AdminSpacing.md,
+                  ),
                 ),
               ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: AdminSpacing.xs + 6),
             SizedBox(
               height: 40,
               child: SingleChildScrollView(
@@ -353,7 +383,7 @@ class FilterBar extends StatelessWidget {
                       onChanged: onFilterChanged,
                     ),
                     for (final action in extraActions) ...[
-                      const SizedBox(width: 8),
+                      const SizedBox(width: AdminSpacing.sm),
                       action,
                     ],
                   ],
@@ -391,20 +421,20 @@ class CompactFilterDropdown extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFFF4F8F4),
         border: Border.all(color: const Color(0xFFE5E7EB)),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(AdminSpacing.md),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           if (label != null) ...[
             Icon(Icons.tune, size: 16, color: theme.colorScheme.primary),
-            const SizedBox(width: 6),
+            const SizedBox(width: AdminSpacing.xs + 2),
           ],
           DropdownButtonHideUnderline(
             child: DropdownButton<String>(
               value: value,
               isDense: true,
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(AdminSpacing.md),
               icon: const Icon(Icons.keyboard_arrow_down, size: 18),
               style: theme.textTheme.bodyMedium?.copyWith(
                 fontSize: 13,
@@ -465,12 +495,12 @@ class WorkflowCallout extends StatelessWidget {
                 end: Alignment.bottomRight,
               ),
             ),
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(AdminSpacing.lg),
             child: Wrap(
               alignment: WrapAlignment.spaceBetween,
               crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: 16,
-              runSpacing: 16,
+              spacing: AdminSpacing.lg,
+              runSpacing: AdminSpacing.lg,
               children: [
                 SizedBox(
                   width: contentWidth,
@@ -478,9 +508,9 @@ class WorkflowCallout extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(title, style: theme.textTheme.titleLarge),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: AdminSpacing.sm),
                       Text(description, style: theme.textTheme.bodyLarge),
-                      const SizedBox(height: 14),
+                      const SizedBox(height: AdminSpacing.md + 2),
                       Container(
                         width: 64,
                         height: 1,
@@ -493,7 +523,11 @@ class WorkflowCallout extends StatelessWidget {
                 ),
                 SizedBox(
                   width: isCompact ? contentWidth : null,
-                  child: Wrap(spacing: 12, runSpacing: 12, children: actions),
+                  child: Wrap(
+                    spacing: AdminSpacing.md,
+                    runSpacing: AdminSpacing.md,
+                    children: actions,
+                  ),
                 ),
               ],
             ),
@@ -513,7 +547,10 @@ class StatusPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AdminSpacing.md,
+        vertical: AdminSpacing.xs + 2,
+      ),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(999),
         color: color.withValues(alpha: 0.10),
@@ -527,7 +564,7 @@ class StatusPill extends StatelessWidget {
             height: 7,
             decoration: BoxDecoration(color: color, shape: BoxShape.circle),
           ),
-          const SizedBox(width: 7),
+          const SizedBox(width: AdminSpacing.xs + 3),
           Text(
             label,
             style: TextStyle(
@@ -547,7 +584,8 @@ void showInlineMessage(BuildContext context, String message) {
   final messenger = ScaffoldMessenger.of(context);
   messenger.hideCurrentMaterialBanner();
 
-  final isError = message.toLowerCase().contains('could not') ||
+  final isError =
+      message.toLowerCase().contains('could not') ||
       message.toLowerCase().contains('cannot') ||
       message.toLowerCase().contains('failed') ||
       message.toLowerCase().contains('error');
@@ -592,4 +630,35 @@ void showInlineMessage(BuildContext context, String message) {
       messenger.hideCurrentMaterialBanner();
     }
   });
+}
+
+Future<bool> showDeleteConfirmationDialog(
+  BuildContext context, {
+  required String title,
+  required String message,
+  String confirmLabel = 'Delete',
+}) async {
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      icon: const Icon(Icons.delete_outline_rounded, color: Color(0xFFDC2626)),
+      title: Text(title),
+      content: Text(message),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          style: FilledButton.styleFrom(
+            backgroundColor: const Color(0xFFDC2626),
+          ),
+          onPressed: () => Navigator.of(context).pop(true),
+          child: Text(confirmLabel),
+        ),
+      ],
+    ),
+  );
+
+  return confirmed == true;
 }

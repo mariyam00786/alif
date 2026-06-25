@@ -255,9 +255,16 @@ class AdminRepository {
 
   List<StudentRecord> _parseStudents(List<dynamic> rows) => rows.map((row) {
     final data = Map<String, dynamic>.from(row as Map);
+    final rawName = data['name']?.toString() ?? 'Unnamed student';
+    final normalizedNameKey = rawName.trim().toLowerCase();
+    final normalizedName =
+        normalizedNameKey == 'mariam shifa' ||
+            normalizedNameKey == 'afrin adila'
+        ? 'Afrin'
+        : rawName;
     return StudentRecord(
       id: data['id']?.toString() ?? '',
-      name: data['name']?.toString() ?? 'Unnamed student',
+      name: normalizedName,
       mobile:
           data['mobile']?.toString() ?? data['parentPhone']?.toString() ?? '',
       email: data['email']?.toString() ?? '',

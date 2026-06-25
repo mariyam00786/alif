@@ -1,0 +1,5 @@
+{
+  "API_BASE_URL": "http://localhost:3000/api",
+  "SUPABASE_URL": "https://ikgszadoqfttxugaewtk.supabase.co",
+  "SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlrZ3N6YWRvcWZ0dHh1Z2Fld3RrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3MDY2NzgsImV4cCI6MjA5NzI4MjY3OH0.m4AbspKwfUa3-rVNopPgKdBuIOLKWvWfqym24sBg_ak"
+}

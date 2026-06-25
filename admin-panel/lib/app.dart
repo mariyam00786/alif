@@ -113,7 +113,10 @@ class AlifAdminApp extends StatelessWidget {
 
     switch (provider.selectedSection) {
       case AdminSection.dashboard:
-        return AdminDashboardScreen(state: state);
+        return AdminDashboardScreen(
+          state: state,
+          onNavigateToSection: provider.selectSection,
+        );
       case AdminSection.students:
         return StudentManagementScreen(
           students: state.students,

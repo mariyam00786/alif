@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../model/app_models.dart';
 import '../components/admin_ui.dart';
+import '../constants/admin_spacing.dart';
 
 /// Teacher Management (FRP Sec 4.2).
 ///
@@ -74,42 +75,44 @@ class _TeacherManagementScreenState extends State<TeacherManagementScreen> {
       ),
     );
     if (result == null) return;
-    if (existing == null) {
-      widget.onAdd(result);
-      if (mounted) showInlineMessage(context, 'Teacher added successfully.');
-    } else {
-      widget.onUpdate(result);
-      if (mounted) showInlineMessage(context, 'Teacher updated successfully.');
+    try {
+      if (existing == null) {
+        widget.onAdd(result);
+        if (mounted) showInlineMessage(context, 'Teacher added successfully.');
+      } else {
+        widget.onUpdate(result);
+        if (mounted) {
+          showInlineMessage(context, 'Teacher updated successfully.');
+        }
+      }
+    } catch (error) {
+      if (mounted) {
+        showInlineMessage(context, 'Could not save teacher: $error');
+      }
     }
   }
 
   Future<void> _confirmDelete(TeacherRecord teacher) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete teacher'),
-        content: Text('Remove ${teacher.name}? This action cannot be undone.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Colors.red.shade600),
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
+    final confirmed = await showDeleteConfirmationDialog(
+      context,
+      title: 'Delete teacher',
+      message: 'Remove ${teacher.name}? This action cannot be undone.',
     );
-    if (confirmed == true) {
-      widget.onDelete(teacher.id);
-      if (mounted) showInlineMessage(context, 'Teacher removed.');
+    if (confirmed) {
+      try {
+        widget.onDelete(teacher.id);
+        if (mounted) showInlineMessage(context, 'Teacher removed.');
+      } catch (error) {
+        if (mounted) {
+          showInlineMessage(context, 'Could not remove teacher: $error');
+        }
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = MediaQuery.of(context).size.width < 560;
     final filtered = _filtered;
     final activeCount = widget.teachers
         .where((t) => t.status == RecordStatus.active)
@@ -159,6 +162,7 @@ class _TeacherManagementScreenState extends State<TeacherManagementScreen> {
         else
           _TeacherList(
             teachers: filtered,
+            compact: isMobile,
             onEdit: (teacher) => _openForm(existing: teacher),
             onDelete: _confirmDelete,
           ),
@@ -170,29 +174,58 @@ class _TeacherManagementScreenState extends State<TeacherManagementScreen> {
 class _TeacherList extends StatelessWidget {
   const _TeacherList({
     required this.teachers,
+    this.compact = false,
     required this.onEdit,
     required this.onDelete,
   });
 
   final List<TeacherRecord> teachers;
+  final bool compact;
   final ValueChanged<TeacherRecord> onEdit;
   final ValueChanged<TeacherRecord> onDelete;
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          children: [
-            for (final teacher in teachers)
-              _TeacherTile(
-                teacher: teacher,
-                onEdit: () => onEdit(teacher),
-                onDelete: () => onDelete(teacher),
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(compact ? 14 : 18),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Column(
+        children: [
+          for (var i = 0; i < teachers.length; i++)
+            Dismissible(
+              key: ValueKey('teacher-${teachers[i].id}'),
+              direction: DismissDirection.horizontal,
+              background: const _SwipeActionBackground(
+                icon: Icons.edit_outlined,
+                label: 'Edit',
+                color: Color(0xFF0F766E),
+                alignment: Alignment.centerLeft,
               ),
-          ],
-        ),
+              secondaryBackground: const _SwipeActionBackground(
+                icon: Icons.delete_outline,
+                label: 'Delete',
+                color: Color(0xFFDC2626),
+                alignment: Alignment.centerRight,
+              ),
+              confirmDismiss: (direction) async {
+                final teacher = teachers[i];
+                if (direction == DismissDirection.startToEnd) {
+                  onEdit(teacher);
+                } else {
+                  onDelete(teacher);
+                }
+                return false;
+              },
+              child: _TeacherTile(
+                teacher: teachers[i],
+                compact: compact,
+                showDivider: i < teachers.length - 1,
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -201,13 +234,13 @@ class _TeacherList extends StatelessWidget {
 class _TeacherTile extends StatelessWidget {
   const _TeacherTile({
     required this.teacher,
-    required this.onEdit,
-    required this.onDelete,
+    required this.showDivider,
+    this.compact = false,
   });
 
   final TeacherRecord teacher;
-  final VoidCallback onEdit;
-  final VoidCallback onDelete;
+  final bool showDivider;
+  final bool compact;
 
   Color get _statusColor {
     switch (teacher.status) {
@@ -220,6 +253,11 @@ class _TeacherTile extends StatelessWidget {
     }
   }
 
+  String get _statusLabel {
+    final raw = teacher.status.name;
+    return raw.isEmpty ? '-' : '${raw[0].toUpperCase()}${raw.substring(1)}';
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -229,24 +267,34 @@ class _TeacherTile extends StatelessWidget {
     final subjectsLabel = teacher.subjects.isEmpty
         ? 'No subjects'
         : teacher.subjects.join(', ');
+
+    final compactMeta = [
+      if (teacher.batches.isNotEmpty) 'Batch: ${teacher.batches.first}',
+      if (teacher.mobile.isNotEmpty) teacher.mobile,
+    ].join('  •  ');
+
     return Container(
-      margin: const EdgeInsets.symmetric(vertical: 6),
-      padding: const EdgeInsets.all(14),
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? AdminSpacing.sm + 2 : AdminSpacing.md + 2,
+        vertical: compact ? AdminSpacing.sm : AdminSpacing.md,
+      ),
       decoration: BoxDecoration(
-        color: const Color(0xFFFCFDFC),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border(
+          bottom: showDivider
+              ? const BorderSide(color: Color(0xFFF1F4F1))
+              : BorderSide.none,
+        ),
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final isCompact = constraints.maxWidth < 560;
+          final isCompact = compact || constraints.maxWidth < 620;
           final info = Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               CircleAvatar(
-                radius: 22,
+                radius: isCompact ? 16 : 19,
                 backgroundColor: theme.colorScheme.primary.withValues(
-                  alpha: 0.12,
+                  alpha: 0.10,
                 ),
                 child: Text(
                   initials,
@@ -256,31 +304,56 @@ class _TeacherTile extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(width: 12),
+              SizedBox(
+                width: isCompact ? AdminSpacing.sm + 2 : AdminSpacing.md,
+              ),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       teacher.name,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
+                      style:
+                          (isCompact
+                                  ? theme.textTheme.bodyMedium
+                                  : theme.textTheme.bodyLarge)
+                              ?.copyWith(
+                                fontWeight: FontWeight.w700,
+                                color: const Color(0xFF111827),
+                              ),
+                    ),
+                    const SizedBox(height: 1),
+                    Text(
+                      subjectsLabel,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: const Color(0xFF6B7280),
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Text(subjectsLabel, style: theme.textTheme.bodySmall),
-                    if (teacher.batches.isNotEmpty)
+                    if (isCompact && compactMeta.isNotEmpty)
                       Text(
-                        '🎓 ${teacher.batches.join(', ')}',
+                        compactMeta,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: const Color(0xFF64748B),
+                        ),
+                      )
+                    else if (teacher.batches.isNotEmpty)
+                      Text(
+                        'Batch: ${teacher.batches.join(', ')}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: const Color(0xFF6B7280),
                         ),
                       ),
-                    if (teacher.mobile.isNotEmpty)
+                    if (!isCompact && teacher.mobile.isNotEmpty)
                       Text(
-                        '📞 ${teacher.mobile}',
+                        teacher.mobile,
                         style: theme.textTheme.bodySmall?.copyWith(
-                          color: const Color(0xFF6B7280),
+                          color: const Color(0xFF64748B),
                         ),
                       ),
                   ],
@@ -292,19 +365,9 @@ class _TeacherTile extends StatelessWidget {
           final trailing = Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              StatusPill(label: teacher.status.name, color: _statusColor),
-              IconButton(
-                tooltip: 'Edit',
-                icon: const Icon(Icons.edit_outlined),
-                color: theme.colorScheme.primary,
-                onPressed: onEdit,
-              ),
-              IconButton(
-                tooltip: 'Delete',
-                icon: const Icon(Icons.delete_outline),
-                color: Colors.red.shade400,
-                onPressed: onDelete,
-              ),
+              StatusPill(label: _statusLabel, color: _statusColor),
+              const SizedBox(width: AdminSpacing.xs + 6),
+              const _SwipeHintChip(),
             ],
           );
 
@@ -313,7 +376,7 @@ class _TeacherTile extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 info,
-                const SizedBox(height: 10),
+                const SizedBox(height: AdminSpacing.xs + 2),
                 Align(alignment: Alignment.centerRight, child: trailing),
               ],
             );
@@ -321,10 +384,79 @@ class _TeacherTile extends StatelessWidget {
           return Row(
             children: [
               Expanded(child: info),
-              trailing,
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: trailing,
+              ),
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+class _SwipeActionBackground extends StatelessWidget {
+  const _SwipeActionBackground({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.alignment,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color color;
+  final Alignment alignment;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      alignment: alignment,
+      padding: const EdgeInsets.symmetric(horizontal: AdminSpacing.md),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 18, color: color),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(color: color, fontWeight: FontWeight.w700),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SwipeHintChip extends StatelessWidget {
+  const _SwipeHintChip();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.touch_app_rounded, size: 14, color: Color(0xFF64748B)),
+          SizedBox(width: 4),
+          Icon(Icons.swipe_left_rounded, size: 14, color: Color(0xFF94A3B8)),
+        ],
       ),
     );
   }
@@ -338,7 +470,10 @@ class _EmptyState extends StatelessWidget {
     final theme = Theme.of(context);
     return Card(
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
+        padding: const EdgeInsets.symmetric(
+          vertical: 48,
+          horizontal: AdminSpacing.xxl,
+        ),
         child: Column(
           children: [
             Icon(
@@ -346,9 +481,9 @@ class _EmptyState extends StatelessWidget {
               size: 48,
               color: theme.colorScheme.primary.withValues(alpha: 0.4),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: AdminSpacing.md),
             Text('No teachers found', style: theme.textTheme.titleMedium),
-            const SizedBox(height: 4),
+            const SizedBox(height: AdminSpacing.xs),
             Text(
               'Try adjusting filters or add a new teacher.',
               style: theme.textTheme.bodySmall,
@@ -440,12 +575,14 @@ class _TeacherFormSheetState extends State<TeacherFormSheet> {
         constraints: BoxConstraints(maxHeight: media.size.height * 0.92),
         decoration: const BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          borderRadius: BorderRadius.vertical(
+            top: Radius.circular(AdminSpacing.xxl),
+          ),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const SizedBox(height: 12),
+            const SizedBox(height: AdminSpacing.md),
             Container(
               width: 44,
               height: 4,
@@ -455,14 +592,19 @@ class _TeacherFormSheetState extends State<TeacherFormSheet> {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+              padding: const EdgeInsets.fromLTRB(
+                AdminSpacing.xl,
+                AdminSpacing.lg,
+                AdminSpacing.xl,
+                AdminSpacing.sm,
+              ),
               child: Row(
                 children: [
                   Icon(
                     isEdit ? Icons.edit : Icons.person_add_alt_1,
                     color: theme.colorScheme.primary,
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: AdminSpacing.xs + 6),
                   Text(
                     isEdit ? 'Edit Teacher' : 'Add Teacher',
                     style: theme.textTheme.titleLarge?.copyWith(
@@ -479,7 +621,12 @@ class _TeacherFormSheetState extends State<TeacherFormSheet> {
             ),
             Flexible(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+                padding: const EdgeInsets.fromLTRB(
+                  AdminSpacing.xl,
+                  AdminSpacing.sm,
+                  AdminSpacing.xl,
+                  AdminSpacing.xl,
+                ),
                 child: Form(
                   key: _formKey,
                   child: LayoutBuilder(
@@ -492,8 +639,8 @@ class _TeacherFormSheetState extends State<TeacherFormSheet> {
                         child: child,
                       );
                       return Wrap(
-                        spacing: 16,
-                        runSpacing: 16,
+                        spacing: AdminSpacing.lg,
+                        runSpacing: AdminSpacing.lg,
                         children: [
                           field(
                             _text(
@@ -548,7 +695,12 @@ class _TeacherFormSheetState extends State<TeacherFormSheet> {
             SafeArea(
               top: false,
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
+                padding: const EdgeInsets.fromLTRB(
+                  AdminSpacing.xl,
+                  AdminSpacing.xs,
+                  AdminSpacing.xl,
+                  AdminSpacing.lg,
+                ),
                 child: Row(
                   children: [
                     Expanded(
@@ -557,7 +709,7 @@ class _TeacherFormSheetState extends State<TeacherFormSheet> {
                         child: const Text('Cancel'),
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: AdminSpacing.md),
                     Expanded(
                       child: ElevatedButton(
                         onPressed: _submit,
@@ -620,10 +772,10 @@ class _TeacherFormSheetState extends State<TeacherFormSheet> {
             color: const Color(0xFF6B7280),
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: AdminSpacing.sm),
         Wrap(
-          spacing: 8,
-          runSpacing: 8,
+          spacing: AdminSpacing.sm,
+          runSpacing: AdminSpacing.sm,
           children: options.map((option) {
             final isSelected = selected.contains(option);
             return FilterChip(

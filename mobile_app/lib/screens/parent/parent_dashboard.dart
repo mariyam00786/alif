@@ -256,8 +256,8 @@ class _ParentDashboardState extends State<ParentDashboard> {
                 _profileTile(
                   icon: Icons.school_rounded,
                   label: isMalayalam
-                      ? 'വിദ്യാർഥി കാഴ്ചയിലേക്ക് മാറുക'
-                      : 'Switch to student view',
+                      ? 'വിദ്യാർഥി പോർട്ടൽ തുറക്കുക'
+                      : 'Open student portal',
                   onTap: widget.onSwitchToStudent,
                 ),
                 const SizedBox(height: 10),

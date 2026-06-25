@@ -46,6 +46,40 @@ class MobileApiService {
 
   // ===== AUTHENTICATION =====
 
+  /// Self-service registration used by the mobile login screen.
+  ///
+  /// Supports both methods:
+  /// - phone: {method:'phone', full_name, role, phone}
+  /// - email: {method:'email', full_name, role, email, password}
+  static Future<ApiResponse<Map<String, dynamic>>> register({
+    required String method,
+    required String fullName,
+    required String role,
+    String? phone,
+    String? email,
+    String? password,
+  }) async {
+    try {
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/auth/register'),
+            headers: _buildHeaders(requireAuth: false),
+            body: jsonEncode({
+              'method': method,
+              'full_name': fullName,
+              'role': role,
+              'phone': ?phone,
+              'email': ?email,
+              'password': ?password,
+            }),
+          )
+          .timeout(timeout);
+      return _parseResponse(response);
+    } catch (_) {
+      return ApiResponse.error('Failed to register');
+    }
+  }
+
   static Future<ApiResponse<Map<String, dynamic>>> requestOtp(
     String phone,
   ) async {

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../model/app_models.dart';
 import '../components/admin_ui.dart';
+import '../constants/admin_spacing.dart';
 
 /// Notification Management (FRP Sec 4.7).
 ///
@@ -45,39 +46,36 @@ class _NotificationManagementScreenState
       ),
     );
     if (result == null) return;
-    if (existing == null) {
-      widget.onAdd(result);
-      if (mounted) showInlineMessage(context, 'Notification created.');
-    } else {
-      widget.onUpdate(result);
-      if (mounted) showInlineMessage(context, 'Notification updated.');
+    try {
+      if (existing == null) {
+        widget.onAdd(result);
+        if (mounted) showInlineMessage(context, 'Notification created.');
+      } else {
+        widget.onUpdate(result);
+        if (mounted) showInlineMessage(context, 'Notification updated.');
+      }
+    } catch (error) {
+      if (mounted) {
+        showInlineMessage(context, 'Could not save notification: $error');
+      }
     }
   }
 
   Future<void> _confirmDelete(NotificationCampaign campaign) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete notification'),
-        content: Text(
-          'Remove "${campaign.title}"? This action cannot be undone.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Colors.red.shade600),
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
+    final confirmed = await showDeleteConfirmationDialog(
+      context,
+      title: 'Delete notification',
+      message: 'Remove "${campaign.title}"? This action cannot be undone.',
     );
-    if (confirmed == true) {
-      widget.onDelete(campaign.id);
-      if (mounted) showInlineMessage(context, 'Notification removed.');
+    if (confirmed) {
+      try {
+        widget.onDelete(campaign.id);
+        if (mounted) showInlineMessage(context, 'Notification removed.');
+      } catch (error) {
+        if (mounted) {
+          showInlineMessage(context, 'Could not remove notification: $error');
+        }
+      }
     }
   }
 
@@ -118,19 +116,45 @@ class _NotificationManagementScreenState
         if (widget.campaigns.isEmpty)
           const _EmptyState()
         else
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                children: [
-                  for (final campaign in widget.campaigns)
-                    _NotificationTile(
-                      campaign: campaign,
-                      onEdit: () => _openForm(existing: campaign),
-                      onDelete: () => _confirmDelete(campaign),
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: const Color(0xFFE5E7EB)),
+            ),
+            child: Column(
+              children: [
+                for (var i = 0; i < widget.campaigns.length; i++)
+                  Dismissible(
+                    key: ValueKey('notification-${widget.campaigns[i].id}'),
+                    direction: DismissDirection.horizontal,
+                    background: const _SwipeActionBackground(
+                      icon: Icons.edit_outlined,
+                      label: 'Edit',
+                      color: Color(0xFF0F766E),
+                      alignment: Alignment.centerLeft,
                     ),
-                ],
-              ),
+                    secondaryBackground: const _SwipeActionBackground(
+                      icon: Icons.delete_outline,
+                      label: 'Delete',
+                      color: Color(0xFFDC2626),
+                      alignment: Alignment.centerRight,
+                    ),
+                    confirmDismiss: (direction) async {
+                      final campaign = widget.campaigns[i];
+                      if (direction == DismissDirection.startToEnd) {
+                        await _openForm(existing: campaign);
+                      } else {
+                        await _confirmDelete(campaign);
+                      }
+                      return false;
+                    },
+                    child: _NotificationTile(
+                      campaign: widget.campaigns[i],
+                      showDivider: i < widget.campaigns.length - 1,
+                    ),
+                  ),
+              ],
             ),
           ),
       ],
@@ -139,15 +163,10 @@ class _NotificationManagementScreenState
 }
 
 class _NotificationTile extends StatelessWidget {
-  const _NotificationTile({
-    required this.campaign,
-    required this.onEdit,
-    required this.onDelete,
-  });
+  const _NotificationTile({required this.campaign, required this.showDivider});
 
   final NotificationCampaign campaign;
-  final VoidCallback onEdit;
-  final VoidCallback onDelete;
+  final bool showDivider;
 
   (Color, String) get _statusInfo {
     switch (campaign.status) {
@@ -165,16 +184,20 @@ class _NotificationTile extends StatelessWidget {
     final theme = Theme.of(context);
     final (statusColor, statusLabel) = _statusInfo;
     return Container(
-      margin: const EdgeInsets.symmetric(vertical: 6),
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AdminSpacing.md + 2,
+        vertical: AdminSpacing.md,
+      ),
       decoration: BoxDecoration(
-        color: const Color(0xFFFCFDFC),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border(
+          bottom: showDivider
+              ? const BorderSide(color: Color(0xFFF1F4F1))
+              : BorderSide.none,
+        ),
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final isCompact = constraints.maxWidth < 560;
+          final isCompact = constraints.maxWidth < 620;
           final info = Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -188,7 +211,7 @@ class _NotificationTile extends StatelessWidget {
                   color: theme.colorScheme.primary,
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: AdminSpacing.md),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -206,7 +229,7 @@ class _NotificationTile extends StatelessWidget {
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: AdminSpacing.xs),
                     Text(
                       '🎯 ${campaign.audience}',
                       style: theme.textTheme.bodySmall?.copyWith(
@@ -230,17 +253,11 @@ class _NotificationTile extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               StatusPill(label: statusLabel, color: statusColor),
-              IconButton(
-                tooltip: 'Edit',
-                icon: const Icon(Icons.edit_outlined),
-                color: theme.colorScheme.primary,
-                onPressed: onEdit,
-              ),
-              IconButton(
-                tooltip: 'Delete',
-                icon: const Icon(Icons.delete_outline),
-                color: Colors.red.shade400,
-                onPressed: onDelete,
+              const SizedBox(width: AdminSpacing.xs + 6),
+              const Icon(
+                Icons.swipe_left_rounded,
+                size: 18,
+                color: Color(0xFF94A3B8),
               ),
             ],
           );
@@ -250,7 +267,7 @@ class _NotificationTile extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 info,
-                const SizedBox(height: 10),
+                const SizedBox(height: AdminSpacing.xs + 6),
                 Align(alignment: Alignment.centerRight, child: trailing),
               ],
             );
@@ -267,6 +284,43 @@ class _NotificationTile extends StatelessWidget {
   }
 }
 
+class _SwipeActionBackground extends StatelessWidget {
+  const _SwipeActionBackground({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.alignment,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color color;
+  final Alignment alignment;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      alignment: alignment,
+      padding: const EdgeInsets.symmetric(horizontal: AdminSpacing.md),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 18, color: color),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(color: color, fontWeight: FontWeight.w700),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _EmptyState extends StatelessWidget {
   const _EmptyState();
 
@@ -275,7 +329,10 @@ class _EmptyState extends StatelessWidget {
     final theme = Theme.of(context);
     return Card(
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
+        padding: const EdgeInsets.symmetric(
+          vertical: 48,
+          horizontal: AdminSpacing.xxl,
+        ),
         child: Column(
           children: [
             Icon(
@@ -283,9 +340,9 @@ class _EmptyState extends StatelessWidget {
               size: 48,
               color: theme.colorScheme.primary.withValues(alpha: 0.4),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: AdminSpacing.md),
             Text('No notifications yet', style: theme.textTheme.titleMedium),
-            const SizedBox(height: 4),
+            const SizedBox(height: AdminSpacing.xs),
             Text(
               'Compose a notification to reach parents.',
               style: theme.textTheme.bodySmall,
@@ -418,12 +475,14 @@ class _NotificationFormSheetState extends State<NotificationFormSheet> {
         constraints: BoxConstraints(maxHeight: media.size.height * 0.92),
         decoration: const BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          borderRadius: BorderRadius.vertical(
+            top: Radius.circular(AdminSpacing.xxl),
+          ),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const SizedBox(height: 12),
+            const SizedBox(height: AdminSpacing.md),
             Container(
               width: 44,
               height: 4,
@@ -433,19 +492,22 @@ class _NotificationFormSheetState extends State<NotificationFormSheet> {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+              padding: const EdgeInsets.fromLTRB(
+                AdminSpacing.xl,
+                AdminSpacing.lg,
+                AdminSpacing.xl,
+                AdminSpacing.sm,
+              ),
               child: Row(
                 children: [
                   Icon(
                     isEdit ? Icons.edit : Icons.add_alert,
                     color: theme.colorScheme.primary,
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: AdminSpacing.xs + 6),
                   Text(
                     isEdit ? 'Edit Notification' : 'Compose Notification',
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
+                    style: theme.textTheme.titleLarge,
                   ),
                   const Spacer(),
                   IconButton(
@@ -457,7 +519,12 @@ class _NotificationFormSheetState extends State<NotificationFormSheet> {
             ),
             Flexible(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+                padding: const EdgeInsets.fromLTRB(
+                  AdminSpacing.xl,
+                  AdminSpacing.sm,
+                  AdminSpacing.xl,
+                  AdminSpacing.xl,
+                ),
                 child: Form(
                   key: _formKey,
                   child: Column(
@@ -468,7 +535,7 @@ class _NotificationFormSheetState extends State<NotificationFormSheet> {
                         validator: _required,
                         decoration: const InputDecoration(labelText: 'Title *'),
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: AdminSpacing.lg),
                       TextFormField(
                         controller: _message,
                         validator: _required,
@@ -477,7 +544,7 @@ class _NotificationFormSheetState extends State<NotificationFormSheet> {
                           labelText: 'Message *',
                         ),
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: AdminSpacing.lg),
                       DropdownButtonFormField<_TargetType>(
                         initialValue: _targetType,
                         decoration: const InputDecoration(labelText: 'Target'),
@@ -506,7 +573,7 @@ class _NotificationFormSheetState extends State<NotificationFormSheet> {
                       ),
                       if (_targetType == _TargetType.batch ||
                           _targetType == _TargetType.className) ...[
-                        const SizedBox(height: 16),
+                        const SizedBox(height: AdminSpacing.lg),
                         DropdownButtonFormField<String>(
                           initialValue: _targetValue,
                           isExpanded: true,
@@ -530,7 +597,7 @@ class _NotificationFormSheetState extends State<NotificationFormSheet> {
                         ),
                       ],
                       if (_targetType == _TargetType.student) ...[
-                        const SizedBox(height: 16),
+                        const SizedBox(height: AdminSpacing.lg),
                         TextFormField(
                           controller: _target,
                           decoration: const InputDecoration(
@@ -538,7 +605,7 @@ class _NotificationFormSheetState extends State<NotificationFormSheet> {
                           ),
                         ),
                       ],
-                      const SizedBox(height: 16),
+                      const SizedBox(height: AdminSpacing.lg),
                       DropdownButtonFormField<CampaignStatus>(
                         initialValue: _status,
                         decoration: const InputDecoration(labelText: 'Status'),
@@ -559,7 +626,7 @@ class _NotificationFormSheetState extends State<NotificationFormSheet> {
                         onChanged: (v) =>
                             setState(() => _status = v ?? CampaignStatus.draft),
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: AdminSpacing.lg),
                       InputDecorator(
                         decoration: const InputDecoration(
                           labelText: 'Schedule (optional)',
@@ -596,7 +663,12 @@ class _NotificationFormSheetState extends State<NotificationFormSheet> {
             SafeArea(
               top: false,
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
+                padding: const EdgeInsets.fromLTRB(
+                  AdminSpacing.xl,
+                  AdminSpacing.xs,
+                  AdminSpacing.xl,
+                  AdminSpacing.lg,
+                ),
                 child: Row(
                   children: [
                     Expanded(
@@ -605,7 +677,7 @@ class _NotificationFormSheetState extends State<NotificationFormSheet> {
                         child: const Text('Cancel'),
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: AdminSpacing.md),
                     Expanded(
                       child: ElevatedButton(
                         onPressed: _submit,
