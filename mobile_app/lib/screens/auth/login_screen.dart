@@ -139,7 +139,12 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
               borderRadius: BorderRadius.circular(999),
             ),
           ),
-          _buildPortalSelector(isMalayalam),
+          SizedBox(height: SpacingScale.lg),
+          // 1. Logo placed at the top (below Sign In title)
+          _buildLogoHeader(isMalayalam),
+          SizedBox(height: SpacingScale.lg),
+          // 2. Segmented Portal Toggle placed right above the email/phone tabs
+          _buildPortalToggle(isMalayalam),
           SizedBox(height: SpacingScale.lg),
           if (_step == LoginStep.phone) _buildAuthMethodTabs(isMalayalam),
           if (_step == LoginStep.phone) SizedBox(height: SpacingScale.lg),
@@ -267,7 +272,7 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
     );
   }
 
-  // ===== Portal selector =====
+  // ===== Portal selector & Logo Header =====
 
   String get _selectedRole =>
       _portal == LoginPortal.teacher ? 'teacher' : 'student';
@@ -276,7 +281,7 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
       ? Icons.co_present_rounded
       : Icons.school_rounded;
 
-  Widget _buildPortalSelector(bool isMalayalam) {
+  Widget _buildLogoHeader(bool isMalayalam) {
     final subtitle = _isRegister
         ? (isMalayalam
               ? 'ഒരു പുതിയ അക്കൗണ്ട് ഉണ്ടാക്കാം'
@@ -287,103 +292,6 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
 
     return Column(
       children: [
-        SizedBox(height: SpacingScale.lg),
-        // Segmented Portal Toggle
-        Container(
-          padding: const EdgeInsets.all(4),
-          decoration: BoxDecoration(
-            color: ColorPalette.neutral100,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: ColorPalette.neutral200),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: GestureDetector(
-                  onTap: () => setState(() {
-                    _portal = LoginPortal.studentParent;
-                    _clearError();
-                  }),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    decoration: BoxDecoration(
-                      color: _portal == LoginPortal.studentParent
-                          ? ColorPalette.white
-                          : Colors.transparent,
-                      borderRadius: BorderRadius.circular(10),
-                      boxShadow: _portal == LoginPortal.studentParent
-                          ? [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.05),
-                                blurRadius: 4,
-                                offset: const Offset(0, 2),
-                              ),
-                            ]
-                          : null,
-                    ),
-                    child: Center(
-                      child: Text(
-                        isMalayalam
-                            ? 'വിദ്യാർത്ഥി / രക്ഷിതാവ്'
-                            : 'Student / Parent',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: _portal == LoginPortal.studentParent
-                              ? FontWeight.w700
-                              : FontWeight.w500,
-                          color: _portal == LoginPortal.studentParent
-                              ? ColorPalette.primaryDark
-                              : ColorPalette.textSecondary,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              Expanded(
-                child: GestureDetector(
-                  onTap: () => setState(() {
-                    _portal = LoginPortal.teacher;
-                    _clearError();
-                  }),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    decoration: BoxDecoration(
-                      color: _portal == LoginPortal.teacher
-                          ? ColorPalette.white
-                          : Colors.transparent,
-                      borderRadius: BorderRadius.circular(10),
-                      boxShadow: _portal == LoginPortal.teacher
-                          ? [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.05),
-                                blurRadius: 4,
-                                offset: const Offset(0, 2),
-                              ),
-                            ]
-                          : null,
-                    ),
-                    child: Center(
-                      child: Text(
-                        isMalayalam ? 'അധ്യാപകൻ' : 'Teacher',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: _portal == LoginPortal.teacher
-                              ? FontWeight.w700
-                              : FontWeight.w500,
-                          color: _portal == LoginPortal.teacher
-                              ? ColorPalette.primaryDark
-                              : ColorPalette.textSecondary,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        SizedBox(height: SpacingScale.lg),
         Container(
           width: 64,
           height: 64,
@@ -415,6 +323,103 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildPortalToggle(bool isMalayalam) {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: ColorPalette.neutral100,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: ColorPalette.neutral200),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: GestureDetector(
+              onTap: () => setState(() {
+                _portal = LoginPortal.studentParent;
+                _clearError();
+              }),
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                decoration: BoxDecoration(
+                  color: _portal == LoginPortal.studentParent
+                      ? ColorPalette.white
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(10),
+                  boxShadow: _portal == LoginPortal.studentParent
+                      ? [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.05),
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
+                          ),
+                        ]
+                      : null,
+                ),
+                child: Center(
+                  child: Text(
+                    isMalayalam
+                        ? 'വിദ്യാർത്ഥി / രക്ഷിതാവ് പോർട്ടൽ'
+                        : 'Student / Parent Portal',
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: _portal == LoginPortal.studentParent
+                          ? FontWeight.w700
+                          : FontWeight.w500,
+                      color: _portal == LoginPortal.studentParent
+                          ? ColorPalette.primaryDark
+                          : ColorPalette.textSecondary,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            child: GestureDetector(
+              onTap: () => setState(() {
+                _portal = LoginPortal.teacher;
+                _clearError();
+              }),
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                decoration: BoxDecoration(
+                  color: _portal == LoginPortal.teacher
+                      ? ColorPalette.white
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(10),
+                  boxShadow: _portal == LoginPortal.teacher
+                      ? [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.05),
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
+                          ),
+                        ]
+                      : null,
+                ),
+                child: Center(
+                  child: Text(
+                    isMalayalam ? 'അധ്യാപക പോർട്ടൽ' : 'Teacher Portal',
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: _portal == LoginPortal.teacher
+                          ? FontWeight.w700
+                          : FontWeight.w500,
+                      color: _portal == LoginPortal.teacher
+                          ? ColorPalette.primaryDark
+                          : ColorPalette.textSecondary,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
