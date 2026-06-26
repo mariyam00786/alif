@@ -23,6 +23,7 @@ exports.getRatingById = getRatingById;
 exports.buildDailyActivityStructure = buildDailyActivityStructure;
 exports.invalidateCategoryCache = invalidateCategoryCache;
 exports.invalidateActivityCache = invalidateActivityCache;
+const supabase_1 = require("../config/supabase");
 /**
  * In-memory cache for master data
  * In production, consider using Redis or similar
@@ -86,123 +87,53 @@ function getCacheStats() {
     };
 }
 /**
- * Mock database query functions (replace with Supabase in production)
- *
- * In real implementation, these would query the database
+ * Database query functions (Supabase)
  */
 /**
- * Fetches all activity categories from database
- *
- * In production, replace with:
- * ```
- * const { data } = await supabase
- *   .from('activity_categories')
- *   .select('*')
- *   .eq('status', 'active')
- *   .order('display_order', { ascending: true });
- * ```
+ * Fetches all active activity categories from the database, ordered by display order.
  */
 async function fetchCategoriesFromDB() {
-    // Mock implementation - replace with real DB call
-    return [
-        {
-            id: 'cat-prayer',
-            name: 'Salah (Prayer)',
-            name_ml: 'നമസ്സ്',
-            icon: '🙏',
-            display_order: 1,
-            status: 'active',
-            created_at: new Date().toISOString(),
-        },
-        {
-            id: 'cat-quran',
-            name: 'Quran',
-            name_ml: 'ഖുറാൻ',
-            icon: '📖',
-            display_order: 2,
-            status: 'active',
-            created_at: new Date().toISOString(),
-        },
-    ];
+    const supabase = (0, supabase_1.getSupabaseClient)();
+    const { data, error } = await supabase
+        .from('activity_categories')
+        .select('*')
+        .eq('status', 'active')
+        .order('display_order', { ascending: true });
+    if (error) {
+        throw new Error(`Failed to load activity categories: ${error.message}`);
+    }
+    return (data ?? []);
 }
 /**
- * Fetches activities for a category
+ * Fetches active activities for a category, ordered by display order.
  */
 async function fetchActivitiesByCategoryFromDB(categoryId) {
-    // Mock implementation
-    if (categoryId === 'cat-prayer') {
-        return [
-            {
-                id: 'act-subhi',
-                category_id: categoryId,
-                name: 'Subhi Prayer',
-                name_ml: 'സുബ്ഹ് നമസ്സ്',
-                display_order: 1,
-                has_quantity: false,
-                status: 'active',
-                created_at: new Date().toISOString(),
-            },
-            {
-                id: 'act-zuhr',
-                category_id: categoryId,
-                name: 'Zuhr Prayer',
-                name_ml: 'സോമ നമസ്സ്',
-                display_order: 2,
-                has_quantity: false,
-                status: 'active',
-                created_at: new Date().toISOString(),
-            },
-        ];
+    const supabase = (0, supabase_1.getSupabaseClient)();
+    const { data, error } = await supabase
+        .from('activities')
+        .select('*')
+        .eq('category_id', categoryId)
+        .eq('status', 'active')
+        .order('display_order', { ascending: true });
+    if (error) {
+        throw new Error(`Failed to load activities for category ${categoryId}: ${error.message}`);
     }
-    return [];
+    return (data ?? []);
 }
 /**
- * Fetches rating options for an activity
+ * Fetches rating options for an activity, ordered by display order.
  */
 async function fetchRatingsFromDB(activityId) {
-    // Mock implementation - all activities have same rating options
-    return [
-        {
-            id: 'rating-excellent',
-            activity_id: activityId,
-            rating_name: 'Excellent',
-            rating_name_ml: 'ഉത്തമം',
-            marks: 10,
-            color: '#4CAF50',
-            display_order: 1,
-            created_at: new Date().toISOString(),
-        },
-        {
-            id: 'rating-satisfactory',
-            activity_id: activityId,
-            rating_name: 'Satisfactory',
-            rating_name_ml: 'സാധാരണം',
-            marks: 5,
-            color: '#FFC107',
-            display_order: 2,
-            created_at: new Date().toISOString(),
-        },
-        {
-            id: 'rating-needs-improvement',
-            activity_id: activityId,
-            rating_name: 'Needs Improvement',
-            rating_name_ml: 'സുധരിതേയും',
-            marks: 2,
-            color: '#FF9800',
-            display_order: 3,
-            created_at: new Date().toISOString(),
-        },
-        {
-            id: 'rating-not-done',
-            activity_id: activityId,
-            rating_name: 'Not Done',
-            rating_name_ml: 'ചെയ്യാതിരുന്നത്',
-            marks: 0,
-            color: '#9E9E9E',
-            display_order: 4,
-            created_at: new Date().toISOString(),
-        },
-    ];
+    const supabase = (0, supabase_1.getSupabaseClient)();
+    const { data, error } = await supabase
+        .from('activity_ratings')
+        .select('*')
+        .eq('activity_id', activityId)
+        .order('display_order', { ascending: true });
+    if (error) {
+        throw new Error(`Failed to load ratings for activity ${activityId}: ${error.message}`);
+    }
+    return (data ?? []);
 }
 /**
  * Gets all active categories

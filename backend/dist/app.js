@@ -55,12 +55,14 @@ const auth_1 = __importDefault(require("./routes/auth"));
 const admin_1 = __importDefault(require("./routes/admin"));
 const students_1 = __importDefault(require("./routes/students"));
 const teachers_1 = __importDefault(require("./routes/teachers"));
+const teacher_portal_1 = __importDefault(require("./routes/teacher-portal"));
 const academics_1 = __importDefault(require("./routes/academics"));
 const activities_1 = __importDefault(require("./routes/activities"));
 const activity_logs_1 = __importDefault(require("./routes/activity-logs"));
 const achievements_1 = __importDefault(require("./routes/achievements"));
 const reports_1 = __importDefault(require("./routes/reports"));
 const notifications_1 = __importDefault(require("./routes/notifications"));
+const parents_1 = __importDefault(require("./routes/parents"));
 // Create Express app
 const app = (0, express_1.default)();
 /**
@@ -100,13 +102,15 @@ if (config_1.default.app.env !== 'test') {
 /**
  * Health check endpoint
  */
-app.get('/health', (_req, res) => {
+const healthHandler = (_req, res) => {
     res.json({
         status: 'healthy',
         timestamp: new Date().toISOString(),
         version: config_1.default.app.version,
     });
-});
+};
+app.get('/health', healthHandler);
+app.get('/api/health', healthHandler);
 /**
  * API Routes
  */
@@ -114,12 +118,14 @@ app.use('/api/auth', auth_1.default);
 app.use('/api/admin', admin_1.default);
 app.use('/api/students', students_1.default);
 app.use('/api/teachers', teachers_1.default);
+app.use('/api/teacher', teacher_portal_1.default);
 app.use('/api/academics', academics_1.default);
 app.use('/api/activities', activities_1.default);
 app.use('/api/activity-logs', activity_logs_1.default);
 app.use('/api/achievements', achievements_1.default);
 app.use('/api/reports', reports_1.default);
 app.use('/api/notifications', notifications_1.default);
+app.use('/api/parents', parents_1.default);
 /**
  * 404 Handler
  */

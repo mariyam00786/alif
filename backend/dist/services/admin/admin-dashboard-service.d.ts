@@ -4,6 +4,7 @@ export interface AdminDashboardSnapshot {
     students: DatabaseRow[];
     teachers: DatabaseRow[];
     batchClasses: DatabaseRow[];
+    classes: DatabaseRow[];
     activities: DatabaseRow[];
     ratingRules: DatabaseRow[];
     reports: DatabaseRow[];
