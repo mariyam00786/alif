@@ -55,7 +55,6 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
   final _phoneController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _instituteCodeController = TextEditingController();
   final _nameController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
 
@@ -64,7 +63,6 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
     _phoneController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
-    _instituteCodeController.dispose();
     _nameController.dispose();
     super.dispose();
   }
@@ -444,8 +442,6 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
               _buildNameField(isMalayalam),
               SizedBox(height: SpacingScale.md),
             ],
-            _buildInstituteCodeField(isMalayalam),
-            SizedBox(height: SpacingScale.md),
             AlifInput(
               label: isMalayalam ? 'ഫോൺ നമ്പർ' : 'Phone Number',
               placeholder: '98XXXXXXXX',
@@ -524,8 +520,6 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
               _buildNameField(isMalayalam),
               SizedBox(height: SpacingScale.md),
             ],
-            _buildInstituteCodeField(isMalayalam),
-            SizedBox(height: SpacingScale.md),
             AlifInput(
               label: isMalayalam ? 'ഇമെയിൽ' : 'Email',
               placeholder: 'you@example.com',
@@ -574,22 +568,6 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildInstituteCodeField(bool isMalayalam) {
-    return AlifInput(
-      label: isMalayalam ? 'ഇൻസ്റ്റിറ്റ്യൂട്ട് കോഡ്' : 'Institute Code',
-      placeholder: isMalayalam
-          ? 'ഇൻസ്റ്റിറ്റ്യൂട്ട് കോഡ് നൽകുക'
-          : 'Enter Institute Code',
-      type: InputType.text,
-      controller: _instituteCodeController,
-      required: false,
-      validator: null,
-      isMalayalam: isMalayalam,
-      textCapitalization: TextCapitalization.characters,
-      onChanged: (_) => _clearError(),
     );
   }
 
