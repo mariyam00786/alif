@@ -1184,9 +1184,9 @@ class _DailyMarkingScreenState extends State<DailyMarkingScreen> {
   Color _ratingColor(int i) {
     const colors = [
       Color(0xFFDC2626), // Not Done / Missed — red
-      Color(0xFFE0A82E), // Needs Improvement — amber
-      Color(0xFF14B8A6), // Good / On time — teal
-      Color(0xFF0F766E), // Excellent / Jama'ah — deep teal
+      Color(0xFFE53935), // Needs Improvement — red
+      Color(0xFFFB8C00), // Good / On time — orange
+      Color(0xFF2E7D32), // Excellent / Jama'ah — green
     ];
     return (i >= 0 && i < colors.length) ? colors[i] : kMuted;
   }
