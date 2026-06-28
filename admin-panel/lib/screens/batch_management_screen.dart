@@ -663,9 +663,7 @@ class _BatchFormSheetState extends State<BatchFormSheet> {
     final theme = Theme.of(context);
     return DropdownButtonFormField<RecordStatus>(
       initialValue: _status,
-      style: theme.textTheme.bodyLarge?.copyWith(
-        fontWeight: FontWeight.normal,
-      ),
+      style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.normal),
       decoration: const InputDecoration(labelText: 'Status'),
       items: RecordStatus.values
           .map((s) => DropdownMenuItem(value: s, child: Text(s.name)))
@@ -684,9 +682,7 @@ class _BatchFormSheetState extends State<BatchFormSheet> {
     return DropdownButtonFormField<String>(
       initialValue: value,
       isExpanded: true,
-      style: theme.textTheme.bodyLarge?.copyWith(
-        fontWeight: FontWeight.normal,
-      ),
+      style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.normal),
       decoration: InputDecoration(labelText: label),
       items: options
           .map((o) => DropdownMenuItem(value: o, child: Text(o)))

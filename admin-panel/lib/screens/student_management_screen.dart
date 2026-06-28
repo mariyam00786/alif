@@ -541,7 +541,10 @@ class _StudentFormSheetState extends State<StudentFormSheet> {
   void _submit() {
     if (!_formKey.currentState!.validate()) return;
     if (_batch == null || _dob == null || _gender == null) {
-      showInlineMessage(context, 'Please complete batch, date of birth, and gender.');
+      showInlineMessage(
+        context,
+        'Please complete batch, date of birth, and gender.',
+      );
       return;
     }
     final e = widget.existing;
@@ -800,9 +803,7 @@ class _StudentFormSheetState extends State<StudentFormSheet> {
     final theme = Theme.of(context);
     return DropdownButtonFormField<Gender>(
       initialValue: _gender,
-      style: theme.textTheme.bodyLarge?.copyWith(
-        fontWeight: FontWeight.normal,
-      ),
+      style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.normal),
       decoration: const InputDecoration(
         labelText: 'Gender *',
         hintText: 'Select Gender',
@@ -821,9 +822,7 @@ class _StudentFormSheetState extends State<StudentFormSheet> {
     final theme = Theme.of(context);
     return DropdownButtonFormField<RecordStatus>(
       initialValue: _status,
-      style: theme.textTheme.bodyLarge?.copyWith(
-        fontWeight: FontWeight.normal,
-      ),
+      style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.normal),
       decoration: const InputDecoration(labelText: 'Status'),
       items: RecordStatus.values
           .map((s) => DropdownMenuItem(value: s, child: Text(s.name)))
@@ -842,9 +841,7 @@ class _StudentFormSheetState extends State<StudentFormSheet> {
     return DropdownButtonFormField<String>(
       initialValue: value,
       isExpanded: true,
-      style: theme.textTheme.bodyLarge?.copyWith(
-        fontWeight: FontWeight.normal,
-      ),
+      style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.normal),
       decoration: InputDecoration(labelText: label),
       items: options
           .map((o) => DropdownMenuItem(value: o, child: Text(o)))

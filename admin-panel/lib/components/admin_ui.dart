@@ -439,7 +439,7 @@ class CompactFilterDropdown extends StatelessWidget {
               style: theme.textTheme.bodyMedium?.copyWith(
                 fontSize: 13,
                 color: const Color(0xFF374151),
-                fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.normal,
               ),
               items: options
                   .map(
