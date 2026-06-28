@@ -38,6 +38,9 @@ class _RatingConfigurationScreenState extends State<RatingConfigurationScreen> {
     'Blue': Color(0xFF1E88E5),
   };
 
+  // Track which activity groups are expanded/collapsed
+  final Set<String> _expandedGroups = {};
+
   Color _colorFor(String name) {
     if (name.startsWith('#')) {
       final hex = name.replaceAll('#', '');
@@ -150,56 +153,95 @@ class _RatingConfigurationScreenState extends State<RatingConfigurationScreen> {
         else
           for (final activity in groupNames)
             Card(
-              child: Padding(
-                padding: const EdgeInsets.all(AdminSpacing.md),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              margin: const EdgeInsets.only(bottom: AdminSpacing.md),
+              child: Theme(
+                data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                child: ExpansionTile(
+                  initiallyExpanded: _expandedGroups.contains(activity) || _expandedGroups.isEmpty,
+                  onExpansionChanged: (expanded) {
+                    setState(() {
+                      if (expanded) {
+                        _expandedGroups.add(activity);
+                      } else {
+                        _expandedGroups.remove(activity);
+                      }
+                    });
+                  },
+                  leading: Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(
+                      Icons.assignment_rounded,
+                      color: Theme.of(context).colorScheme.primary,
+                      size: 18,
+                    ),
+                  ),
+                  title: Text(
+                    activity,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: const Color(0xFF111827),
+                        ),
+                  ),
+                  subtitle: Text(
+                    '${groups[activity]!.length} score bands configured',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: const Color(0xFF6B7280),
+                          fontWeight: FontWeight.w500,
+                        ),
+                  ),
                   children: [
                     Padding(
                       padding: const EdgeInsets.fromLTRB(
-                        AdminSpacing.xs,
-                        AdminSpacing.xs,
-                        AdminSpacing.xs,
-                        AdminSpacing.sm,
+                        AdminSpacing.md,
+                        0,
+                        AdminSpacing.md,
+                        AdminSpacing.md,
                       ),
-                      child: Text(
-                        activity,
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.w700),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Divider(height: 1, color: Color(0xFFE5E7EB)),
+                          const SizedBox(height: AdminSpacing.sm),
+                          for (var i = 0; i < groups[activity]!.length; i++)
+                            Dismissible(
+                              key: ValueKey(
+                                'rating-${groups[activity]![i].id}-$activity',
+                              ),
+                              direction: DismissDirection.horizontal,
+                              background: const _SwipeActionBackground(
+                                icon: Icons.edit_outlined,
+                                label: 'Edit',
+                                color: Color(0xFF0F766E),
+                                alignment: Alignment.centerLeft,
+                              ),
+                              secondaryBackground: const _SwipeActionBackground(
+                                icon: Icons.delete_outline,
+                                label: 'Delete',
+                                color: Color(0xFFDC2626),
+                                alignment: Alignment.centerRight,
+                              ),
+                              confirmDismiss: (direction) async {
+                                final rule = groups[activity]![i];
+                                if (direction == DismissDirection.startToEnd) {
+                                  await _openForm(existing: rule);
+                                } else {
+                                  await _confirmDelete(rule);
+                                }
+                                return false;
+                              },
+                              child: _RatingTile(
+                                rule: groups[activity]![i],
+                                color: _colorFor(groups[activity]![i].colorName),
+                              ),
+                            ),
+                        ],
                       ),
                     ),
-                    for (var i = 0; i < groups[activity]!.length; i++)
-                      Dismissible(
-                        key: ValueKey(
-                          'rating-${groups[activity]![i].id}-$activity',
-                        ),
-                        direction: DismissDirection.horizontal,
-                        background: const _SwipeActionBackground(
-                          icon: Icons.edit_outlined,
-                          label: 'Edit',
-                          color: Color(0xFF0F766E),
-                          alignment: Alignment.centerLeft,
-                        ),
-                        secondaryBackground: const _SwipeActionBackground(
-                          icon: Icons.delete_outline,
-                          label: 'Delete',
-                          color: Color(0xFFDC2626),
-                          alignment: Alignment.centerRight,
-                        ),
-                        confirmDismiss: (direction) async {
-                          final rule = groups[activity]![i];
-                          if (direction == DismissDirection.startToEnd) {
-                            await _openForm(existing: rule);
-                          } else {
-                            await _confirmDelete(rule);
-                          }
-                          return false;
-                        },
-                        child: _RatingTile(
-                          rule: groups[activity]![i],
-                          color: _colorFor(groups[activity]![i].colorName),
-                        ),
-                      ),
                   ],
                 ),
               ),
@@ -484,13 +526,13 @@ class _RatingFormSheetState extends State<RatingFormSheet> {
                         child: child,
                       );
                       return Wrap(
-                        spacing: AdminSpacing.lg,
-                        runSpacing: AdminSpacing.lg,
+                        spacing: AdminSpacing.md,
+                        runSpacing: AdminSpacing.md,
                         children: [
-                          field(_text(_label, 'Label *', validator: _required)),
+                          field(_text(_label, 'Label *', validator: _required, textCapitalization: TextCapitalization.words)),
                           field(
                             _text(
-                              _min,
+                              _minScore,
                               'Min Score *',
                               keyboardType: TextInputType.number,
                               validator: _requiredNumber,
@@ -498,7 +540,7 @@ class _RatingFormSheetState extends State<RatingFormSheet> {
                           ),
                           field(
                             _text(
-                              _max,
+                              _maxScore,
                               'Max Score *',
                               keyboardType: TextInputType.number,
                               validator: _requiredNumber,
@@ -507,16 +549,9 @@ class _RatingFormSheetState extends State<RatingFormSheet> {
                           field(_colorField()),
                           SizedBox(
                             width: constraints.maxWidth,
-                            child: Material(
-                              type: MaterialType.transparency,
-                              child: SwitchListTile.adaptive(
-                                contentPadding: EdgeInsets.zero,
-                                activeThumbColor: theme.colorScheme.primary,
-                                value: _isDefault,
-                                onChanged: (v) =>
-                                    setState(() => _isDefault = v),
-                                title: const Text('Set as default band'),
-                              ),
+                            child: _text(
+                              _description,
+                              'Description',
                             ),
                           ),
                         ],
@@ -530,10 +565,10 @@ class _RatingFormSheetState extends State<RatingFormSheet> {
               top: false,
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(
-                  AdminSpacing.xl,
+                  AdminSpacing.md + 2,
                   AdminSpacing.xs,
-                  AdminSpacing.xl,
-                  AdminSpacing.lg,
+                  AdminSpacing.md + 2,
+                  AdminSpacing.md,
                 ),
                 child: Row(
                   children: [
@@ -547,7 +582,7 @@ class _RatingFormSheetState extends State<RatingFormSheet> {
                     Expanded(
                       child: ElevatedButton(
                         onPressed: _submit,
-                        child: Text(isEdit ? 'Save Changes' : 'Add Band'),
+                        child: Text(isEdit ? 'Save Changes' : 'Add Rating Band'),
                       ),
                     ),
                   ],
@@ -574,19 +609,25 @@ class _RatingFormSheetState extends State<RatingFormSheet> {
     String label, {
     String? Function(String?)? validator,
     TextInputType? keyboardType,
+    TextCapitalization textCapitalization = TextCapitalization.none,
   }) {
     return TextFormField(
       controller: controller,
       validator: validator,
       keyboardType: keyboardType,
+      textCapitalization: textCapitalization,
       decoration: InputDecoration(labelText: label),
     );
   }
 
   Widget _colorField() {
+    final theme = Theme.of(context);
     return DropdownButtonFormField<String>(
       initialValue: _color,
       isExpanded: true,
+      style: theme.textTheme.bodyLarge?.copyWith(
+        fontWeight: FontWeight.normal,
+      ),
       decoration: const InputDecoration(labelText: 'Colour'),
       items: widget.colors
           .map((c) => DropdownMenuItem(value: c, child: Text(c)))
