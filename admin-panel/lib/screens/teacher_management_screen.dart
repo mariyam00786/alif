@@ -752,9 +752,7 @@ class _TeacherFormSheetState extends State<TeacherFormSheet> {
     final theme = Theme.of(context);
     return DropdownButtonFormField<RecordStatus>(
       initialValue: _status,
-      style: theme.textTheme.bodyLarge?.copyWith(
-        fontWeight: FontWeight.normal,
-      ),
+      style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.normal),
       decoration: const InputDecoration(labelText: 'Status'),
       items: RecordStatus.values
           .map((s) => DropdownMenuItem(value: s, child: Text(s.name)))

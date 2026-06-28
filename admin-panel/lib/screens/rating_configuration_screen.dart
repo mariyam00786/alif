@@ -155,9 +155,13 @@ class _RatingConfigurationScreenState extends State<RatingConfigurationScreen> {
             Card(
               margin: const EdgeInsets.only(bottom: AdminSpacing.md),
               child: Theme(
-                data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                data: Theme.of(
+                  context,
+                ).copyWith(dividerColor: Colors.transparent),
                 child: ExpansionTile(
-                  initiallyExpanded: _expandedGroups.contains(activity) || _expandedGroups.isEmpty,
+                  initiallyExpanded:
+                      _expandedGroups.contains(activity) ||
+                      _expandedGroups.isEmpty,
                   onExpansionChanged: (expanded) {
                     setState(() {
                       if (expanded) {
@@ -171,7 +175,9 @@ class _RatingConfigurationScreenState extends State<RatingConfigurationScreen> {
                     width: 36,
                     height: 36,
                     decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.primary.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Icon(
@@ -183,16 +189,16 @@ class _RatingConfigurationScreenState extends State<RatingConfigurationScreen> {
                   title: Text(
                     activity,
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w800,
-                          color: const Color(0xFF111827),
-                        ),
+                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFF111827),
+                    ),
                   ),
                   subtitle: Text(
                     '${groups[activity]!.length} score bands configured',
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: const Color(0xFF6B7280),
-                          fontWeight: FontWeight.w500,
-                        ),
+                      color: const Color(0xFF6B7280),
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                   children: [
                     Padding(
@@ -236,7 +242,9 @@ class _RatingConfigurationScreenState extends State<RatingConfigurationScreen> {
                               },
                               child: _RatingTile(
                                 rule: groups[activity]![i],
-                                color: _colorFor(groups[activity]![i].colorName),
+                                color: _colorFor(
+                                  groups[activity]![i].colorName,
+                                ),
                               ),
                             ),
                         ],
@@ -582,7 +590,9 @@ class _RatingFormSheetState extends State<RatingFormSheet> {
                     Expanded(
                       child: ElevatedButton(
                         onPressed: _submit,
-                        child: Text(isEdit ? 'Save Changes' : 'Add Rating Band'),
+                        child: Text(
+                          isEdit ? 'Save Changes' : 'Add Rating Band',
+                        ),
                       ),
                     ),
                   ],
@@ -625,9 +635,7 @@ class _RatingFormSheetState extends State<RatingFormSheet> {
     return DropdownButtonFormField<String>(
       initialValue: _color,
       isExpanded: true,
-      style: theme.textTheme.bodyLarge?.copyWith(
-        fontWeight: FontWeight.normal,
-      ),
+      style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.normal),
       decoration: const InputDecoration(labelText: 'Colour'),
       items: widget.colors
           .map((c) => DropdownMenuItem(value: c, child: Text(c)))
