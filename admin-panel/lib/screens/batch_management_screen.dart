@@ -558,6 +558,7 @@ class _BatchFormSheetState extends State<BatchFormSheet> {
                               _name,
                               'Batch Name *',
                               validator: _required,
+                              textCapitalization: TextCapitalization.words,
                             ),
                           ),
                           field(
@@ -647,18 +648,24 @@ class _BatchFormSheetState extends State<BatchFormSheet> {
     String label, {
     String? Function(String?)? validator,
     TextInputType? keyboardType,
+    TextCapitalization textCapitalization = TextCapitalization.none,
   }) {
     return TextFormField(
       controller: controller,
       validator: validator,
       keyboardType: keyboardType,
+      textCapitalization: textCapitalization,
       decoration: InputDecoration(labelText: label),
     );
   }
 
   Widget _statusField() {
+    final theme = Theme.of(context);
     return DropdownButtonFormField<RecordStatus>(
       initialValue: _status,
+      style: theme.textTheme.bodyLarge?.copyWith(
+        fontWeight: FontWeight.normal,
+      ),
       decoration: const InputDecoration(labelText: 'Status'),
       items: RecordStatus.values
           .map((s) => DropdownMenuItem(value: s, child: Text(s.name)))
@@ -673,9 +680,13 @@ class _BatchFormSheetState extends State<BatchFormSheet> {
     List<String> options,
     ValueChanged<String?> onChanged,
   ) {
+    final theme = Theme.of(context);
     return DropdownButtonFormField<String>(
       initialValue: value,
       isExpanded: true,
+      style: theme.textTheme.bodyLarge?.copyWith(
+        fontWeight: FontWeight.normal,
+      ),
       decoration: InputDecoration(labelText: label),
       items: options
           .map((o) => DropdownMenuItem(value: o, child: Text(o)))

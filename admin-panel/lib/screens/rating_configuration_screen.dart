@@ -529,10 +529,17 @@ class _RatingFormSheetState extends State<RatingFormSheet> {
                         spacing: AdminSpacing.md,
                         runSpacing: AdminSpacing.md,
                         children: [
-                          field(_text(_label, 'Label *', validator: _required, textCapitalization: TextCapitalization.words)),
                           field(
                             _text(
-                              _minScore,
+                              _label,
+                              'Label *',
+                              validator: _required,
+                              textCapitalization: TextCapitalization.words,
+                            ),
+                          ),
+                          field(
+                            _text(
+                              _min,
                               'Min Score *',
                               keyboardType: TextInputType.number,
                               validator: _requiredNumber,
@@ -540,20 +547,13 @@ class _RatingFormSheetState extends State<RatingFormSheet> {
                           ),
                           field(
                             _text(
-                              _maxScore,
+                              _max,
                               'Max Score *',
                               keyboardType: TextInputType.number,
                               validator: _requiredNumber,
                             ),
                           ),
                           field(_colorField()),
-                          SizedBox(
-                            width: constraints.maxWidth,
-                            child: _text(
-                              _description,
-                              'Description',
-                            ),
-                          ),
                         ],
                       );
                     },

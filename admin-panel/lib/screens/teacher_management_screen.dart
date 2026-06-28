@@ -647,6 +647,7 @@ class _TeacherFormSheetState extends State<TeacherFormSheet> {
                               _name,
                               'Teacher Name *',
                               validator: _required,
+                              textCapitalization: TextCapitalization.words,
                             ),
                           ),
                           field(
@@ -735,19 +736,25 @@ class _TeacherFormSheetState extends State<TeacherFormSheet> {
     String? Function(String?)? validator,
     TextInputType? keyboardType,
     int maxLines = 1,
+    TextCapitalization textCapitalization = TextCapitalization.none,
   }) {
     return TextFormField(
       controller: controller,
       validator: validator,
       keyboardType: keyboardType,
       maxLines: maxLines,
+      textCapitalization: textCapitalization,
       decoration: InputDecoration(labelText: label),
     );
   }
 
   Widget _statusField() {
+    final theme = Theme.of(context);
     return DropdownButtonFormField<RecordStatus>(
       initialValue: _status,
+      style: theme.textTheme.bodyLarge?.copyWith(
+        fontWeight: FontWeight.normal,
+      ),
       decoration: const InputDecoration(labelText: 'Status'),
       items: RecordStatus.values
           .map((s) => DropdownMenuItem(value: s, child: Text(s.name)))
