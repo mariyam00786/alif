@@ -495,7 +495,7 @@ class _StudentFormSheetState extends State<StudentFormSheet> {
   late final TextEditingController _mother;
   late final TextEditingController _address;
   DateTime? _dob;
-  Gender _gender = Gender.male;
+  Gender? _gender;
   String? _batch;
   String? _className;
   RecordStatus _status = RecordStatus.active;
@@ -511,7 +511,7 @@ class _StudentFormSheetState extends State<StudentFormSheet> {
     _mother = TextEditingController(text: e?.motherName ?? '');
     _address = TextEditingController(text: e?.address ?? '');
     _dob = e?.dateOfBirth;
-    _gender = e?.gender ?? Gender.male;
+    _gender = e?.gender;
     _batch = e?.batch.isNotEmpty == true ? e?.batch : null;
     _className = e?.className.isNotEmpty == true ? e?.className : null;
     _status = e?.status ?? RecordStatus.active;
@@ -540,8 +540,8 @@ class _StudentFormSheetState extends State<StudentFormSheet> {
 
   void _submit() {
     if (!_formKey.currentState!.validate()) return;
-    if (_batch == null || _dob == null) {
-      showInlineMessage(context, 'Please complete batch and date of birth.');
+    if (_batch == null || _dob == null || _gender == null) {
+      showInlineMessage(context, 'Please complete batch, date of birth, and gender.');
       return;
     }
     final e = widget.existing;
@@ -553,7 +553,7 @@ class _StudentFormSheetState extends State<StudentFormSheet> {
       fatherName: _father.text.trim(),
       motherName: _mother.text.trim(),
       dateOfBirth: _dob,
-      gender: _gender,
+      gender: _gender!,
       batch: _batch!,
       className: _className ?? '',
       address: _address.text.trim(),
@@ -649,6 +649,7 @@ class _StudentFormSheetState extends State<StudentFormSheet> {
                               _name,
                               'Student Name *',
                               validator: _required,
+                              textCapitalization: TextCapitalization.words,
                             ),
                           ),
                           field(
@@ -672,6 +673,7 @@ class _StudentFormSheetState extends State<StudentFormSheet> {
                               _father,
                               "Father's Name *",
                               validator: _required,
+                              textCapitalization: TextCapitalization.words,
                             ),
                           ),
                           field(
@@ -679,6 +681,7 @@ class _StudentFormSheetState extends State<StudentFormSheet> {
                               _mother,
                               "Mother's Name *",
                               validator: _required,
+                              textCapitalization: TextCapitalization.words,
                             ),
                           ),
                           field(_dobField()),
@@ -762,12 +765,14 @@ class _StudentFormSheetState extends State<StudentFormSheet> {
     String? Function(String?)? validator,
     TextInputType? keyboardType,
     int maxLines = 1,
+    TextCapitalization textCapitalization = TextCapitalization.none,
   }) {
     return TextFormField(
       controller: controller,
       validator: validator,
       keyboardType: keyboardType,
       maxLines: maxLines,
+      textCapitalization: textCapitalization,
       decoration: InputDecoration(labelText: label),
     );
   }
@@ -792,20 +797,33 @@ class _StudentFormSheetState extends State<StudentFormSheet> {
   }
 
   Widget _genderField() {
+    final theme = Theme.of(context);
     return DropdownButtonFormField<Gender>(
       initialValue: _gender,
-      decoration: const InputDecoration(labelText: 'Gender *'),
+      style: theme.textTheme.bodyLarge?.copyWith(
+        fontWeight: FontWeight.normal,
+      ),
+      decoration: const InputDecoration(
+        labelText: 'Gender *',
+        hintText: 'Select Gender',
+      ),
+      hint: const Text('Select Gender'),
       items: const [
         DropdownMenuItem(value: Gender.male, child: Text('Male')),
         DropdownMenuItem(value: Gender.female, child: Text('Female')),
       ],
-      onChanged: (v) => setState(() => _gender = v ?? Gender.male),
+      onChanged: (v) => setState(() => _gender = v),
+      validator: (v) => v == null ? 'Required' : null,
     );
   }
 
   Widget _statusField() {
+    final theme = Theme.of(context);
     return DropdownButtonFormField<RecordStatus>(
       initialValue: _status,
+      style: theme.textTheme.bodyLarge?.copyWith(
+        fontWeight: FontWeight.normal,
+      ),
       decoration: const InputDecoration(labelText: 'Status'),
       items: RecordStatus.values
           .map((s) => DropdownMenuItem(value: s, child: Text(s.name)))
@@ -820,9 +838,13 @@ class _StudentFormSheetState extends State<StudentFormSheet> {
     List<String> options,
     ValueChanged<String?> onChanged,
   ) {
+    final theme = Theme.of(context);
     return DropdownButtonFormField<String>(
       initialValue: value,
       isExpanded: true,
+      style: theme.textTheme.bodyLarge?.copyWith(
+        fontWeight: FontWeight.normal,
+      ),
       decoration: InputDecoration(labelText: label),
       items: options
           .map((o) => DropdownMenuItem(value: o, child: Text(o)))
