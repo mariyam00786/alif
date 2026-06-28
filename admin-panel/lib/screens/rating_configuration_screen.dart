@@ -38,7 +38,25 @@ class _RatingConfigurationScreenState extends State<RatingConfigurationScreen> {
     'Blue': Color(0xFF1E88E5),
   };
 
-  Color _colorFor(String name) => _palette[name] ?? const Color(0xFF2E7D32);
+  Color _colorFor(String name) {
+    if (name.startsWith('#')) {
+      final hex = name.replaceAll('#', '');
+      if (hex.length == 6) {
+        return Color(int.parse('FF$hex', radix: 16));
+      } else if (hex.length == 8) {
+        return Color(int.parse(hex, radix: 16));
+      }
+    }
+    // Try to find a matching name in the palette (case-insensitive)
+    final matchedKey = _palette.keys.firstWhere(
+      (k) => k.toLowerCase() == name.toLowerCase(),
+      orElse: () => '',
+    );
+    if (matchedKey.isNotEmpty) {
+      return _palette[matchedKey]!;
+    }
+    return const Color(0xFF2E7D32);
+  }
 
   Future<void> _openForm({RatingRule? existing}) async {
     final result = await showModalBottomSheet<RatingRule>(
