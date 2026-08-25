@@ -1,0 +1,28 @@
+{
+  "name": "alif-school-monorepo",
+  "version": "1.0.0",
+  "description": "Alif Online Moral School - Complete Application",
+  "private": true,
+  "scripts": {
+    "install-all": "npm install && cd backend && npm install && cd ../design-system && npm install",
+    "backend:dev": "cd backend && npm run dev",
+    "backend:build": "cd backend && npm run build",
+    "backend:start": "cd backend && npm start",
+    "backend:test": "cd backend && npm test",
+    "design-system:build": "cd design-system && npm run build",
+    "lint": "cd backend && npm run lint",
+    "test": "cd backend && npm test"
+  },
+  "workspaces": [
+    "backend",
+    "design-system"
+  ],
+  "dependencies": {
+    "puppeteer": "^25.1.0",
+    "zod": "^4.4.3"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  }
+}
