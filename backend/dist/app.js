@@ -82,7 +82,8 @@ app.use((0, cors_1.default)({
         const isConfiguredOrigin = config_1.default.cors.origins.includes(origin);
         const isDevLoopbackOrigin = config_1.default.app.env !== 'production' &&
             /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin);
-        if (isConfiguredOrigin || isDevLoopbackOrigin) {
+        const isVercelOrigin = /\.vercel\.app$/i.test(origin);
+        if (isConfiguredOrigin || isDevLoopbackOrigin || isVercelOrigin || !config_1.default.cors.origins.length) {
             callback(null, true);
             return;
         }
@@ -102,8 +103,25 @@ if (config_1.default.app.env !== 'test') {
     app.use((0, morgan_1.default)('combined'));
 }
 /**
- * Health check endpoint
+ * Root Welcome & Health check endpoints
  */
+app.get('/', (_req, res) => {
+    res.json({
+        name: 'Alif Online Moral School API',
+        status: 'online',
+        version: config_1.default.app.version,
+        environment: config_1.default.app.env,
+        timestamp: new Date().toISOString(),
+        endpoints: {
+            health: '/api/health',
+            auth: '/api/auth',
+            students: '/api/students',
+            teachers: '/api/teacher',
+            parents: '/api/parents',
+            activities: '/api/activities',
+        },
+    });
+});
 const healthHandler = (_req, res) => {
     res.json({
         status: 'healthy',

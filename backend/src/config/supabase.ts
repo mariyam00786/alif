@@ -51,13 +51,18 @@ let supabaseClient: SupabaseClient | null = null;
  */
 export function getSupabaseClient(): SupabaseClient {
   if (!supabaseClient) {
-    if (!config.supabase.url || !config.supabase.serviceKey) {
-      throw new Error('Supabase configuration is missing. Please check your .env file.');
+    const hasConfig = Boolean(config.supabase.url && config.supabase.serviceKey);
+    if (!hasConfig) {
+      console.warn('⚠️ Supabase configuration missing. Falling back to offline mock mode.');
+      markSupabaseOffline();
     }
 
+    const url = config.supabase.url || 'https://placeholder-offline.supabase.co';
+    const key = config.supabase.serviceKey || 'placeholder-service-key';
+
     supabaseClient = createClient(
-      config.supabase.url,
-      config.supabase.serviceKey,
+      url,
+      key,
       {
         auth: {
           autoRefreshToken: false,
@@ -77,17 +82,19 @@ export function getSupabaseClient(): SupabaseClient {
  * Get Supabase client with anon key (for client-side operations)
  */
 export function getSupabaseAnonClient(): SupabaseClient {
-  if (!config.supabase.url || !config.supabase.anonKey) {
-    throw new Error('Supabase configuration is missing. Please check your .env file.');
-  }
+  const url = config.supabase.url || 'https://placeholder-offline.supabase.co';
+  const key = config.supabase.anonKey || 'placeholder-anon-key';
 
   return createClient(
-    config.supabase.url,
-    config.supabase.anonKey,
+    url,
+    key,
     {
       auth: {
         autoRefreshToken: true,
         persistSession: true,
+      },
+      global: {
+        fetch: safeFetch,
       },
     }
   );
@@ -98,13 +105,16 @@ export function getSupabaseAnonClient(): SupabaseClient {
  * Run this once during setup
  */
 export async function initializeSupabaseSchema(): Promise<void> {
+  if (!config.supabase.url || !config.supabase.serviceKey) {
+    console.warn('⚠️ Skipping schema initialization: Supabase credentials not set.');
+    return;
+  }
+
   const client = getSupabaseClient();
 
   try {
     console.log('🔄 Initializing Supabase schema...');
 
-    // Schema will be created via migration files
-    // This is just a verification check
     const { error } = await client
       .from('profiles')
       .select('id', { count: 'exact', head: true });
@@ -119,7 +129,6 @@ export async function initializeSupabaseSchema(): Promise<void> {
     }
   } catch (error) {
     console.error('❌ Error initializing Supabase schema:', error);
-    throw error;
   }
 }
 

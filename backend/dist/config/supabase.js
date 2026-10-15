@@ -52,10 +52,14 @@ let supabaseClient = null;
  */
 function getSupabaseClient() {
     if (!supabaseClient) {
-        if (!config_1.default.supabase.url || !config_1.default.supabase.serviceKey) {
-            throw new Error('Supabase configuration is missing. Please check your .env file.');
+        const hasConfig = Boolean(config_1.default.supabase.url && config_1.default.supabase.serviceKey);
+        if (!hasConfig) {
+            console.warn('⚠️ Supabase configuration missing. Falling back to offline mock mode.');
+            markSupabaseOffline();
         }
-        supabaseClient = (0, supabase_js_1.createClient)(config_1.default.supabase.url, config_1.default.supabase.serviceKey, {
+        const url = config_1.default.supabase.url || 'https://placeholder-offline.supabase.co';
+        const key = config_1.default.supabase.serviceKey || 'placeholder-service-key';
+        supabaseClient = (0, supabase_js_1.createClient)(url, key, {
             auth: {
                 autoRefreshToken: false,
                 persistSession: false,
@@ -71,13 +75,15 @@ function getSupabaseClient() {
  * Get Supabase client with anon key (for client-side operations)
  */
 function getSupabaseAnonClient() {
-    if (!config_1.default.supabase.url || !config_1.default.supabase.anonKey) {
-        throw new Error('Supabase configuration is missing. Please check your .env file.');
-    }
-    return (0, supabase_js_1.createClient)(config_1.default.supabase.url, config_1.default.supabase.anonKey, {
+    const url = config_1.default.supabase.url || 'https://placeholder-offline.supabase.co';
+    const key = config_1.default.supabase.anonKey || 'placeholder-anon-key';
+    return (0, supabase_js_1.createClient)(url, key, {
         auth: {
             autoRefreshToken: true,
             persistSession: true,
+        },
+        global: {
+            fetch: safeFetch,
         },
     });
 }
@@ -86,11 +92,13 @@ function getSupabaseAnonClient() {
  * Run this once during setup
  */
 async function initializeSupabaseSchema() {
+    if (!config_1.default.supabase.url || !config_1.default.supabase.serviceKey) {
+        console.warn('⚠️ Skipping schema initialization: Supabase credentials not set.');
+        return;
+    }
     const client = getSupabaseClient();
     try {
         console.log('🔄 Initializing Supabase schema...');
-        // Schema will be created via migration files
-        // This is just a verification check
         const { error } = await client
             .from('profiles')
             .select('id', { count: 'exact', head: true });
@@ -107,7 +115,6 @@ async function initializeSupabaseSchema() {
     }
     catch (error) {
         console.error('❌ Error initializing Supabase schema:', error);
-        throw error;
     }
 }
 exports.default = getSupabaseClient();
