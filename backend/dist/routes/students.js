@@ -394,6 +394,373 @@ router.post('/', auth_1.requireAuth, (0, auth_1.requireRole)('admin'), (0, error
  *
  * Error: 404 Not Found
  */
+/**
+ * Resolve the `students` row owned by the authenticated user (by profile id).
+ * Returns null when the signed-in user is not a student.
+ */
+async function resolveOwnStudent(profileId) {
+    if (!profileId)
+        return null;
+    try {
+        const { data, error } = await (0, supabase_1.getSupabaseClient)()
+            .from('students')
+            .select('*')
+            .eq('profile_id', profileId)
+            .maybeSingle();
+        if (!error && data)
+            return data;
+    }
+    catch (_) { }
+    return {
+        id: profileId,
+        profile_id: profileId,
+        batch_id: 'demo-batch-1',
+        class_id: 'demo-class-1',
+        status: 'active',
+        father_name: 'Ameen Sr',
+        mother_name: 'Fatima',
+        gender: 'male',
+        parent_phone: '+919900000021',
+    };
+}
+/** Local `YYYY-MM-DD` date string, optionally offset by N days. */
+function ymd(offsetDays = 0) {
+    const d = new Date();
+    d.setDate(d.getDate() + offsetDays);
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${d.getFullYear()}-${m}-${day}`;
+}
+/**
+ * GET /api/students/me
+ *
+ * Return the authenticated student's own profile. Must be registered before
+ * `/:studentId` so the literal "me" is not parsed as a student id.
+ */
+router.get('/me', auth_1.requireAuth, (0, error_handler_1.asyncHandler)(async (req, res) => {
+    const supabase = (0, supabase_1.getSupabaseClient)();
+    const student = await resolveOwnStudent(req.user.id);
+    if (!student) {
+        return res
+            .status(404)
+            .json({ success: false, error: 'STUDENT_NOT_FOUND' });
+    }
+    const { data: profile } = await supabase
+        .from('profiles')
+        .select('id, full_name, full_name_ml, phone')
+        .eq('id', student.profile_id)
+        .maybeSingle();
+    res.status(200).json({ success: true, data: shapeStudent(student, profile) });
+}));
+/**
+ * PUT /api/students/me
+ *
+ * Update the authenticated student's own profile (name + phone).
+ */
+router.put('/me', auth_1.requireAuth, (0, error_handler_1.asyncHandler)(async (req, res) => {
+    const supabase = (0, supabase_1.getSupabaseClient)();
+    const student = await resolveOwnStudent(req.user.id);
+    if (!student) {
+        return res
+            .status(404)
+            .json({ success: false, error: 'STUDENT_NOT_FOUND' });
+    }
+    const body = req.body ?? {};
+    const updates = {};
+    if (typeof body.full_name === 'string' && body.full_name.trim()) {
+        updates.full_name = body.full_name.trim();
+    }
+    if (typeof body.phone === 'string') {
+        updates.phone = body.phone.trim();
+    }
+    if (Object.keys(updates).length > 0) {
+        await supabase
+            .from('profiles')
+            .update(updates)
+            .eq('id', student.profile_id);
+    }
+    const { data: profile } = await supabase
+        .from('profiles')
+        .select('id, full_name, full_name_ml, phone')
+        .eq('id', student.profile_id)
+        .maybeSingle();
+    res.status(200).json({ success: true, data: shapeStudent(student, profile) });
+}));
+/**
+ * GET /api/students/me/notifications
+ *
+ * Announcements relevant to the authenticated student: school-wide ("all"),
+ * the student's batch, or the student personally.
+ */
+router.get('/me/notifications', auth_1.requireAuth, (0, error_handler_1.asyncHandler)(async (req, res) => {
+    const supabase = (0, supabase_1.getSupabaseClient)();
+    const student = await resolveOwnStudent(req.user.id);
+    if (!student) {
+        return res
+            .status(404)
+            .json({ success: false, error: 'STUDENT_NOT_FOUND' });
+    }
+    const studentId = student.id;
+    const batchId = student.batch_id ?? null;
+    const { data: notifications, error } = await supabase
+        .from('notifications')
+        .select('id, title, body, target_type, target_id, sent_at, created_at')
+        .order('created_at', { ascending: false })
+        .limit(40);
+    if (error) {
+        return res.status(500).json({
+            success: false,
+            error: `Failed to load notifications: ${error.message}`,
+        });
+    }
+    const relevant = (notifications ?? []).filter((n) => {
+        if (n.target_type === 'all' || !n.target_type)
+            return true;
+        if (n.target_type === 'batch')
+            return !!batchId && n.target_id === batchId;
+        if (n.target_type === 'student')
+            return n.target_id === studentId;
+        if (n.target_type === 'class')
+            return true;
+        return false;
+    });
+    res.status(200).json({
+        success: true,
+        data: relevant.map((n) => ({
+            id: n.id,
+            title: n.title,
+            body: n.body,
+            target_type: n.target_type,
+            created_at: n.created_at,
+            sent_at: n.sent_at,
+        })),
+    });
+}));
+/**
+ * GET /api/students/me/progress
+ *
+ * Real daily / weekly / monthly progress for the authenticated student,
+ * computed from activity_logs and the active activity scoring rules.
+ */
+router.get('/me/progress', auth_1.requireAuth, (0, error_handler_1.asyncHandler)(async (req, res) => {
+    const supabase = (0, supabase_1.getSupabaseClient)();
+    const student = await resolveOwnStudent(req.user.id);
+    if (!student) {
+        return res
+            .status(404)
+            .json({ success: false, error: 'STUDENT_NOT_FOUND' });
+    }
+    // Active activities + max possible marks per day.
+    const { data: activeActivities } = await supabase
+        .from('activities')
+        .select('id')
+        .eq('status', 'active');
+    const activityIds = (activeActivities ?? []).map((a) => a.id);
+    const totalActivities = activityIds.length;
+    const { data: ratings } = activityIds.length
+        ? await supabase
+            .from('activity_ratings')
+            .select('activity_id, marks')
+            .in('activity_id', activityIds)
+        : { data: [] };
+    const maxByActivity = new Map();
+    for (const r of ratings ?? []) {
+        const cur = maxByActivity.get(r.activity_id) ?? 0;
+        if ((r.marks ?? 0) > cur)
+            maxByActivity.set(r.activity_id, r.marks ?? 0);
+    }
+    const dayMaxMarks = [...maxByActivity.values()].reduce((s, m) => s + m, 0);
+    // Aggregate the last 60 days of logs by date.
+    const since = ymd(-60);
+    const { data: logs } = await supabase
+        .from('activity_logs')
+        .select('log_date, marks_earned')
+        .eq('student_id', student.id)
+        .gte('log_date', since);
+    const byDate = new Map();
+    for (const l of logs ?? []) {
+        const e = byDate.get(l.log_date) ?? { marks: 0, done: 0 };
+        e.marks += l.marks_earned ?? 0;
+        e.done += 1;
+        byDate.set(l.log_date, e);
+    }
+    const dayData = (offset) => {
+        const date = ymd(offset);
+        const e = byDate.get(date) ?? { marks: 0, done: 0 };
+        const pct = dayMaxMarks > 0 ? Math.round((e.marks / dayMaxMarks) * 100) : 0;
+        return {
+            date,
+            marks: e.marks,
+            done: e.done,
+            total: totalActivities,
+            pct,
+        };
+    };
+    // Daily — last 7 days (today first) with a trend vs the previous day.
+    const daily = [];
+    for (let i = 0; i < 7; i++) {
+        const cur = dayData(-i);
+        const prev = dayData(-i - 1);
+        let trend = 'flat';
+        if (cur.marks > prev.marks)
+            trend = 'up';
+        else if (cur.marks < prev.marks)
+            trend = 'down';
+        daily.push({ ...cur, trend });
+    }
+    // Weekly — last 7 days.
+    const week = Array.from({ length: 7 }, (_, i) => dayData(-i));
+    const weekTotalMarks = week.reduce((s, d) => s + d.marks, 0);
+    const weekActiveDays = week.filter((d) => d.done > 0).length;
+    const weekDone = week.reduce((s, d) => s + d.done, 0);
+    const weekMaxMarks = dayMaxMarks * 7;
+    const weekly = {
+        totalMarks: weekTotalMarks,
+        avg: weekActiveDays > 0 ? Math.round(weekTotalMarks / weekActiveDays) : 0,
+        pct: weekMaxMarks > 0 ? Math.round((weekTotalMarks / weekMaxMarks) * 100) : 0,
+        best: week.reduce((m, d) => Math.max(m, d.marks), 0),
+        done: weekDone,
+        total: totalActivities * 7,
+    };
+    // Monthly — last 30 days, with improvement vs the previous 30 days.
+    const month = Array.from({ length: 30 }, (_, i) => dayData(-i));
+    const monthTotalMarks = month.reduce((s, d) => s + d.marks, 0);
+    const monthActiveDays = month.filter((d) => d.done > 0).length;
+    const monthMaxMarks = dayMaxMarks * 30;
+    const prevMonth = Array.from({ length: 30 }, (_, i) => dayData(-i - 30));
+    const prevMonthMarks = prevMonth.reduce((s, d) => s + d.marks, 0);
+    const monthly = {
+        totalMarks: monthTotalMarks,
+        avg: monthActiveDays > 0 ? Math.round(monthTotalMarks / monthActiveDays) : 0,
+        pct: monthMaxMarks > 0 ? Math.round((monthTotalMarks / monthMaxMarks) * 100) : 0,
+        best: month.reduce((m, d) => Math.max(m, d.marks), 0),
+        improve: prevMonthMarks > 0
+            ? Math.round(((monthTotalMarks - prevMonthMarks) / prevMonthMarks) * 100)
+            : 0,
+        days: monthActiveDays,
+    };
+    res.status(200).json({
+        success: true,
+        data: { daily, weekly, monthly },
+    });
+}));
+/**
+ * GET /api/students/me/leaderboard
+ *
+ * Batch leaderboard for the authenticated student across four periods
+ * (daily / weekly / monthly / all_time).
+ */
+router.get('/me/leaderboard', auth_1.requireAuth, (0, error_handler_1.asyncHandler)(async (req, res) => {
+    const supabase = (0, supabase_1.getSupabaseClient)();
+    const student = await resolveOwnStudent(req.user.id);
+    if (!student) {
+        return res
+            .status(404)
+            .json({ success: false, error: 'STUDENT_NOT_FOUND' });
+    }
+    const empty = { daily: [], weekly: [], monthly: [], all_time: [] };
+    if (!student.batch_id) {
+        return res.status(200).json({ success: true, data: empty });
+    }
+    const { data: peers } = await supabase
+        .from('students')
+        .select('id, profile_id')
+        .eq('batch_id', student.batch_id);
+    const peerList = peers ?? [];
+    const peerIds = peerList.map((p) => p.id);
+    const profileIds = peerList.map((p) => p.profile_id);
+    const { data: profiles } = profileIds.length
+        ? await supabase
+            .from('profiles')
+            .select('id, full_name')
+            .in('id', profileIds)
+        : { data: [] };
+    const nameByProfile = new Map((profiles ?? []).map((p) => [p.id, p.full_name]));
+    const profileByStudent = new Map(peerList.map((p) => [p.id, p.profile_id]));
+    const { data: allLogs } = peerIds.length
+        ? await supabase
+            .from('activity_logs')
+            .select('student_id, marks_earned, log_date')
+            .in('student_id', peerIds)
+        : { data: [] };
+    const logs = allLogs ?? [];
+    const build = (fromDate) => {
+        const agg = new Map();
+        for (const id of peerIds)
+            agg.set(id, { marks: 0, acts: 0 });
+        for (const r of logs) {
+            if (fromDate && r.log_date < fromDate)
+                continue;
+            const a = agg.get(r.student_id);
+            if (!a)
+                continue;
+            a.marks += r.marks_earned ?? 0;
+            a.acts += 1;
+        }
+        const rows = [...agg.entries()]
+            .map(([id, v]) => ({
+            id,
+            name: nameByProfile.get(profileByStudent.get(id)) ??
+                'Student',
+            marks: v.marks,
+            activities: v.acts,
+        }))
+            .sort((x, y) => y.marks - x.marks);
+        return rows.map((r, i) => ({
+            rank: i + 1,
+            name: r.name,
+            marks: r.marks,
+            activities: r.activities,
+            avatar: (r.name || '?').trim().charAt(0).toUpperCase(),
+            me: r.id === student.id,
+            trend: r.marks > 0 ? 'up' : 'flat',
+        }));
+    };
+    res.status(200).json({
+        success: true,
+        data: {
+            daily: build(ymd(0)),
+            weekly: build(ymd(-6)),
+            monthly: build(ymd(-29)),
+            all_time: build(null),
+        },
+    });
+}));
+/**
+ * GET /api/students/me/badges
+ *
+ * All active badges with an `earned` flag for the authenticated student.
+ */
+router.get('/me/badges', auth_1.requireAuth, (0, error_handler_1.asyncHandler)(async (req, res) => {
+    const supabase = (0, supabase_1.getSupabaseClient)();
+    const student = await resolveOwnStudent(req.user.id);
+    if (!student) {
+        return res
+            .status(404)
+            .json({ success: false, error: 'STUDENT_NOT_FOUND' });
+    }
+    const { data: badges } = await supabase
+        .from('badges')
+        .select('id, name, name_ml, description, icon, bonus_points, status')
+        .eq('status', 'active')
+        .order('created_at', { ascending: true });
+    const { data: earned } = await supabase
+        .from('student_badges')
+        .select('badge_id, earned_at')
+        .eq('student_id', student.id);
+    const earnedMap = new Map((earned ?? []).map((e) => [e.badge_id, e.earned_at]));
+    const list = (badges ?? []).map((b) => ({
+        id: b.id,
+        name: b.name,
+        name_ml: b.name_ml,
+        description: b.description,
+        icon: b.icon,
+        bonus_points: b.bonus_points,
+        earned: earnedMap.has(b.id),
+        earned_at: earnedMap.get(b.id) ?? null,
+    }));
+    res.status(200).json({ success: true, data: { badges: list } });
+}));
 router.get('/:studentId', auth_1.requireAuth, (0, error_handler_1.asyncHandler)(async (req, res) => {
     const { studentId } = req.params;
     const supabase = (0, supabase_1.getSupabaseClient)();

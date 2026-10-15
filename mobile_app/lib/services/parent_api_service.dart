@@ -319,9 +319,34 @@ class ParentApiService {
                 : (e['name']?.toString() ?? 'Student'),
             marks: (e['marks'] as num?)?.toInt() ?? 0,
             isSelf: e['is_self'] == true,
+            trend: (e['trend']?.toString() ?? 'same'),
           ),
         )
         .toList();
+  }
+
+  // ===== Child home summary =====
+
+  static Future<ChildHomeSummary> fetchHomeSummary(String childId) async {
+    final res = await http
+        .get(
+          Uri.parse('$_base/parents/me/children/$childId/home-summary'),
+          headers: _headers(),
+        )
+        .timeout(_timeout);
+    final d = _object(res);
+    return ChildHomeSummary(
+      todayDone: (d['today_done'] as num?)?.toInt() ?? 0,
+      todayTotal: (d['today_total'] as num?)?.toInt() ?? 0,
+      todayMarks: (d['today_marks'] as num?)?.toInt() ?? 0,
+      streakDays: (d['streak_days'] as num?)?.toInt() ?? 0,
+      weekPoints: (d['week_points'] as num?)?.toInt() ?? 0,
+      weekPct: (d['week_pct'] as num?)?.toInt() ?? 0,
+      batchRank: (d['batch_rank'] as num?)?.toInt() ?? 0,
+      batchSize: (d['batch_size'] as num?)?.toInt() ?? 0,
+      batchName: d['batch_name']?.toString(),
+      pendingApprovals: (d['pending_approvals'] as num?)?.toInt() ?? 0,
+    );
   }
 
   // ===== Notifications =====
@@ -364,6 +389,31 @@ class ParentApiService {
       return ml ? '${diff.inHours} മണിക്കൂർ മുമ്പ്' : '${diff.inHours}h ago';
     }
     return ml ? '${diff.inDays} ദിവസം മുമ്പ്' : '${diff.inDays}d ago';
+  }
+
+  // ===== Teacher remarks =====
+
+  static Future<List<ChildRemark>> fetchRemarks(String childId) async {
+    final res = await http
+        .get(
+          Uri.parse('$_base/parents/me/children/$childId/remarks'),
+          headers: _headers(),
+        )
+        .timeout(_timeout);
+    final list = _list(res);
+    return list.map((e) {
+      final j = e as Map<String, dynamic>;
+      return ChildRemark(
+        id: j['id']?.toString() ?? '',
+        message: j['message']?.toString() ?? '',
+        createdAt:
+            DateTime.tryParse(j['created_at']?.toString() ?? '') ??
+            DateTime.now(),
+        teacher: j['teacher']?.toString() ?? 'Teacher',
+        subject: j['subject']?.toString(),
+        tone: j['tone']?.toString() ?? 'info',
+      );
+    }).toList();
   }
 }
 
@@ -427,11 +477,57 @@ class LeaderEntry {
   final String nameMl;
   final int marks;
   final bool isSelf;
+  final String trend; // 'up' | 'down' | 'same' | 'new'
   const LeaderEntry({
     required this.rank,
     required this.name,
     required this.nameMl,
     required this.marks,
     required this.isSelf,
+    this.trend = 'same',
+  });
+}
+
+/// Compact "today" dashboard snapshot for a single child.
+class ChildHomeSummary {
+  final int todayDone;
+  final int todayTotal;
+  final int todayMarks;
+  final int streakDays;
+  final int weekPoints;
+  final int weekPct;
+  final int batchRank;
+  final int batchSize;
+  final String? batchName;
+  final int pendingApprovals;
+  const ChildHomeSummary({
+    required this.todayDone,
+    required this.todayTotal,
+    required this.todayMarks,
+    required this.streakDays,
+    required this.weekPoints,
+    required this.weekPct,
+    required this.batchRank,
+    required this.batchSize,
+    this.batchName,
+    required this.pendingApprovals,
+  });
+}
+
+/// A teacher remark/feedback note for a child (live data).
+class ChildRemark {
+  final String id;
+  final String message;
+  final DateTime createdAt;
+  final String teacher;
+  final String? subject;
+  final String tone; // 'praise' | 'note' | 'info'
+  const ChildRemark({
+    required this.id,
+    required this.message,
+    required this.createdAt,
+    required this.teacher,
+    required this.subject,
+    required this.tone,
   });
 }

@@ -12,6 +12,11 @@
  * - GET  /student/:id/progress?period=  Weekly/monthly progress + remarks
  * - POST /student/:id/remark            Add a remark/feedback for a student
  * - GET  /batch/:id/analytics           Batch analytics (top/improve)
+ * - GET  /badges                        Catalogue of awardable badges
+ * - GET  /student/:id/badges            Badges already awarded to a student
+ * - POST /student/:id/badge             Award a badge to a student
+ * - GET  /batch/:id/attendance?date=    Students + attendance status for a day
+ * - POST /batch/:id/attendance          Upsert attendance for a day
  */
 declare const router: import("express-serve-static-core").Router;
 export default router;

@@ -9,6 +9,40 @@ import { createClient } from '@supabase/supabase-js';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import config from './config';
 
+// Circuit breaker state for offline resilience
+let lastFailedAt = 0;
+const OFFLINE_COOLDOWN_MS = 30000;
+
+export function isSupabaseOffline(): boolean {
+  return Date.now() - lastFailedAt < OFFLINE_COOLDOWN_MS;
+}
+
+export function markSupabaseOffline(): void {
+  lastFailedAt = Date.now();
+}
+
+const safeFetch: typeof fetch = async (input, init) => {
+  if (isSupabaseOffline()) {
+    throw new Error('Supabase is currently unreachable (circuit breaker active)');
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 1500);
+
+  try {
+    const res = await fetch(input as any, {
+      ...init,
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    return res;
+  } catch (err: any) {
+    clearTimeout(timer);
+    markSupabaseOffline();
+    throw err;
+  }
+};
+
 // Initialize Supabase client with service role (for server-side operations)
 let supabaseClient: SupabaseClient | null = null;
 
@@ -28,6 +62,9 @@ export function getSupabaseClient(): SupabaseClient {
         auth: {
           autoRefreshToken: false,
           persistSession: false,
+        },
+        global: {
+          fetch: safeFetch,
         },
       }
     );

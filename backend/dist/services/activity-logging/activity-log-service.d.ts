@@ -2,6 +2,7 @@ import type { ActivityLogDraft, AuthenticatedUser } from '../../types/domain';
 export declare class ActivityLogService {
     private readonly activityLoggingService;
     private readonly auditLogService;
+    private static readonly inMemoryLogs;
     list(filters: {
         studentId?: string;
         from?: string;

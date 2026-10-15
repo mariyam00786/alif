@@ -10,6 +10,7 @@ export interface AdminDashboardSnapshot {
     reports: DatabaseRow[];
     notifications: DatabaseRow[];
     badges: DatabaseRow[];
+    categories: DatabaseRow[];
 }
 export declare class AdminDashboardService {
     private readonly auditLogService;

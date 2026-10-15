@@ -120,9 +120,11 @@ class TeacherHomeScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 10),
-            PortalNotificationBell(
-              notifications: TeacherData.notifications(),
+            PortalNotificationBellAsync(
+              fallback: TeacherData.notifications(),
+              source: PortalNotificationSource.teacher,
               isMalayalam: isMalayalam,
+              onDark: false,
               minimal: true,
               size: 44,
             ),

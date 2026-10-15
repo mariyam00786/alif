@@ -15,6 +15,7 @@ export interface AdminDashboardSnapshot {
   reports: DatabaseRow[];
   notifications: DatabaseRow[];
   badges: DatabaseRow[];
+  categories: DatabaseRow[];
 }
 
 export class AdminDashboardService {
@@ -40,16 +41,16 @@ export class AdminDashboardService {
         studentBadgesResult,
         notificationsResult,
       ] = await Promise.all([
-        client.from('profiles').select('id, full_name, full_name_ml, phone, role'),
+        client.from('profiles').select('id, full_name, phone, role'),
         client.from('students').select('id, profile_id, parent_phone, father_name, mother_name, date_of_birth, gender, address, batch_id, class_id, status, created_at'),
         client.from('teachers').select('id, profile_id, email, qualification, subjects, status, created_at'),
         client.from('batches').select('id, name, capacity, timing, status, created_at'),
         client.from('classes').select('id, name, batch_id'),
         client.from('teacher_batches').select('teacher_id, batch_id'),
-        client.from('activity_categories').select('id, name'),
-        client.from('activities').select('id, category_id, name, has_quantity, status, display_order'),
-        client.from('activity_ratings').select('id, activity_id, rating_name, marks, color, display_order'),
-        client.from('activity_scoring_rules').select('id, activity_id, rule_type, min_quantity, max_quantity, marks, display_order'),
+        client.from('activity_categories').select('id, name, icon, display_order, status'),
+        client.from('activities').select('id, category_id, name, has_quantity, unit_label, max_quantity, status, display_order'),
+        client.from('activity_ratings').select('id, activity_id, rating_name, marks, color, display_order, is_not_done, is_default'),
+        client.from('activity_scoring_rules').select('id, activity_id, rule_type, label, min_quantity, max_quantity, marks, color, display_order'),
         client.from('activity_logs').select('student_id, log_date, marks_earned').order('log_date', { ascending: false }),
         client.from('badges').select('id, name, criteria, status, created_at'),
         client.from('student_badges').select('badge_id, student_id'),
@@ -84,7 +85,6 @@ export class AdminDashboardService {
           const row = profile as {
             id: string;
             full_name?: string | null;
-            full_name_ml?: string | null;
             phone?: string | null;
             role?: string | null;
           };
@@ -156,7 +156,6 @@ export class AdminDashboardService {
       return {
         id: student.id,
         name: profile?.full_name ?? 'Unnamed student',
-        nameMl: profile?.full_name_ml ?? '',
         mobile: student.parent_phone ?? profile?.phone ?? '',
         batch: batch?.name ?? 'Unassigned Batch',
         batchId: student.batch_id ?? null,
@@ -190,7 +189,6 @@ export class AdminDashboardService {
       return {
         id: teacher.id,
         name: profile?.full_name ?? 'Unnamed teacher',
-        nameMl: profile?.full_name_ml ?? '',
         mobile: profile?.phone ?? '',
         email: teacher.email ?? '',
         qualification: teacher.qualification ?? '',
@@ -236,17 +234,31 @@ export class AdminDashboardService {
       } satisfies DatabaseRow;
     });
 
-    const categories = new Map(
-      ((categoriesResult.data ?? []) as Array<{ id: string; name?: string | null }>).map((category) => [category.id, category.name ?? 'Uncategorized'])
-    );
+    const categoriesList = ((categoriesResult.data ?? []) as Array<{
+      id: string;
+      name?: string | null;
+      icon?: string | null;
+      display_order?: number | null;
+      status?: string | null;
+    }>).map((category) => ({
+      id: category.id,
+      name: category.name ?? 'Unnamed Category',
+      icon: category.icon ?? 'star',
+      displayOrder: category.display_order ?? 0,
+      isActive: category.status === 'active',
+    } satisfies DatabaseRow));
 
-    const ratingsByActivity = new Map<string, Array<{ marks: number; ratingName: string; color?: string | null; displayOrder: number }>>();
+    const categories = new Map(categoriesList.map((category) => [String(category.id), String(category.name)]));
+
+    const ratingsByActivity = new Map<string, Array<{ marks: number; ratingName: string; color?: string | null; displayOrder: number; isNotDone?: boolean | null; isDefault?: boolean | null }>>();
     for (const rating of (ratingsResult.data ?? []) as Array<{
       activity_id: string;
       marks: number;
       rating_name: string;
       color?: string | null;
       display_order: number;
+      is_not_done?: boolean | null;
+      is_default?: boolean | null;
     }>) {
       const current = ratingsByActivity.get(rating.activity_id) ?? [];
       current.push({
@@ -254,6 +266,8 @@ export class AdminDashboardService {
         ratingName: rating.rating_name,
         color: rating.color,
         displayOrder: rating.display_order,
+        isNotDone: rating.is_not_done,
+        isDefault: rating.is_default,
       });
       ratingsByActivity.set(rating.activity_id, current);
     }
@@ -263,7 +277,10 @@ export class AdminDashboardService {
       category_id: string;
       name?: string | null;
       has_quantity?: boolean | null;
+      unit_label?: string | null;
+      max_quantity?: number | null;
       status?: string | null;
+      display_order?: number | null;
     }>).map((activity) => {
       const relatedRatings = ratingsByActivity.get(activity.id) ?? [];
       const topMarks = relatedRatings.length > 0 ? Math.max(...relatedRatings.map((item) => item.marks)) : 0;
@@ -271,8 +288,13 @@ export class AdminDashboardService {
       return {
         id: activity.id,
         name: activity.name ?? 'Unnamed Activity',
+        categoryId: activity.category_id,
         category: categories.get(activity.category_id) ?? 'Uncategorized',
         points: topMarks,
+        hasQuantity: Boolean(activity.has_quantity),
+        unitLabel: activity.unit_label ?? '',
+        maxQuantity: activity.max_quantity ?? 0,
+        displayOrder: activity.display_order ?? 0,
         approvalRequired: Boolean(activity.has_quantity),
         isActive: activity.status === 'active',
       } satisfies DatabaseRow;
@@ -288,6 +310,8 @@ export class AdminDashboardService {
         marks: number;
         color?: string | null;
         display_order: number;
+        is_not_done?: boolean | null;
+        is_default?: boolean | null;
       }>).map((rating) => ({
         id: rating.id,
         ruleKind: 'rating',
@@ -297,28 +321,38 @@ export class AdminDashboardService {
         minScore: rating.marks,
         maxScore: rating.marks,
         colorName: rating.color ?? 'default',
+        colorHex: rating.color ?? '',
+        isNotDone: Boolean(rating.is_not_done),
+        isDefault: Boolean(rating.is_default),
         followUpAction: 'Rating option',
         isPrimary: rating.display_order === 1,
+        displayOrder: rating.display_order,
       } satisfies DatabaseRow)),
       ...((scoringRulesResult.data ?? []) as Array<{
         id: string;
         activity_id: string;
         rule_type: string;
+        label?: string | null;
         min_quantity?: number | null;
         max_quantity?: number | null;
         marks: number;
+        color?: string | null;
         display_order: number;
       }>).map((rule) => ({
         id: rule.id,
         ruleKind: 'scoring',
         activityId: rule.activity_id,
         activityName: activityNameById.get(rule.activity_id) ?? 'Activity',
-        label: rule.rule_type === 'quantity' ? 'Quantity Rule' : 'Rating Rule',
+        label: rule.label ?? (rule.rule_type === 'quantity' ? 'Quantity Rule' : 'Rating Rule'),
         minScore: rule.min_quantity ?? 0,
         maxScore: rule.max_quantity ?? rule.marks,
-        colorName: 'default',
+        colorName: rule.color ?? 'default',
+        colorHex: rule.color ?? '',
+        isNotDone: false,
+        isDefault: false,
         followUpAction: `${rule.marks} marks`,
         isPrimary: rule.display_order === 1,
+        displayOrder: rule.display_order,
       } satisfies DatabaseRow)),
     ];
 
@@ -367,6 +401,7 @@ export class AdminDashboardService {
       classes: classList,
       activities,
       ratingRules,
+      categories: categoriesList,
       reports,
       notifications,
       badges,
@@ -685,6 +720,11 @@ export class AdminDashboardService {
       ],
       notifications: [],
       badges: [],
+      categories: [
+        { id: 'cat-prayer', name: 'Salah (Prayer)', icon: 'mosque', displayOrder: 1, isActive: true },
+        { id: 'cat-sunnah', name: 'Sunnah Prayers', icon: 'auto_awesome', displayOrder: 2, isActive: true },
+        { id: 'cat-daily', name: 'Daily Routine', icon: 'menu_book', displayOrder: 3, isActive: true },
+      ],
     };
   }
 }

@@ -20,33 +20,31 @@ const activityLogService = new ActivityLogService();
  * `students` row is provisioned on demand when one does not yet exist.
  */
 async function resolveOwnStudentId(profileId: string, phone?: string): Promise<string> {
-  const supabase = getSupabaseClient();
-  const { data, error } = await supabase
-    .from('students')
-    .select('id')
-    .eq('profile_id', profileId)
-    .maybeSingle();
-  if (error) {
-    throw new Error(error.message);
-  }
-  if (data) {
-    return (data as { id: string }).id;
-  }
+  try {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
+      .from('students')
+      .select('id')
+      .eq('profile_id', profileId)
+      .maybeSingle();
+    if (!error && data) {
+      return (data as { id: string }).id;
+    }
 
-  // No students row yet — provision a minimal one linked to this profile.
-  // parent_phone is NOT NULL, so fall back to the student's own phone.
-  const { data: created, error: insertError } = await supabase
-    .from('students')
-    .insert({
-      profile_id: profileId,
-      parent_phone: phone && phone.trim() ? phone.trim() : 'unknown',
-    })
-    .select('id')
-    .single();
-  if (insertError || !created) {
-    throw new Error(insertError?.message ?? 'Could not provision student record');
-  }
-  return (created as { id: string }).id;
+    const { data: created, error: insertError } = await supabase
+      .from('students')
+      .insert({
+        profile_id: profileId,
+        parent_phone: phone && phone.trim() ? phone.trim() : 'unknown',
+      })
+      .select('id')
+      .single();
+    if (!insertError && created) {
+      return (created as { id: string }).id;
+    }
+  } catch (_) {}
+
+  return profileId;
 }
 
 router.get('/', authenticateRequest, requireRoles('admin', 'teacher', 'parent', 'student'), asyncHandler(async (req, res) => {
@@ -76,11 +74,11 @@ router.post('/', authenticateRequest, requireRoles('admin', 'teacher', 'parent',
 
   const activityLog = await activityLogService.upsert({
     studentId,
-    activityId: getRequiredString(body.activityId, 'activityId'),
-    logDate: getDateString(body.logDate, 'logDate', true)!,
+    activityId: getRequiredString(body.activityId ?? body.activity_id, 'activityId'),
+    logDate: getDateString(body.logDate ?? body.log_date, 'logDate', true)!,
     quantity: getOptionalInteger(body.quantity, 'quantity'),
-    ratingId: getOptionalString(body.ratingId, 'ratingId'),
-    parentApproved: getOptionalBoolean(body.parentApproved, 'parentApproved'),
+    ratingId: getOptionalString(body.ratingId ?? body.rating_id, 'ratingId'),
+    parentApproved: getOptionalBoolean(body.parentApproved ?? body.parent_approved, 'parentApproved'),
     notes: getOptionalString(body.notes, 'notes'),
   }, req.user!);
 

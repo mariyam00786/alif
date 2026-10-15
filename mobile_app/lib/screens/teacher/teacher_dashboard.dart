@@ -186,21 +186,37 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
   }
 
   Future<void> _composeMessage(bool isMalayalam) async {
-    String? batchId = TeacherData.batches.isNotEmpty
-        ? TeacherData.batches.first.id
-        : null;
+    if (TeacherData.batches.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            isMalayalam ? 'ബാച്ചുകളൊന്നുമില്ല' : 'No batches available',
+          ),
+        ),
+      );
+      return;
+    }
+    String? batchId = TeacherData.batches.first.id;
+    // type: batch_reminder | motivational | acknowledgement (FRD §4.3.4).
+    String type = 'batch_reminder';
     final controller = TextEditingController();
 
-    final sent = await showModalBottomSheet<bool>(
+    final sent = await showModalBottomSheet<({String batchId, String type, String message})>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
+      isDismissible: true,
       builder: (ctx) {
         return StatefulBuilder(
           builder: (ctx, setSheet) {
+            final types = <({String key, String en, String ml, IconData icon, Color color})>[
+              (key: 'batch_reminder', en: 'Reminder', ml: 'റിമൈൻഡർ', icon: Icons.campaign_rounded, color: kGreen),
+              (key: 'motivational', en: 'Motivational', ml: 'പ്രചോദനം', icon: Icons.auto_awesome_rounded, color: const Color(0xFF8B5CF6)),
+              (key: 'acknowledgement', en: 'Acknowledge', ml: 'അംഗീകാരം', icon: Icons.workspace_premium_rounded, color: const Color(0xFFF59E0B)),
+            ];
             return Padding(
               padding: EdgeInsets.only(
                 left: 20,
@@ -234,15 +250,16 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
                   const SizedBox(height: 6),
                   Text(
                     isMalayalam
-                        ? 'റിമൈൻഡർ അല്ലെങ്കിൽ പ്രചോദന സന്ദേശം അയയ്ക്കുക.'
-                        : 'Send a reminder or motivational message.',
+                        ? 'റിമൈൻഡർ, പ്രചോദനം അല്ലെങ്കിൽ നേട്ട അംഗീകാരം അയയ്ക്കുക.'
+                        : 'Send a reminder, motivational note or acknowledge an achievement.',
                     style: const TextStyle(
                       fontSize: 13.5,
                       fontWeight: FontWeight.w500,
                       color: kMuted,
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 14),
+                  // Batch selector
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
@@ -274,7 +291,50 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
                       );
                     }).toList(),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 14),
+                  // Type selector
+                  Row(
+                    children: types.map((t) {
+                      final selected = type == t.key;
+                      return Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: GestureDetector(
+                            onTap: () => setSheet(() => type = t.key),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 10,
+                              ),
+                              decoration: BoxDecoration(
+                                color: selected ? t.color.withValues(alpha: 0.12) : Colors.white,
+                                borderRadius: BorderRadius.circular(11),
+                                border: Border.all(
+                                  color: selected ? t.color : kBorder,
+                                  width: selected ? 1.6 : 1,
+                                ),
+                              ),
+                              child: Column(
+                                children: [
+                                  Icon(t.icon, color: t.color, size: 20),
+                                  const SizedBox(height: 5),
+                                  Text(
+                                    isMalayalam ? t.ml : t.en,
+                                    style: TextStyle(
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w700,
+                                      color: selected ? t.color : kBody,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 14),
                   TextField(
                     controller: controller,
                     minLines: 3,
@@ -300,8 +360,12 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
                     width: double.infinity,
                     child: FilledButton.icon(
                       onPressed: () {
-                        if (controller.text.trim().isEmpty) return;
-                        Navigator.pop(ctx, true);
+                        final msg = controller.text.trim();
+                        if (msg.isEmpty || batchId == null) return;
+                        Navigator.pop(
+                          ctx,
+                          (batchId: batchId!, type: type, message: msg),
+                        );
                       },
                       style: FilledButton.styleFrom(
                         minimumSize: const Size.fromHeight(52),
@@ -327,14 +391,30 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
       },
     );
 
-    if (sent == true && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(isMalayalam ? 'അറിയിപ്പ് അയച്ചു' : 'Notification sent'),
-          backgroundColor: kGreen,
+    if (sent == null || !mounted) return;
+
+    // Persist via the API when live; else keep a local-only snackbar.
+    final result = await TeacherApiService.notifyBatch(
+      sent.batchId,
+      title: '',
+      body: sent.message,
+      type: sent.type,
+    );
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          result != null
+              ? (isMalayalam
+                    ? '${result.recipients} വിദ്യാർഥികൾക്ക് അറിയിപ്പ് അയച്ചു'
+                    : 'Sent to ${result.recipients} student${result.recipients == 1 ? '' : 's'}')
+              : (isMalayalam
+                    ? 'അയയ്ക്കാനായില്ല — ലൈവ് അല്ലെങ്കിൽ ലോക്കൽ ആയി സൂക്ഷിച്ചു'
+                    : 'Could not send — saved locally (demo mode)'),
         ),
-      );
-    }
+        backgroundColor: result != null ? kGreen : const Color(0xFFDC2626),
+      ),
+    );
   }
 
   Widget _buildProfile(bool isMalayalam, String teacherName) {

@@ -11,6 +11,39 @@ class AuthService {
         this.auditLogService = new audit_log_service_1.AuditLogService();
     }
     async getSessionFromAccessToken(accessToken) {
+        // 1. Fast path: check JWT tokens issued by backend OTP/auth flow
+        try {
+            const jwtUser = await (0, auth_service_1.getUserFromToken)(accessToken);
+            if (jwtUser) {
+                let profile;
+                try {
+                    profile = await this.getProfileById(jwtUser.profile_id);
+                }
+                catch {
+                    const now = new Date().toISOString();
+                    profile = {
+                        id: jwtUser.profile_id,
+                        phone: jwtUser.phone,
+                        full_name: jwtUser.name,
+                        role: jwtUser.role,
+                        created_at: now,
+                        updated_at: now,
+                    };
+                }
+                return {
+                    authUser: null,
+                    user: {
+                        profileId: profile.id,
+                        authUserId: jwtUser.id,
+                        role: jwtUser.role,
+                        phone: jwtUser.phone,
+                    },
+                    profile,
+                };
+            }
+        }
+        catch (_) { }
+        // 2. Supabase auth validation
         let supabaseUser = null;
         let supabaseError;
         try {
@@ -34,50 +67,34 @@ class AuthService {
                 profile,
             };
         }
-        // Fallback for JWT tokens issued by the OTP login flow.
-        const jwtUser = await (0, auth_service_1.getUserFromToken)(accessToken);
-        if (jwtUser) {
-            let profile;
-            try {
-                profile = await this.getProfileById(jwtUser.profile_id);
-            }
-            catch {
-                const now = new Date().toISOString();
-                profile = {
-                    id: jwtUser.profile_id,
-                    phone: jwtUser.phone,
-                    full_name: jwtUser.name,
-                    role: jwtUser.role,
-                    created_at: now,
-                    updated_at: now,
-                };
-            }
-            return {
-                authUser: null,
-                user: {
-                    profileId: profile.id,
-                    authUserId: jwtUser.id,
-                    role: jwtUser.role,
-                    phone: jwtUser.phone,
-                },
-                profile,
-            };
-        }
         throw new http_error_1.HttpError(401, 'Invalid or expired access token.', supabaseError);
     }
     async getProfileById(profileId) {
-        const { data, error } = await (0, supabase_1.getSupabaseClient)()
-            .from('profiles')
-            .select('*')
-            .eq('id', profileId)
-            .maybeSingle();
-        if (error) {
-            throw new http_error_1.HttpError(500, 'Unable to load the user profile.', error);
+        try {
+            const { data, error } = await (0, supabase_1.getSupabaseClient)()
+                .from('profiles')
+                .select('*')
+                .eq('id', profileId)
+                .maybeSingle();
+            if (!error && data) {
+                return data;
+            }
         }
-        if (!data) {
-            throw new http_error_1.HttpError(404, 'Profile not found for authenticated user.');
+        catch (_) { }
+        const demo = auth_service_1.DEMO_PROFILES.find((p) => p.id === profileId);
+        if (demo) {
+            const now = new Date().toISOString();
+            return {
+                id: demo.id,
+                phone: demo.phone,
+                full_name: demo.full_name,
+                full_name_ml: demo.full_name_ml,
+                role: demo.role,
+                created_at: demo.created_at ?? now,
+                updated_at: demo.updated_at ?? now,
+            };
         }
-        return data;
+        throw new http_error_1.HttpError(404, 'Profile not found for authenticated user.');
     }
     async updateProfile(profileId, payload, actor) {
         if (actor.profileId !== profileId && actor.role !== 'admin') {

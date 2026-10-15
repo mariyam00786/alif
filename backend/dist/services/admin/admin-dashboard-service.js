@@ -12,16 +12,16 @@ class AdminDashboardService {
         try {
             const client = (0, supabase_1.getSupabaseClient)();
             const [profilesResult, studentsResult, teachersResult, batchesResult, classesResult, teacherBatchesResult, categoriesResult, activitiesResult, ratingsResult, scoringRulesResult, activityLogsResult, badgesResult, studentBadgesResult, notificationsResult,] = await Promise.all([
-                client.from('profiles').select('id, full_name, full_name_ml, phone, role'),
+                client.from('profiles').select('id, full_name, phone, role'),
                 client.from('students').select('id, profile_id, parent_phone, father_name, mother_name, date_of_birth, gender, address, batch_id, class_id, status, created_at'),
-                client.from('teachers').select('id, profile_id, qualification, status, created_at'),
+                client.from('teachers').select('id, profile_id, email, qualification, subjects, status, created_at'),
                 client.from('batches').select('id, name, capacity, timing, status, created_at'),
                 client.from('classes').select('id, name, batch_id'),
                 client.from('teacher_batches').select('teacher_id, batch_id'),
-                client.from('activity_categories').select('id, name'),
-                client.from('activities').select('id, category_id, name, has_quantity, status, display_order'),
-                client.from('activity_ratings').select('id, activity_id, rating_name, marks, color, display_order'),
-                client.from('activity_scoring_rules').select('id, activity_id, rule_type, min_quantity, max_quantity, marks, display_order'),
+                client.from('activity_categories').select('id, name, icon, display_order, status'),
+                client.from('activities').select('id, category_id, name, has_quantity, unit_label, max_quantity, status, display_order'),
+                client.from('activity_ratings').select('id, activity_id, rating_name, marks, color, display_order, is_not_done, is_default'),
+                client.from('activity_scoring_rules').select('id, activity_id, rule_type, label, min_quantity, max_quantity, marks, color, display_order'),
                 client.from('activity_logs').select('student_id, log_date, marks_earned').order('log_date', { ascending: false }),
                 client.from('badges').select('id, name, criteria, status, created_at'),
                 client.from('student_badges').select('badge_id, student_id'),
@@ -65,9 +65,16 @@ class AdminDashboardService {
             const teacherBatches = (teacherBatchesResult.data ?? []);
             const batchTeacherMap = new Map();
             const teacherBatchCounts = new Map();
+            const teacherBatchNames = new Map();
             for (const assignment of teacherBatches) {
                 batchTeacherMap.set(assignment.batch_id, assignment.teacher_id);
                 teacherBatchCounts.set(assignment.teacher_id, (teacherBatchCounts.get(assignment.teacher_id) ?? 0) + 1);
+                const batchName = batchById.get(assignment.batch_id)?.name;
+                if (batchName) {
+                    const names = teacherBatchNames.get(assignment.teacher_id) ?? [];
+                    names.push(batchName);
+                    teacherBatchNames.set(assignment.teacher_id, names);
+                }
             }
             const logsByStudent = new Map();
             for (const row of (activityLogsResult.data ?? [])) {
@@ -83,7 +90,6 @@ class AdminDashboardService {
                 return {
                     id: student.id,
                     name: profile?.full_name ?? 'Unnamed student',
-                    nameMl: profile?.full_name_ml ?? '',
                     mobile: student.parent_phone ?? profile?.phone ?? '',
                     batch: batch?.name ?? 'Unassigned Batch',
                     batchId: student.batch_id ?? null,
@@ -103,9 +109,16 @@ class AdminDashboardService {
             });
             const teachers = (teachersResult.data ?? []).map((teacher) => {
                 const profile = profiles.get(teacher.profile_id);
+                const subjects = Array.isArray(teacher.subjects) ? teacher.subjects.filter(Boolean) : [];
+                const batches = teacherBatchNames.get(teacher.id) ?? [];
                 return {
                     id: teacher.id,
                     name: profile?.full_name ?? 'Unnamed teacher',
+                    mobile: profile?.phone ?? '',
+                    email: teacher.email ?? '',
+                    qualification: teacher.qualification ?? '',
+                    subjects,
+                    batches,
                     subject: teacher.qualification ?? 'General Instruction',
                     batchCount: teacherBatchCounts.get(teacher.id) ?? 0,
                     responseRate: teacher.status === 'active' ? 1 : 0,
@@ -141,7 +154,14 @@ class AdminDashboardService {
                     approvalQueue: approvalQueueByBatch.get(batch.id) ?? 0,
                 };
             });
-            const categories = new Map((categoriesResult.data ?? []).map((category) => [category.id, category.name ?? 'Uncategorized']));
+            const categoriesList = (categoriesResult.data ?? []).map((category) => ({
+                id: category.id,
+                name: category.name ?? 'Unnamed Category',
+                icon: category.icon ?? 'star',
+                displayOrder: category.display_order ?? 0,
+                isActive: category.status === 'active',
+            }));
+            const categories = new Map(categoriesList.map((category) => [String(category.id), String(category.name)]));
             const ratingsByActivity = new Map();
             for (const rating of (ratingsResult.data ?? [])) {
                 const current = ratingsByActivity.get(rating.activity_id) ?? [];
@@ -150,6 +170,8 @@ class AdminDashboardService {
                     ratingName: rating.rating_name,
                     color: rating.color,
                     displayOrder: rating.display_order,
+                    isNotDone: rating.is_not_done,
+                    isDefault: rating.is_default,
                 });
                 ratingsByActivity.set(rating.activity_id, current);
             }
@@ -159,8 +181,13 @@ class AdminDashboardService {
                 return {
                     id: activity.id,
                     name: activity.name ?? 'Unnamed Activity',
+                    categoryId: activity.category_id,
                     category: categories.get(activity.category_id) ?? 'Uncategorized',
                     points: topMarks,
+                    hasQuantity: Boolean(activity.has_quantity),
+                    unitLabel: activity.unit_label ?? '',
+                    maxQuantity: activity.max_quantity ?? 0,
+                    displayOrder: activity.display_order ?? 0,
                     approvalRequired: Boolean(activity.has_quantity),
                     isActive: activity.status === 'active',
                 };
@@ -176,20 +203,28 @@ class AdminDashboardService {
                     minScore: rating.marks,
                     maxScore: rating.marks,
                     colorName: rating.color ?? 'default',
+                    colorHex: rating.color ?? '',
+                    isNotDone: Boolean(rating.is_not_done),
+                    isDefault: Boolean(rating.is_default),
                     followUpAction: 'Rating option',
                     isPrimary: rating.display_order === 1,
+                    displayOrder: rating.display_order,
                 })),
                 ...(scoringRulesResult.data ?? []).map((rule) => ({
                     id: rule.id,
                     ruleKind: 'scoring',
                     activityId: rule.activity_id,
                     activityName: activityNameById.get(rule.activity_id) ?? 'Activity',
-                    label: rule.rule_type === 'quantity' ? 'Quantity Rule' : 'Rating Rule',
+                    label: rule.label ?? (rule.rule_type === 'quantity' ? 'Quantity Rule' : 'Rating Rule'),
                     minScore: rule.min_quantity ?? 0,
                     maxScore: rule.max_quantity ?? rule.marks,
-                    colorName: 'default',
+                    colorName: rule.color ?? 'default',
+                    colorHex: rule.color ?? '',
+                    isNotDone: false,
+                    isDefault: false,
                     followUpAction: `${rule.marks} marks`,
                     isPrimary: rule.display_order === 1,
+                    displayOrder: rule.display_order,
                 })),
             ];
             const badgeRecipients = new Map();
@@ -220,6 +255,7 @@ class AdminDashboardService {
                 classes: classList,
                 activities,
                 ratingRules,
+                categories: categoriesList,
                 reports,
                 notifications,
                 badges,
@@ -497,6 +533,11 @@ class AdminDashboardService {
             ],
             notifications: [],
             badges: [],
+            categories: [
+                { id: 'cat-prayer', name: 'Salah (Prayer)', icon: 'mosque', displayOrder: 1, isActive: true },
+                { id: 'cat-sunnah', name: 'Sunnah Prayers', icon: 'auto_awesome', displayOrder: 2, isActive: true },
+                { id: 'cat-daily', name: 'Daily Routine', icon: 'menu_book', displayOrder: 3, isActive: true },
+            ],
         };
     }
 }

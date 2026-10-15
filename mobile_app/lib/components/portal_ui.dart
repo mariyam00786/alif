@@ -423,7 +423,7 @@ class PortalProfileAvatar extends StatelessWidget {
     final showSwitchAction = canSwitchToParent || canSwitchToStudent;
     final switchLabel = canSwitchToParent
         ? (isMalayalam ? 'രക്ഷിതാവ് പോർട്ടൽ തുറക്കുക' : 'Open parent portal')
-        : (isMalayalam ? 'വിദ്യാർഥി പോർട്ടൽ തുറക്കുക' : 'Open student portal');
+        : (isMalayalam ? 'വിദ്യാർത്ഥി പോർട്ടൽ തുറക്കുക' : 'Open student portal');
     final switchTitle = isMalayalam
         ? (canSwitchToParent ? 'രക്ഷിതാവ് പോർട്ടൽ' : 'വിദ്യാർത്ഥി പോർട്ടൽ')
         : (canSwitchToParent ? 'Parent portal' : 'Student portal');
@@ -1199,27 +1199,57 @@ List<PortalNotification> portalNotificationsFromApi(
     final title = (row['title'] ?? '').toString();
     final body = (row['body'] ?? '').toString();
     final targetType = (row['target_type'] ?? 'all').toString();
+    final category = (row['category'] ?? '').toString();
+    final iconKey = (row['icon'] ?? '').toString();
     final createdRaw = (row['created_at'] ?? row['sent_at'] ?? '').toString();
     final created = DateTime.tryParse(createdRaw)?.toLocal();
 
     IconData icon;
     Color color;
-    switch (targetType) {
-      case 'student':
-        icon = Icons.person_rounded;
-        color = const Color(0xFFF59E0B);
-        break;
-      case 'batch':
-        icon = Icons.groups_rounded;
-        color = kGreen;
-        break;
-      case 'class':
-        icon = Icons.school_rounded;
-        color = const Color(0xFF3B82F6);
-        break;
-      default:
-        icon = Icons.campaign_rounded;
-        color = const Color(0xFF8B5CF6);
+    // Prefer the richer category-based styling (Phase T teacher notifications)
+    // and fall back to target_type otherwise.
+    if (category == 'batch_reminder') {
+      icon = Icons.campaign_rounded;
+      color = kGreen;
+    } else if (category == 'motivational') {
+      icon = Icons.auto_awesome_rounded;
+      color = const Color(0xFF8B5CF6);
+    } else if (category == 'acknowledgement') {
+      icon = Icons.workspace_premium_rounded;
+      color = const Color(0xFFF59E0B);
+    } else {
+      switch (iconKey) {
+        case 'campaign':
+          icon = Icons.campaign_rounded;
+          color = kGreen;
+          break;
+        case 'auto_awesome':
+          icon = Icons.auto_awesome_rounded;
+          color = const Color(0xFF8B5CF6);
+          break;
+        case 'workspace_premium':
+          icon = Icons.workspace_premium_rounded;
+          color = const Color(0xFFF59E0B);
+          break;
+        default:
+          switch (targetType) {
+            case 'student':
+              icon = Icons.person_rounded;
+              color = const Color(0xFFF59E0B);
+              break;
+            case 'batch':
+              icon = Icons.groups_rounded;
+              color = kGreen;
+              break;
+            case 'class':
+              icon = Icons.school_rounded;
+              color = const Color(0xFF3B82F6);
+              break;
+            default:
+              icon = Icons.campaign_rounded;
+              color = const Color(0xFF8B5CF6);
+          }
+      }
     }
 
     final timeEn = created != null ? _relativeTime(now, created, false) : '';
@@ -1285,7 +1315,7 @@ class PortalNotificationBellAsync extends StatefulWidget {
       _PortalNotificationBellAsyncState();
 }
 
-enum PortalNotificationSource { parent, student }
+enum PortalNotificationSource { parent, student, teacher }
 
 class _PortalNotificationBellAsyncState
     extends State<PortalNotificationBellAsync> {
@@ -1312,6 +1342,16 @@ class _PortalNotificationBellAsyncState
           break;
         case PortalNotificationSource.student:
           final res = await MobileApiService.getStudentNotifications();
+          if (!mounted) return;
+          if (res.success && res.data != null && res.data!.isNotEmpty) {
+            final mapped = portalNotificationsFromApi(res.data!);
+            if (mapped.isNotEmpty) {
+              setState(() => _items = mapped);
+            }
+          }
+          break;
+        case PortalNotificationSource.teacher:
+          final res = await MobileApiService.getTeacherNotifications();
           if (!mounted) return;
           if (res.success && res.data != null && res.data!.isNotEmpty) {
             final mapped = portalNotificationsFromApi(res.data!);

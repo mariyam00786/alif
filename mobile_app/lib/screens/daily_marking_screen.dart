@@ -34,6 +34,28 @@ class _DailyMarkingScreenState extends State<DailyMarkingScreen> {
   // configured time arrives without the student having to reopen the screen.
   Timer? _ticker;
 
+  // The date the student is currently marking. Defaults to the date passed in
+  // (today), but the FRD allows editing any of the past 7 days, so the picker
+  // can move this back. All saves use this date, not widget.date.
+  late String _selectedDate;
+
+  /// Per-activity notes / comment TextField controllers, keyed by activity id.
+  /// activity_logs.notes already exists in the backend.
+  final Map<String, TextEditingController> _notesControllers = {};
+
+  /// Per-activity quantity stepper values, keyed by activity id. Used for
+  /// has_quantity activities (e.g. Quran pages read). These are sent as
+  /// {quantity} (NOT a ratingId) — sending a wrong ratingId was the root cause
+  /// of the June 22 500-error bug.
+  final Map<String, int> _qtyValues = {};
+
+  /// When the parent is approving via their portal, a parent signature
+  /// checkbox confirms each activity log. Persisted as parent_approved.
+  final bool _parentApproving = false;
+
+  /// FRD §4.2.2: students may mark any of the past 7 days (within limit).
+  static const int _maxPastDays = 7;
+
   // The full activity catalog loaded from the backend. Every category and
   // activity shown here mirrors the admin configuration, so the student marks
   // exactly the same items that teachers, parents and admin see.
@@ -145,7 +167,7 @@ class _DailyMarkingScreenState extends State<DailyMarkingScreen> {
         '${now.year.toString().padLeft(4, '0')}-'
         '${now.month.toString().padLeft(2, '0')}-'
         '${now.day.toString().padLeft(2, '0')}';
-    return widget.date == today;
+    return _selectedDate == today;
   }
 
   /// True when this activity is a prayer whose time has not arrived yet today,
@@ -171,6 +193,7 @@ class _DailyMarkingScreenState extends State<DailyMarkingScreen> {
   @override
   void initState() {
     super.initState();
+    _selectedDate = widget.date;
     _loadStructure();
     // Re-evaluate time locks once a minute so prayers unlock on schedule.
     _ticker = Timer.periodic(const Duration(minutes: 1), (_) {
@@ -181,7 +204,38 @@ class _DailyMarkingScreenState extends State<DailyMarkingScreen> {
   @override
   void dispose() {
     _ticker?.cancel();
+    for (final c in _notesControllers.values) {
+      c.dispose();
+    }
+    _notesControllers.clear();
     super.dispose();
+  }
+
+  /// Lazily creates (and caches) the notes TextField controller for an
+  /// activity, seeded with any previously-saved value.
+  TextEditingController _ensureNotesController(
+    Map<String, dynamic> a,
+    String? saved,
+  ) {
+    final id = (a['id'] ?? '').toString();
+    return _notesControllers.putIfAbsent(id, () {
+      final c = TextEditingController(text: saved ?? '');
+      return c;
+    });
+  }
+
+  /// Reads the current quantity stepper value for an activity (default 0).
+  int _qtyFor(Map<String, dynamic> a) => _qtyValues[a['id']] ?? 0;
+
+  /// Sets the quantity stepper value for an activity and refreshes the row.
+  void _setQty(Map<String, dynamic> a, int v) {
+    setState(() {
+      final clamped = v < 0 ? 0 : v;
+      _qtyValues[a['id']] = clamped;
+      // Reflect "marked" state: any quantity >= 0 counts as marked for these
+      // activities so the progress ring / total card update live.
+      a['rating'] = clamped > 0 ? 3 : 0;
+    });
   }
 
   @override
@@ -192,6 +246,7 @@ class _DailyMarkingScreenState extends State<DailyMarkingScreen> {
     // the new date so the student sees a fresh day and any marks already saved
     // for it, instead of yesterday's submitted state.
     if (oldWidget.date != widget.date) {
+      _selectedDate = widget.date;
       setState(() {
         _loadingStructure = true;
         _cats = [];
@@ -246,6 +301,10 @@ class _DailyMarkingScreenState extends State<DailyMarkingScreen> {
           'ratings': ratingMap,
           'ratingsById': ratingById,
           'isPrayer': isPrayer,
+          // S1: has_quantity activities (e.g. Quran pages) use a quantity
+          // stepper instead of the 4-band rating chips. Captured from the
+          // daily structure payload so the UI matches admin configuration.
+          'hasQuantity': (am['has_quantity'] ?? false) == true,
           'locked': false,
           'saving': false,
         });
@@ -278,29 +337,51 @@ class _DailyMarkingScreenState extends State<DailyMarkingScreen> {
   /// the freshly built sheet, locking each item that was previously committed.
   Future<void> _restoreSavedLogs(List<Map<String, dynamic>> built) async {
     final logsRes = await MobileApiService.getMyActivityLogs(
-      from: widget.date,
-      to: widget.date,
+      from: _selectedDate,
+      to: _selectedDate,
     );
     if (!logsRes.success || logsRes.data == null) return;
 
-    final ratingByActivity = <String, String>{};
+    // Index saved logs by activity_id so we can restore rating, quantity,
+    // notes and parent-approval for each row.
+    final byActivity = <String, Map<String, dynamic>>{};
     for (final log in logsRes.data!) {
       final aid = (log['activity_id'] ?? '').toString();
-      final rid = (log['rating_id'] ?? '').toString();
-      if (aid.isNotEmpty && rid.isNotEmpty) ratingByActivity[aid] = rid;
+      if (aid.isEmpty) continue;
+      byActivity[aid] = log;
     }
-    if (ratingByActivity.isEmpty) return;
+    if (byActivity.isEmpty) return;
 
     for (final cat in built) {
       for (final a
           in (cat['activities'] as List).cast<Map<String, dynamic>>()) {
-        final rid = ratingByActivity[a['id']];
-        if (rid == null) continue;
+        final log = byActivity[a['id']];
+        if (log == null) continue;
+
+        // Quantity-type activities restore the saved quantity + notes; rating
+        // is derived (any saved quantity counts as marked).
+        if (a['hasQuantity'] == true) {
+          final qty = (log['quantity'] as num?)?.toInt() ?? 0;
+          _qtyValues[a['id']] = qty;
+          final savedNotes = (log['notes'] ?? '').toString();
+          _ensureNotesController(a, savedNotes);
+          a['rating'] = qty > 0 ? 3 : 0;
+          a['locked'] = true;
+          continue;
+        }
+
+        final rid = (log['rating_id'] ?? '').toString();
+        if (rid.isEmpty) continue;
         final name = (a['ratingsById'] as Map<String, String>)[rid];
         final band = name != null ? _ratingNames.indexOf(name) : -1;
         if (band >= 0) {
           a['rating'] = band;
           a['locked'] = true;
+          // Restore notes for rating activities too.
+          final savedNotes = (log['notes'] ?? '').toString();
+          if (savedNotes.isNotEmpty) {
+            _ensureNotesController(a, savedNotes);
+          }
         }
       }
     }
@@ -310,7 +391,7 @@ class _DailyMarkingScreenState extends State<DailyMarkingScreen> {
   String _yesterdayDate() {
     DateTime base;
     try {
-      base = DateTime.parse(widget.date);
+      base = DateTime.parse(_selectedDate);
     } catch (_) {
       base = DateTime.now();
     }
@@ -384,8 +465,11 @@ class _DailyMarkingScreenState extends State<DailyMarkingScreen> {
         children: [
           MinimalHeader(
             title: isMalayalam ? 'ഇത്തിസാബ്' : 'Daily Marking',
-            subtitle: _formatDate(widget.date),
+            subtitle: _formatDate(_selectedDate),
             isMalayalam: isMalayalam,
+            // FRD §4.2.2: students may mark any of the past 7 days. The date
+            // chip below the title opens a picker scoped to that window.
+            bottom: _dateChip(isMalayalam),
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -841,30 +925,62 @@ class _DailyMarkingScreenState extends State<DailyMarkingScreen> {
   ) async {
     if (p['marked'] == true || p['saving'] == true) return;
 
-    final a = p['activity'] as Map<String, dynamic>?;
-    final activityId = (a?['id'] ?? '').toString();
-    final ratingName = (band >= 0 && band < _ratingNames.length)
-        ? _ratingNames[band]
-        : '';
-    final ratingId = (a?['ratings'] as Map<String, String>?)?[ratingName] ?? '';
+    final a = (p['activity'] as Map?)?.cast<String, dynamic>();
+    if (a == null) return;
+    final activityId = (a['id'] ?? '').toString();
+    final hasQuantity = a['hasQuantity'] == true;
 
-    if (activityId.isEmpty || ratingId.isEmpty) {
-      _showSnack(
-        isMalayalam
-            ? 'സേവ് ചെയ്യാനായില്ല · വീണ്ടും ശ്രമിക്കുക'
-            : 'Could not save · please try again',
-        icon: Icons.error_outline_rounded,
-      );
-      return;
+    // Quantity activities (e.g. Quran pages) send {quantity} and NO ratingId —
+    // the backend derives marks from activity_scoring_rules. Sending a ratingId
+    // belonging to a different activity was the root cause of the June 22
+    // 500-error bug.
+    String ratingId = '';
+    int? quantity;
+    if (hasQuantity) {
+      quantity = _qtyFor(a);
+      if (quantity <= 0) {
+        _showSnack(
+          isMalayalam
+              ? 'എണ്ണം ചേർക്കുക · 0 ആയിരിക്കാൻ പാടില്ല'
+              : 'Enter a quantity greater than 0',
+          icon: Icons.error_outline_rounded,
+        );
+        return;
+      }
+    } else {
+      final ratingName = (band >= 0 && band < _ratingNames.length)
+          ? _ratingNames[band]
+          : '';
+      ratingId = (a['ratings'] as Map<String, String>?)?[ratingName] ?? '';
+      if (activityId.isEmpty || ratingId.isEmpty) {
+        _showSnack(
+          isMalayalam
+              ? 'സേവ് ചെയ്യാനായില്ല · വീണ്ടും ശ്രമിക്കുക'
+              : 'Could not save · please try again',
+          icon: Icons.error_outline_rounded,
+        );
+        return;
+      }
     }
 
-    setSheetState(() => p['saving'] = true);
+    // Capture notes + parent-approval at submit time (the controllers/values
+    // stay live for editing, so we read them here, not at build time).
+    final notes = _notesControllers[a['id']]?.text.trim();
+    final parentApproved = a['parentApproved'] == true;
+
+    setState(() {
+      a['rating'] = band;
+      a['saving'] = true;
+    });
 
     final res = await MobileApiService.submitActivityLog(
       studentId: widget.studentId,
       activityId: activityId,
       logDate: _yesterdayDate(),
-      ratingId: ratingId,
+      ratingId: ratingId.isEmpty ? null : ratingId,
+      quantity: quantity,
+      notes: (notes != null && notes.isNotEmpty) ? notes : null,
+      parentApproved: parentApproved ? true : null,
     );
 
     if (!mounted) return;
@@ -951,6 +1067,7 @@ class _DailyMarkingScreenState extends State<DailyMarkingScreen> {
     final rating = a['rating'] as int;
     final rated = rating >= 0;
     final isPrayer = a['isPrayer'] == true;
+    final hasQuantity = a['hasQuantity'] == true;
     final saving = a['saving'] == true;
 
     final iconBadge = Container(
@@ -982,7 +1099,9 @@ class _DailyMarkingScreenState extends State<DailyMarkingScreen> {
           ),
         ] else if (rated) ...[
           const SizedBox(width: 8),
-          _ratingPill(rating, isMalayalam, isPrayer),
+          hasQuantity
+              ? _qtyPill(a['id'], isMalayalam)
+              : _ratingPill(rating, isMalayalam, isPrayer),
           const SizedBox(width: 8),
           Icon(
             Icons.lock_outline_rounded,
@@ -996,15 +1115,16 @@ class _DailyMarkingScreenState extends State<DailyMarkingScreen> {
     return Padding(
       padding: const EdgeInsets.all(11),
       child: rated
-          ? header
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [header, _notesField(a, isMalayalam, enabled: false)],
+            )
           : _isTimeLocked(a)
           ? Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 header,
                 const SizedBox(height: 10),
-                // Show the choices so the student knows what is coming, but
-                // greyed out and not tappable until the prayer time arrives.
                 Row(
                   children: [
                     for (int i = 0; i < _prayerBands.length; i++) ...[
@@ -1024,32 +1144,38 @@ class _DailyMarkingScreenState extends State<DailyMarkingScreen> {
               ],
             )
           : Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 header,
                 const SizedBox(height: 10),
-                isPrayer
-                    ? Row(
-                        children: [
-                          for (int i = 0; i < _prayerBands.length; i++) ...[
-                            _ratingChip(
-                              a,
-                              _prayerBands[i],
-                              isMalayalam,
-                              isPrayer: true,
-                            ),
-                            if (i < _prayerBands.length - 1)
-                              const SizedBox(width: 7),
-                          ],
-                        ],
-                      )
-                    : Row(
-                        children: [
-                          for (int i = 0; i < 4; i++) ...[
-                            _ratingChip(a, i, isMalayalam),
-                            if (i < 3) const SizedBox(width: 7),
-                          ],
-                        ],
-                      ),
+                if (hasQuantity)
+                  _qtyStepper(a, isMalayalam)
+                else if (isPrayer)
+                  Row(
+                    children: [
+                      for (int i = 0; i < _prayerBands.length; i++) ...[
+                        _ratingChip(
+                          a,
+                          _prayerBands[i],
+                          isMalayalam,
+                          isPrayer: true,
+                        ),
+                        if (i < _prayerBands.length - 1)
+                          const SizedBox(width: 7),
+                      ],
+                    ],
+                  )
+                else
+                  Row(
+                    children: [
+                      for (int i = 0; i < 4; i++) ...[
+                        _ratingChip(a, i, isMalayalam),
+                        if (i < 3) const SizedBox(width: 7),
+                      ],
+                    ],
+                  ),
+                _notesField(a, isMalayalam, enabled: true),
+                if (_parentApproving) _parentApproveRow(a, isMalayalam),
               ],
             ),
     );
@@ -1057,6 +1183,151 @@ class _DailyMarkingScreenState extends State<DailyMarkingScreen> {
 
   /// A small, unobtrusive pill shown in place of the rating chips for a prayer
   /// whose time has not arrived yet, telling the student when they can mark it.
+  Widget _qtyPill(Object? activityId, bool isMalayalam) {
+    final qty = _qtyValues[activityId] ?? 0;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+      decoration: BoxDecoration(
+        color: kGreen.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.check_rounded, color: kGreen, size: 14),
+          const SizedBox(width: 5),
+          Text(
+            isMalayalam
+                ? '$qty യൂണിറ്റ്'
+                : '$qty ${qty == 1 ? 'unit' : 'units'}',
+            style: TextStyle(
+              color: kGreen,
+              fontWeight: FontWeight.w700,
+              fontSize: 12.5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Stepper for a has_quantity activity (e.g. Quran pages read). Tapping +/−
+  /// adjusts the value live; the Save button commits the quantity to the
+  /// backend. No ratingId is sent — marks come from activity_scoring_rules.
+  Widget _qtyStepper(Map<String, dynamic> a, bool isMalayalam) {
+    final qty = _qtyFor(a);
+    return Row(
+      children: [
+        _qtyButton(a, Icons.remove_rounded, -1),
+        const SizedBox(width: 12),
+        SizedBox(
+          width: 56,
+          child: Text(
+            '$qty',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+              color: AppColors.heading,
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        _qtyButton(a, Icons.add_rounded, 1),
+        const Spacer(),
+        SizedBox(
+          height: 36,
+          child: FilledButton(
+            onPressed: qty > 0 ? () => _saveActivity(a, -1, isMalayalam) : null,
+            style: FilledButton.styleFrom(
+              backgroundColor: kGreen,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+            ),
+            child: Text(
+              isMalayalam ? 'സേവ്' : 'Save',
+              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _qtyButton(Map<String, dynamic> a, IconData icon, int delta) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: () => _setQty(a, _qtyFor(a) + delta),
+      child: Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          color: kGreen.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: kGreen.withValues(alpha: 0.3)),
+        ),
+        child: Icon(icon, color: kGreen, size: 20),
+      ),
+    );
+  }
+
+  Widget _notesField(Map<String, dynamic> a, bool isMalayalam, {required bool enabled}) {
+    final controller = _ensureNotesController(a, a['savedNotes'] as String?);
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: TextField(
+        controller: controller,
+        enabled: enabled,
+        maxLines: 2,
+        textCapitalization: TextCapitalization.sentences,
+        style: const TextStyle(fontSize: 13.5, color: AppColors.heading),
+        decoration: InputDecoration(
+          isDense: true,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          hintText: isMalayalam ? 'കുറിപ്പ് (ഓപ്ഷണൽ)' : 'Notes (optional)',
+          hintStyle: const TextStyle(fontSize: 12.5, color: AppColors.neutral400),
+          filled: true,
+          fillColor: AppColors.neutral50,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.neutral200)),
+          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.neutral200)),
+          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: kGreen, width: 1.4)),
+        ),
+      ),
+    );
+  }
+
+  Widget _parentApproveRow(Map<String, dynamic> a, bool isMalayalam) {
+    final approved = a['parentApproved'] == true;
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => setState(() => a['parentApproved'] = !approved),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+          decoration: BoxDecoration(
+            color: (approved ? kGreen : AppColors.neutral100).withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: (approved ? kGreen : AppColors.neutral200).withValues(alpha: approved ? 0.35 : 1)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(approved ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded, size: 18, color: approved ? kGreen : AppColors.neutral400),
+              const SizedBox(width: 8),
+              Text(
+                isMalayalam ? (approved ? 'മാതാപിതാക്കൾ അംഗീകരിച്ചു' : 'മാതാപിതാക്കളുടെ അംഗീകാരം') : (approved ? 'Parent approved' : 'Awaiting parent approval'),
+                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: approved ? kGreen : AppColors.neutral500),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
   Widget _timeLockedNote(Map<String, dynamic> a, bool isMalayalam) {
     final unlock = _prayerUnlockFor(a);
     final clock = unlock != null ? _formatClock(unlock) : '';
@@ -1394,20 +1665,45 @@ class _DailyMarkingScreenState extends State<DailyMarkingScreen> {
     }
 
     final activityId = (a['id'] ?? '').toString();
-    final ratingName = (band >= 0 && band < _ratingNames.length)
-        ? _ratingNames[band]
-        : '';
-    final ratingId = (a['ratings'] as Map<String, String>?)?[ratingName] ?? '';
+    final hasQuantity = a['hasQuantity'] == true;
 
-    if (activityId.isEmpty || ratingId.isEmpty) {
-      _showSnack(
-        isMalayalam
-            ? 'സേവ് ചെയ്യാനായില്ല · വീണ്ടും ശ്രമിക്കുക'
-            : 'Could not save · please try again',
-        icon: Icons.error_outline_rounded,
-      );
-      return;
+    // Quantity activities (e.g. Quran pages) send {quantity} and NO ratingId —
+    // the backend derives marks from activity_scoring_rules. Sending a ratingId
+    // belonging to a different activity was the root cause of the June 22
+    // 500-error bug.
+    String ratingId = '';
+    int? quantity;
+    if (hasQuantity) {
+      quantity = _qtyFor(a);
+      if (quantity <= 0) {
+        _showSnack(
+          isMalayalam
+              ? 'എണ്ണം ചേർക്കുക · 0 ആയിരിക്കാൻ പാടില്ല'
+              : 'Enter a quantity greater than 0',
+          icon: Icons.error_outline_rounded,
+        );
+        return;
+      }
+    } else {
+      final ratingName = (band >= 0 && band < _ratingNames.length)
+          ? _ratingNames[band]
+          : '';
+      ratingId = (a['ratings'] as Map<String, String>?)?[ratingName] ?? '';
+      if (activityId.isEmpty || ratingId.isEmpty) {
+        _showSnack(
+          isMalayalam
+              ? 'സേവ് ചെയ്യാനായില്ല · വീണ്ടും ശ്രമിക്കുക'
+              : 'Could not save · please try again',
+          icon: Icons.error_outline_rounded,
+        );
+        return;
+      }
     }
+
+    // Capture notes + parent-approval at submit time (the controllers/values
+    // stay live for editing, so we read them here, not at build time).
+    final notes = _notesControllers[a['id']]?.text.trim();
+    final parentApproved = a['parentApproved'] == true;
 
     setState(() {
       a['rating'] = band;
@@ -1417,8 +1713,11 @@ class _DailyMarkingScreenState extends State<DailyMarkingScreen> {
     final res = await MobileApiService.submitActivityLog(
       studentId: widget.studentId,
       activityId: activityId,
-      logDate: widget.date,
-      ratingId: ratingId,
+      logDate: _yesterdayDate(),
+      ratingId: ratingId.isEmpty ? null : ratingId,
+      quantity: quantity,
+      notes: (notes != null && notes.isNotEmpty) ? notes : null,
+      parentApproved: parentApproved ? true : null,
     );
 
     if (!mounted) return;
@@ -1488,5 +1787,87 @@ class _DailyMarkingScreenState extends State<DailyMarkingScreen> {
     } catch (_) {
       return iso;
     }
+  }
+
+  /// Tappable date chip shown beneath the header title. Reflects the currently
+  /// selected marking day and opens the date picker on tap.
+  Widget _dateChip(bool isMalayalam) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: _pickDate,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: kGreen.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: kGreen.withValues(alpha: 0.3)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.calendar_today_rounded, size: 13, color: kGreen),
+                const SizedBox(width: 6),
+                Text(
+                  _formatDate(_selectedDate),
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: kGreen,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Icon(Icons.expand_more_rounded, size: 16, color: kGreen),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickDate() async {
+    DateTime base;
+    try {
+      base = DateTime.parse(_selectedDate);
+    } catch (_) {
+      base = DateTime.now();
+    }
+    final today = DateTime.now();
+    // FRD §4.2.2: students may mark any of the past 7 days (within limit).
+    final earliest = today.subtract(const Duration(days: _maxPastDays - 1));
+
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: base.isAfter(today) ? today : base,
+      firstDate: earliest,
+      lastDate: today,
+      helpText: 'Select marking day',
+    );
+    if (picked == null) return;
+
+    final iso =
+        '${picked.year.toString().padLeft(4, '0')}-'
+        '${picked.month.toString().padLeft(2, '0')}-'
+        '${picked.day.toString().padLeft(2, '0')}';
+    if (iso == _selectedDate) return;
+
+    // Clear per-day state so the freshly-loaded sheet doesn't show stale
+    // values from the previously selected day.
+    setState(() {
+      _selectedDate = iso;
+      _loadingStructure = true;
+      _cats = [];
+      _yesterdayPrayers = [];
+      for (final c in _notesControllers.values) {
+        c.dispose();
+      }
+      _notesControllers.clear();
+      _qtyValues.clear();
+    });
+    await _loadStructure();
   }
 }

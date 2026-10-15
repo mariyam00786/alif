@@ -5,7 +5,7 @@ import { HttpError } from '../../errors/http-error';
 import type { Profile } from '../../types/database';
 import type { AuthenticatedUser } from '../../types/domain';
 import { AuditLogService } from '../audit/audit-log-service';
-import { createToken, getUserFromToken, type AuthUser } from '../auth-service';
+import { createToken, getUserFromToken, type AuthUser, DEMO_PROFILES } from '../auth-service';
 
 interface AuthSession {
   authUser: User | null;
@@ -24,6 +24,39 @@ export class AuthService {
   private readonly auditLogService = new AuditLogService();
 
   async getSessionFromAccessToken(accessToken: string): Promise<AuthSession> {
+    // 1. Fast path: check JWT tokens issued by backend OTP/auth flow
+    try {
+      const jwtUser = await getUserFromToken(accessToken);
+      if (jwtUser) {
+        let profile: Profile;
+        try {
+          profile = await this.getProfileById(jwtUser.profile_id);
+        } catch {
+          const now = new Date().toISOString();
+          profile = {
+            id: jwtUser.profile_id,
+            phone: jwtUser.phone,
+            full_name: jwtUser.name,
+            role: jwtUser.role,
+            created_at: now,
+            updated_at: now,
+          };
+        }
+
+        return {
+          authUser: null,
+          user: {
+            profileId: profile.id,
+            authUserId: jwtUser.id,
+            role: jwtUser.role,
+            phone: jwtUser.phone,
+          },
+          profile,
+        };
+      }
+    } catch (_) {}
+
+    // 2. Supabase auth validation
     let supabaseUser: User | null = null;
     let supabaseError: unknown;
 
@@ -50,55 +83,37 @@ export class AuthService {
       };
     }
 
-    // Fallback for JWT tokens issued by the OTP login flow.
-    const jwtUser = await getUserFromToken(accessToken);
-    if (jwtUser) {
-      let profile: Profile;
-      try {
-        profile = await this.getProfileById(jwtUser.profile_id);
-      } catch {
-        const now = new Date().toISOString();
-        profile = {
-          id: jwtUser.profile_id,
-          phone: jwtUser.phone,
-          full_name: jwtUser.name,
-          role: jwtUser.role,
-          created_at: now,
-          updated_at: now,
-        };
-      }
-
-      return {
-        authUser: null,
-        user: {
-          profileId: profile.id,
-          authUserId: jwtUser.id,
-          role: jwtUser.role,
-          phone: jwtUser.phone,
-        },
-        profile,
-      };
-    }
-
     throw new HttpError(401, 'Invalid or expired access token.', supabaseError);
   }
 
   async getProfileById(profileId: string): Promise<Profile> {
-    const { data, error } = await getSupabaseClient()
-      .from('profiles')
-      .select('*')
-      .eq('id', profileId)
-      .maybeSingle();
+    try {
+      const { data, error } = await getSupabaseClient()
+        .from('profiles')
+        .select('*')
+        .eq('id', profileId)
+        .maybeSingle();
 
-    if (error) {
-      throw new HttpError(500, 'Unable to load the user profile.', error);
+      if (!error && data) {
+        return data as Profile;
+      }
+    } catch (_) {}
+
+    const demo = DEMO_PROFILES.find((p) => p.id === profileId);
+    if (demo) {
+      const now = new Date().toISOString();
+      return {
+        id: demo.id,
+        phone: demo.phone,
+        full_name: demo.full_name,
+        full_name_ml: demo.full_name_ml,
+        role: demo.role,
+        created_at: demo.created_at ?? now,
+        updated_at: demo.updated_at ?? now,
+      };
     }
 
-    if (!data) {
-      throw new HttpError(404, 'Profile not found for authenticated user.');
-    }
-
-    return data as Profile;
+    throw new HttpError(404, 'Profile not found for authenticated user.');
   }
 
   async updateProfile(

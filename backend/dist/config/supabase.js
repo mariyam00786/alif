@@ -9,11 +9,42 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.isSupabaseOffline = isSupabaseOffline;
+exports.markSupabaseOffline = markSupabaseOffline;
 exports.getSupabaseClient = getSupabaseClient;
 exports.getSupabaseAnonClient = getSupabaseAnonClient;
 exports.initializeSupabaseSchema = initializeSupabaseSchema;
 const supabase_js_1 = require("@supabase/supabase-js");
 const config_1 = __importDefault(require("./config"));
+// Circuit breaker state for offline resilience
+let lastFailedAt = 0;
+const OFFLINE_COOLDOWN_MS = 30000;
+function isSupabaseOffline() {
+    return Date.now() - lastFailedAt < OFFLINE_COOLDOWN_MS;
+}
+function markSupabaseOffline() {
+    lastFailedAt = Date.now();
+}
+const safeFetch = async (input, init) => {
+    if (isSupabaseOffline()) {
+        throw new Error('Supabase is currently unreachable (circuit breaker active)');
+    }
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 1500);
+    try {
+        const res = await fetch(input, {
+            ...init,
+            signal: controller.signal,
+        });
+        clearTimeout(timer);
+        return res;
+    }
+    catch (err) {
+        clearTimeout(timer);
+        markSupabaseOffline();
+        throw err;
+    }
+};
 // Initialize Supabase client with service role (for server-side operations)
 let supabaseClient = null;
 /**
@@ -28,6 +59,9 @@ function getSupabaseClient() {
             auth: {
                 autoRefreshToken: false,
                 persistSession: false,
+            },
+            global: {
+                fetch: safeFetch,
             },
         });
     }

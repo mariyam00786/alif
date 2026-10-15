@@ -237,21 +237,6 @@ class _ParentDashboardState extends State<ParentDashboard> {
                 ),
               ),
               const SizedBox(height: 16),
-              _profileTile(
-                icon: Icons.translate_rounded,
-                label: isMalayalam ? 'ഭാഷ' : 'Language',
-                trailing: Text(
-                  isMalayalam ? 'മലയാളം' : 'English',
-                  style: const TextStyle(
-                    color: Color(0xFF0F766E),
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                onTap: () => widget.onLocaleChanged(
-                  isMalayalam ? AppLocale.en : AppLocale.ml,
-                ),
-              ),
-              const SizedBox(height: 10),
               if (widget.onSwitchToStudent != null) ...[
                 _profileTile(
                   icon: Icons.school_rounded,

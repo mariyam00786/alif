@@ -12,6 +12,7 @@
  * - Role-based access control
  * - Session management
  */
+import { Profile } from '../types/database';
 /**
  * Authentication token
  */
@@ -83,6 +84,33 @@ export declare function requestOTP(phone: string): Promise<OTPRequestResponse>;
  * }
  */
 export declare function verifyOTP(phone: string, code: string): Promise<OTPVerificationResponse>;
+export interface RegisterUserParams {
+    method: 'phone' | 'email';
+    fullName: string;
+    role: AuthUser['role'];
+    fullNameMl?: string;
+    phone?: string;
+    email?: string;
+    password?: string;
+}
+export interface RegisterUserResponse {
+    success: boolean;
+    message: string;
+    /** Normalised phone number, returned for the phone method so the client can
+     * immediately proceed to the OTP step. */
+    phone?: string;
+}
+/**
+ * Self-service registration for the mobile portal (student / parent / teacher).
+ *
+ * Two methods are supported, mirroring the two login methods:
+ * - `phone`: creates the account so the user can then receive an OTP.
+ * - `email`: creates an email + password account the user can sign in with.
+ *
+ * Admin accounts can NOT be created here.
+ */
+export declare function registerUser(params: RegisterUserParams): Promise<RegisterUserResponse>;
+export declare const DEMO_PROFILES: Profile[];
 /**
  * Creates JWT token for authenticated user
  *

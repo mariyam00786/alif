@@ -54,8 +54,10 @@ const http_error_1 = require("./errors/http-error");
 const auth_1 = __importDefault(require("./routes/auth"));
 const admin_1 = __importDefault(require("./routes/admin"));
 const students_1 = __importDefault(require("./routes/students"));
+const student_portal_1 = __importDefault(require("./routes/student-portal"));
 const teachers_1 = __importDefault(require("./routes/teachers"));
 const teacher_portal_1 = __importDefault(require("./routes/teacher-portal"));
+const teacher_portal_phase_t_1 = __importDefault(require("./routes/teacher-portal-phase-t"));
 const academics_1 = __importDefault(require("./routes/academics"));
 const activities_1 = __importDefault(require("./routes/activities"));
 const activity_logs_1 = __importDefault(require("./routes/activity-logs"));
@@ -116,9 +118,13 @@ app.get('/api/health', healthHandler);
  */
 app.use('/api/auth', auth_1.default);
 app.use('/api/admin', admin_1.default);
+// Student self-service (/me/*) is mounted before the admin students router so
+// its routes resolve first.
+app.use('/api/students', student_portal_1.default);
 app.use('/api/students', students_1.default);
 app.use('/api/teachers', teachers_1.default);
 app.use('/api/teacher', teacher_portal_1.default);
+app.use('/api/teacher', teacher_portal_phase_t_1.default);
 app.use('/api/academics', academics_1.default);
 app.use('/api/activities', activities_1.default);
 app.use('/api/activity-logs', activity_logs_1.default);
@@ -170,7 +176,13 @@ async function startServer() {
         (0, config_1.validateConfig)();
         // Initialize Supabase
         console.log('🔄 Connecting to Supabase...');
-        await (0, supabase_1.initializeSupabaseSchema)();
+        try {
+            await (0, supabase_1.initializeSupabaseSchema)();
+        }
+        catch (schemaError) {
+            console.warn('⚠️ Warning: Supabase schema verification failed or database is unreachable:', schemaError);
+            console.warn('⚠️ Server will continue starting, but database queries may fail until Supabase is active.');
+        }
         // Start listening
         app.listen(config_1.default.app.port, () => {
             console.log(`

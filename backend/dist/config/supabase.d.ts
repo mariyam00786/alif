@@ -5,6 +5,8 @@
  * Used for database operations, authentication, and file storage
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
+export declare function isSupabaseOffline(): boolean;
+export declare function markSupabaseOffline(): void;
 /**
  * Get or create Supabase client
  */

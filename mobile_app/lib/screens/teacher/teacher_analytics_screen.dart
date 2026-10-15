@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fl_chart/fl_chart.dart';
 
 import '../../components/portal_ui.dart';
 import '../../services/teacher_api_service.dart';
@@ -49,14 +50,19 @@ class _TeacherAnalyticsScreenState extends State<TeacherAnalyticsScreen> {
     final isMalayalam = widget.isMalayalam;
     final batch = widget.batches.isEmpty ? null : widget.batches[_batchIndex];
 
+    // Top performers: prefer the live backend payload (FRD §4.3.3); fall back
+    // to the local students list so the section is never empty.
+    final live = batch == null ? null : _analytics[batch.id];
     final batchStudents = batch == null
         ? <TeacherStudent>[]
         : (widget.students.where((s) => s.batchId == batch.id).toList()
             ..sort((a, b) => b.weekPct.compareTo(a.weekPct)));
-    final topPerformers = batchStudents.take(3).toList();
+    final localTop = batchStudents.take(3).toList();
+    final topPerformers = (live != null && live.topPerformers.isNotEmpty)
+        ? live.topPerformers
+        : const <TeacherPerformer>[];
 
     // Areas needing improvement = lowest category averages (live when available).
-    final live = batch == null ? null : _analytics[batch.id];
     final sortedAreas = (live != null && live.areasToImprove.isNotEmpty)
         ? ([...live.areasToImprove]..sort((a, b) => a.pct.compareTo(b.pct)))
         : ([...TeacherData.batchCategories]
@@ -167,15 +173,26 @@ class _TeacherAnalyticsScreenState extends State<TeacherAnalyticsScreen> {
                         icon: Icons.military_tech_rounded,
                       ),
                       const SizedBox(height: 10),
-                      if (topPerformers.isEmpty)
+                      if (topPerformers.isEmpty && localTop.isEmpty)
                         SoftCard(
                           child: Text(
                             isMalayalam ? 'ഡാറ്റ ഇല്ല' : 'No data',
                             style: const TextStyle(color: kMuted),
                           ),
                         )
-                      else
+                      else if (topPerformers.isNotEmpty)
                         ...topPerformers.asMap().entries.map(
+                          (e) => Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: _LivePerformerRow(
+                              rank: e.key + 1,
+                              performer: e.value,
+                              isMalayalam: isMalayalam,
+                            ),
+                          ),
+                        )
+                      else
+                        ...localTop.asMap().entries.map(
                           (e) => Padding(
                             padding: const EdgeInsets.only(bottom: 10),
                             child: _PerformerRow(
@@ -206,30 +223,69 @@ class _TeacherAnalyticsScreenState extends State<TeacherAnalyticsScreen> {
                       ),
                       const SizedBox(height: 14),
 
-                      // Comparative analysis across batches
+                      // Comparative analysis across batches (FRD §4.3.3) —
+                      // live bar chart when available, fallback to the local
+                      // _ComparisonRow list otherwise.
                       SectionLabel(
                         isMalayalam ? 'ബാച്ച് താരതമ്യം' : 'Batch comparison',
                         icon: Icons.bar_chart_rounded,
                       ),
                       const SizedBox(height: 10),
-                      SoftCard(
-                        child: Column(
-                          children: widget.batches
-                              .map(
-                                (b) => Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 7,
-                                  ),
-                                  child: _ComparisonRow(
-                                    batch: b,
-                                    isMalayalam: isMalayalam,
-                                    highlight: b.id == batch.id,
-                                  ),
+                      if (live != null && live.crossBatch.isNotEmpty)
+                        _CrossBatchBarCard(
+                          points: live.crossBatch,
+                          selectedBatchId: batch.id,
+                          isMalayalam: isMalayalam,
+                        )
+                      else
+                        SoftCard(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 18),
+                            child: Center(
+                              child: Text(
+                                isMalayalam
+                                    ? 'ട്രെൻഡ് ലഭ്യമല്ല'
+                                    : 'No trend data yet',
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  color: kMuted,
                                 ),
-                              )
-                              .toList(),
+                              ),
+                            ),
+                          ),
                         ),
+                      const SizedBox(height: 14),
+
+                      // 4-week completion trend rendered as a fl_chart LineChart (FRD §4.3.3).
+                      // The backend returns the most-recent week first; the chart shows it left →
+                      // right from oldest to newest.
+                      SectionLabel(
+                        isMalayalam ? 'ബാച്ച് പൂർത്തീകരണം' : 'Completion trend',
+                        icon: Icons.trending_up_rounded,
                       ),
+                      const SizedBox(height: 10),
+                      if (live != null && live.weeklyTrend.isNotEmpty)
+                        _WeeklyTrendCard(
+                          trend: live.weeklyTrend,
+                          isMalayalam: isMalayalam,
+                        )
+                      else
+                        SoftCard(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 18),
+                            child: Center(
+                              child: Text(
+                                isMalayalam
+                                    ? 'ട്രെൻഡ് ലഭ്യമല്ല'
+                                    : 'No trend data yet',
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  color: kMuted,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
                     ],
                   ),
           ),
@@ -418,4 +474,326 @@ class _ComparisonRow extends StatelessWidget {
       ],
     );
   }
+}
+
+class _LivePerformerRow extends StatelessWidget {
+  final int rank;
+  final TeacherPerformer performer;
+  final bool isMalayalam;
+
+  const _LivePerformerRow({
+    required this.rank,
+    required this.performer,
+    required this.isMalayalam,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const medals = [Color(0xFFFFA000), Color(0xFF9CA3AF), Color(0xFFB45309)];
+    final medal = rank <= 3 ? medals[rank - 1] : kMuted;
+    return SoftCard(
+      padding: const EdgeInsets.all(14),
+      child: Row(
+        children: [
+          Container(
+            width: 30,
+            height: 30,
+            decoration: BoxDecoration(
+              color: medal.withValues(alpha: 0.15),
+              shape: BoxShape.circle,
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              '$rank',
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                color: medal,
+                fontSize: 14,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              isMalayalam ? performer.nameMl : performer.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+                color: kHeading,
+              ),
+            ),
+          ),
+          Text(
+            '${performer.pct}%',
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
+              color: kGreen,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 4-week completion trend rendered as a fl_chart LineChart (FRD §4.3.3).
+/// The backend returns the most-recent week first; the chart shows it left →
+/// right from oldest to newest.
+class _WeeklyTrendCard extends StatelessWidget {
+  final List<TeacherWeekTrend> trend;
+  final bool isMalayalam;
+
+  const _WeeklyTrendCard({required this.trend, required this.isMalayalam});
+
+  @override
+  Widget build(BuildContext context) {
+    // Oldest → newest for left-to-right reading.
+    final ordered = [...trend]
+      ..sort((a, b) => a.weekStart.compareTo(b.weekStart));
+    final spots = <FlSpot>[];
+    for (var i = 0; i < ordered.length; i++) {
+      spots.add(FlSpot(i.toDouble(), ordered[i].completionPct.toDouble()));
+    }
+    final maxY = 100.0;
+
+    return SoftCard(
+      padding: const EdgeInsets.fromLTRB(14, 14, 10, 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            isMalayalam ? 'പൂർത്തീകരണം %' : 'Completion %',
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: kBody,
+            ),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 140,
+            child: LineChart(
+              LineChartData(
+                minY: 0,
+                maxY: maxY,
+                gridData: const FlGridData(
+                  show: true,
+                  drawVerticalLine: false,
+                  horizontalInterval: 25,
+                  getDrawingHorizontalLine: _trendGridLine,
+                ),
+                titlesData: const FlTitlesData(
+                  topTitles: AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  rightTitles: AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 26,
+                      interval: 1,
+                      getTitlesWidget: _trendBottomTitle,
+                    ),
+                  ),
+                  leftTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 28,
+                      interval: 25,
+                    ),
+                  ),
+                ),
+                borderData: FlBorderData(show: false),
+                lineBarsData: [
+                  LineChartBarData(
+                    spots: spots,
+                    isCurved: true,
+                    curveSmoothness: 0.35,
+                    preventCurveOverShooting: true,
+                    barWidth: 3,
+                    isStrokeCapRound: true,
+                    color: kGreen,
+                    dotData: const FlDotData(show: true),
+                    belowBarData: BarAreaData(
+                      show: true,
+                      color: kGreen.withValues(alpha: 0.12),
+                    ),
+                  ),
+                ],
+                lineTouchData: const LineTouchData(enabled: false),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+}
+
+/// Bottom-axis label for the 4-week trend chart ("W1".."W4", oldest→newest).
+/// Top-level so it can be used as a const tear-off across all chart widgets.
+Widget _trendBottomTitle(double value, TitleMeta meta) {
+  final idx = value.round();
+  if (idx < 1 || idx > 4) return const SizedBox.shrink();
+  return SideTitleWidget(
+    axisSide: meta.axisSide,
+    child: Text(
+      'W$idx',
+      style: const TextStyle(
+        fontSize: 11,
+        color: kMuted,
+        fontWeight: FontWeight.w700,
+      ),
+    ),
+  );
+}
+
+/// Hairline horizontal grid line shared by the trend + cross-batch charts.
+/// Top-level so it can be used as a const tear-off across all chart widgets.
+FlLine _trendGridLine(double value) =>
+    FlLine(color: const Color(0xFFEFF1F3), strokeWidth: 1);
+/// Cross-batch comparison rendered as a fl_chart vertical BarChart
+/// (FRD §4.3.3). The selected batch is highlighted in teal; others use a
+/// muted slate.
+class _CrossBatchBarCard extends StatelessWidget {
+  final List<TeacherCrossBatchPoint> points;
+  final String? selectedBatchId;
+  final bool isMalayalam;
+
+  const _CrossBatchBarCard({
+    required this.points,
+    required this.selectedBatchId,
+    required this.isMalayalam,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final bars = <BarChartGroupData>[];
+    for (var i = 0; i < points.length; i++) {
+      final p = points[i];
+      final selected = p.id == selectedBatchId;
+      bars.add(
+        BarChartGroupData(
+          x: i,
+          barRods: [
+            BarChartRodData(
+              toY: p.avgCompletion.toDouble(),
+              color: selected ? kGreen : const Color(0xFFCBD5E1),
+              width: 22,
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(6),
+              ),
+              backDrawRodData: BackgroundBarChartRodData(
+                show: true,
+                toY: 100,
+                color: const Color(0xFFEFF1F3),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return SoftCard(
+      padding: const EdgeInsets.fromLTRB(14, 14, 10, 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            isMalayalam ? 'ശരാശരി പൂർത്തീകരണം %' : 'Avg completion %',
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: kBody,
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 150,
+            child: BarChart(
+              BarChartData(
+                maxY: 100,
+                alignment: BarChartAlignment.spaceAround,
+                gridData: const FlGridData(
+                  show: true,
+                  drawVerticalLine: false,
+                  horizontalInterval: 25,
+                  getDrawingHorizontalLine: _trendGridLine,
+                ),
+                titlesData: FlTitlesData(
+                  topTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  rightTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 34,
+                      getTitlesWidget: (value, meta) {
+                        final idx = value.round();
+                        if (idx < 0 || idx >= points.length) {
+                          return const SizedBox.shrink();
+                        }
+                        return SideTitleWidget(
+                          axisSide: meta.axisSide,
+                          child: Padding(
+                            padding: const EdgeInsets.only(top: 6),
+                            child: Text(
+                              _truncateBatchName(points[idx].nameMl),
+                              style: TextStyle(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w700,
+                                color: points[idx].id == selectedBatchId
+                                    ? kGreen
+                                    : kMuted,
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  leftTitles: const AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 28,
+                      interval: 25,
+                    ),
+                  ),
+                ),
+                borderData: FlBorderData(show: false),
+                barGroups: bars,
+                barTouchData: BarTouchData(
+                  touchTooltipData: BarTouchTooltipData(
+                    getTooltipItem: (group, gIdx, rod, rIdx) {
+                      final p = points[group.x];
+                      return BarTooltipItem(
+                        '${p.avgCompletion}%\n${p.studentCount} students',
+                        const TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static String _truncateBatchName(String s) =>
+      s.length > 8 ? '${s.substring(0, 7)}…' : s;
 }

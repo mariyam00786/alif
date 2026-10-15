@@ -13,6 +13,11 @@
  * - GET  /student/:id/progress?period=  Weekly/monthly progress + remarks
  * - POST /student/:id/remark            Add a remark/feedback for a student
  * - GET  /batch/:id/analytics           Batch analytics (top/improve)
+ * - GET  /badges                        Catalogue of awardable badges
+ * - GET  /student/:id/badges            Badges already awarded to a student
+ * - POST /student/:id/badge             Award a badge to a student
+ * - GET  /batch/:id/attendance?date=    Students + attendance status for a day
+ * - POST /batch/:id/attendance          Upsert attendance for a day
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
@@ -281,6 +286,26 @@ router.get('/students', authentication_1.authenticateRequest, teacherOnly, (0, a
         allTimeMarks.set(row.student_id, (allTimeMarks.get(row.student_id) ?? 0) + (row.marks_earned ?? 0));
     }
     const metrics = computeMetrics(students, logs, totalActivities, today, allTimeMarks);
+    // Last active date + inactivity days per student (T4: "needs attention").
+    // Uses the same 30-day window already loaded; students with no logs in the
+    // window are treated as inactive for 30+ days.
+    const lastActiveByStudent = new Map();
+    for (const log of logs) {
+        if ((log.marks_earned ?? 0) <= 0)
+            continue;
+        const prev = lastActiveByStudent.get(log.student_id);
+        if (prev == null || log.log_date > prev)
+            lastActiveByStudent.set(log.student_id, log.log_date);
+    }
+    const inactivityDays = (studentId) => {
+        const last = lastActiveByStudent.get(studentId);
+        if (!last)
+            return 30;
+        const lastDate = new Date(`${last}T00:00:00Z`);
+        const todayDate = new Date(`${today}T00:00:00Z`);
+        const days = Math.round((todayDate.getTime() - lastDate.getTime()) / 86400000);
+        return Math.max(0, days);
+    };
     // Badge counts per student.
     const { data: badgeRows } = await (0, supabase_1.getSupabaseClient)()
         .from('student_badges')
@@ -292,6 +317,7 @@ router.get('/students', authentication_1.authenticateRequest, teacherOnly, (0, a
     }
     const data = metrics.map((m) => {
         const batch = m.batch_id ? batchMap.get(m.batch_id) : null;
+        const inactive = inactivityDays(m.id);
         return {
             id: m.id,
             name: m.name,
@@ -306,9 +332,15 @@ router.get('/students', authentication_1.authenticateRequest, teacherOnly, (0, a
             rank: m.rank,
             badges: badgeCount.get(m.id) ?? 0,
             logged_today: m.logged_today,
+            last_active_date: lastActiveByStudent.get(m.id) ?? null,
+            inactivity_days: inactive,
+            needs_attention: !m.logged_today || m.week_pct < 50 || inactive >= 3,
         };
     });
-    res.json({ success: true, data });
+    // Optional server-side filter: ?filter=needs_attention
+    const filter = String(req.query.filter ?? '').trim();
+    const filtered = filter === 'needs_attention' ? data.filter((d) => d.needs_attention) : data;
+    res.json({ success: true, data: filtered });
 }));
 /** Ensures a student belongs to one of the teacher's assigned batches. */
 async function requireStudentInScope(teacherId, studentId) {
@@ -462,6 +494,44 @@ router.get('/batch/:id/analytics', authentication_1.authenticateRequest, teacher
         pct: m.month_pct,
         position: idx + 1,
     }));
+    // 4-week completion trend (FRD §4.3.3). Each bucket covers 7 days ending
+    // at the boundary date (most-recent week first).
+    const weeklyTrend = [];
+    for (let w = 0; w < 4; w += 1) {
+        const weekEnd = shiftDate(today, -w * 7);
+        const weekStart = shiftDate(weekEnd, -6);
+        const weekLogs = logs.filter((l) => l.log_date >= weekStart && l.log_date <= weekEnd);
+        const window = windowCompletion(weekLogs, lastNDates(weekEnd, 7), totalActivities);
+        weeklyTrend.push({
+            week_start: weekStart,
+            week_end: weekEnd,
+            completion_pct: window.avgPct,
+            marks: window.marks,
+        });
+    }
+    // Cross-batch comparison (FRD §4.3.3): avg completion + active today +
+    // student count for every batch the teacher is assigned to, so the FE can
+    // render the comparison chart with a single round-trip.
+    const crossBatchComparison = [];
+    await Promise.all(batches.map(async (b) => {
+        const batchStudents = await loadStudents([b.id]);
+        const batchLogs = await loadLogs(batchStudents.map((s) => s.id), lastNDates(today, 30)[0], today);
+        const batchMetrics = computeMetrics(batchStudents, batchLogs, totalActivities, today);
+        const active = batchMetrics.filter((m) => m.logged_today).length;
+        const avg = batchMetrics.length
+            ? Math.round(batchMetrics.reduce((s, m) => s + m.week_pct, 0) / batchMetrics.length)
+            : 0;
+        crossBatchComparison.push({
+            id: b.id,
+            name: b.name,
+            name_ml: b.nameMl,
+            student_count: batchMetrics.length,
+            active_today: active,
+            avg_completion: avg,
+        });
+    }));
+    // Preserve teacher-batches ordering.
+    crossBatchComparison.sort((a, b) => batches.findIndex((x) => x.id === a.id) - batches.findIndex((x) => x.id === b.id));
     // Areas to improve: category averages across the batch (lowest first).
     let areas = [];
     const activityIds = [...new Set(logs.map((l) => l.activity_id))];
@@ -490,6 +560,7 @@ router.get('/batch/:id/analytics', authentication_1.authenticateRequest, teacher
             category: catMap.get(catId)?.name ?? 'Other',
             category_ml: catMap.get(catId)?.name_ml ?? null,
             icon: catMap.get(catId)?.icon ?? null,
+            marks,
             pct: pct(marks, maxMarks),
         }))
             .sort((a, b) => a.pct - b.pct);
@@ -505,7 +576,201 @@ router.get('/batch/:id/analytics', authentication_1.authenticateRequest, teacher
             avg_completion: avgCompletion,
             top_performers: topPerformers,
             areas_to_improve: areas,
+            weekly_trend: weeklyTrend,
+            cross_batch_comparison: crossBatchComparison,
         },
+    });
+}));
+// ===== Badges (teacher-awarded recognition) =====
+/** GET /badges — catalogue of active badges a teacher can award. */
+router.get('/badges', authentication_1.authenticateRequest, teacherOnly, (0, async_handler_1.asyncHandler)(async (_req, res) => {
+    const { data, error } = await (0, supabase_1.getSupabaseClient)()
+        .from('badges')
+        .select('id, name, name_ml, description, icon, bonus_points')
+        .eq('status', 'active')
+        .order('bonus_points', { ascending: false });
+    if (error)
+        throw new http_error_1.HttpError(500, `Failed to load badges: ${error.message}`);
+    res.json({ success: true, data: data ?? [] });
+}));
+/** GET /student/:id/badges — badges already awarded to a student. */
+router.get('/student/:id/badges', authentication_1.authenticateRequest, teacherOnly, (0, async_handler_1.asyncHandler)(async (req, res) => {
+    const teacher = await resolveTeacher(req.user.profileId);
+    await requireStudentInScope(teacher.id, req.params.id);
+    const supabase = (0, supabase_1.getSupabaseClient)();
+    const { data: awarded, error } = await supabase
+        .from('student_badges')
+        .select('id, badge_id, earned_at, awarded_by')
+        .eq('student_id', req.params.id)
+        .order('earned_at', { ascending: false });
+    if (error)
+        throw new http_error_1.HttpError(500, `Failed to load student badges: ${error.message}`);
+    const badgeIds = [...new Set((awarded ?? []).map((r) => r.badge_id))];
+    const teacherIds = [...new Set((awarded ?? [])
+            .map((r) => r.awarded_by)
+            .filter((id) => Boolean(id)))];
+    // Badges catalogue (id/name/icon/points).
+    const badgesRes = badgeIds.length
+        ? await supabase.from('badges').select('id, name, name_ml, icon, bonus_points').in('id', badgeIds)
+        : { data: [] };
+    const badgeMap = new Map((badgesRes.data ?? []).map((b) => [b.id, b]));
+    // Teachers → profiles.full_name so the bell can show "awarded by …".
+    const teacherMap = new Map();
+    if (teacherIds.length) {
+        const tRes = await supabase.from('teachers').select('id, profile_id').in('id', teacherIds);
+        const teacherRows = (tRes.data ?? []);
+        const profileIds = teacherRows.map((t) => t.profile_id).filter(Boolean);
+        const nameByProfile = new Map();
+        if (profileIds.length) {
+            const pRes = await supabase.from('profiles').select('id, full_name').in('id', profileIds);
+            for (const p of pRes.data ?? [])
+                nameByProfile.set(p.id, p.full_name ?? 'Teacher');
+        }
+        for (const t of teacherRows)
+            teacherMap.set(t.id, nameByProfile.get(t.profile_id) ?? 'Teacher');
+    }
+    const data = (awarded ?? []).map((r) => {
+        const b = badgeMap.get(r.badge_id);
+        return {
+            id: r.id,
+            badge_id: r.badge_id,
+            name: b?.name ?? 'Badge',
+            name_ml: b?.name_ml ?? null,
+            icon: b?.icon ?? null,
+            bonus_points: b?.bonus_points ?? 0,
+            earned_at: r.earned_at,
+            awarded_by: r.awarded_by ?? null,
+            awarded_by_name: r.awarded_by ? teacherMap.get(r.awarded_by) ?? 'Teacher' : null,
+        };
+    });
+    res.json({ success: true, data });
+}));
+/** POST /student/:id/badge — award a badge to a student (idempotent). */
+router.post('/student/:id/badge', authentication_1.authenticateRequest, teacherOnly, (0, async_handler_1.asyncHandler)(async (req, res) => {
+    const teacher = await resolveTeacher(req.user.profileId);
+    await requireStudentInScope(teacher.id, req.params.id);
+    const badgeId = String((req.body ?? {}).badge_id ?? '').trim();
+    if (!badgeId)
+        throw new http_error_1.HttpError(400, 'A badge_id is required.');
+    const supabase = (0, supabase_1.getSupabaseClient)();
+    const { data: badge, error: badgeErr } = await supabase
+        .from('badges')
+        .select('id, name, name_ml, icon, bonus_points, status')
+        .eq('id', badgeId)
+        .maybeSingle();
+    if (badgeErr)
+        throw new http_error_1.HttpError(500, `Failed to load badge: ${badgeErr.message}`);
+    if (!badge || badge.status !== 'active')
+        throw new http_error_1.HttpError(404, 'Badge not found.');
+    const { data, error } = await supabase
+        .from('student_badges')
+        .upsert({ student_id: req.params.id, badge_id: badgeId, awarded_by: teacher.id }, { onConflict: 'student_id,badge_id', ignoreDuplicates: false })
+        .select('id, badge_id, earned_at, awarded_by')
+        .single();
+    if (error)
+        throw new http_error_1.HttpError(500, `Failed to award badge: ${error.message}`);
+    res.status(201).json({
+        success: true,
+        data: {
+            id: data.id,
+            badge_id: badgeId,
+            name: badge.name,
+            name_ml: badge.name_ml,
+            icon: badge.icon,
+            bonus_points: badge.bonus_points,
+            earned_at: data.earned_at,
+            awarded_by: data.awarded_by ?? teacher.id,
+        },
+    });
+}));
+// ===== Attendance (teacher marks daily presence) =====
+const ATTENDANCE_STATUSES = ['present', 'absent', 'late', 'excused'];
+/** GET /batch/:id/attendance?date=YYYY-MM-DD — students + their status for a day. */
+router.get('/batch/:id/attendance', authentication_1.authenticateRequest, teacherOnly, (0, async_handler_1.asyncHandler)(async (req, res) => {
+    const teacher = await resolveTeacher(req.user.profileId);
+    const batches = await loadAssignedBatches(teacher.id);
+    const batch = batches.find((b) => b.id === req.params.id);
+    if (!batch)
+        throw new http_error_1.HttpError(403, 'This batch is not assigned to you.');
+    const date = String(req.query.date ?? todayUtc()).slice(0, 10);
+    const students = await loadStudents([batch.id]);
+    const supabase = (0, supabase_1.getSupabaseClient)();
+    const { data: rows, error } = students.length
+        ? await supabase
+            .from('attendance')
+            .select('student_id, status, notes')
+            .eq('attendance_date', date)
+            .in('student_id', students.map((s) => s.id))
+        : { data: [], error: null };
+    if (error)
+        throw new http_error_1.HttpError(500, `Failed to load attendance: ${error.message}`);
+    const statusMap = new Map((rows ?? []).map((r) => [r.student_id, r]));
+    const data = students.map((s) => {
+        const r = statusMap.get(s.id);
+        return {
+            id: s.id,
+            name: s.name,
+            name_ml: s.nameMl,
+            status: r?.status ?? null,
+            notes: r?.notes ?? null,
+        };
+    });
+    const present = data.filter((d) => d.status === 'present' || d.status === 'late').length;
+    res.json({
+        success: true,
+        data: {
+            batch_id: batch.id,
+            date,
+            present_count: present,
+            total: data.length,
+            students: data,
+        },
+    });
+}));
+/**
+ * POST /batch/:id/attendance — upsert attendance for a day.
+ * Body: { date?: string, entries: [{ student_id, status, notes? }] }
+ */
+router.post('/batch/:id/attendance', authentication_1.authenticateRequest, teacherOnly, (0, async_handler_1.asyncHandler)(async (req, res) => {
+    const teacher = await resolveTeacher(req.user.profileId);
+    const batches = await loadAssignedBatches(teacher.id);
+    const batch = batches.find((b) => b.id === req.params.id);
+    if (!batch)
+        throw new http_error_1.HttpError(403, 'This batch is not assigned to you.');
+    const body = req.body ?? {};
+    const date = String(body.date ?? todayUtc()).slice(0, 10);
+    const entries = Array.isArray(body.entries) ? body.entries : [];
+    if (entries.length === 0)
+        throw new http_error_1.HttpError(400, 'At least one attendance entry is required.');
+    const students = await loadStudents([batch.id]);
+    const validIds = new Set(students.map((s) => s.id));
+    const rows = entries.map((e) => {
+        const studentId = String(e?.student_id ?? '');
+        const status = String(e?.status ?? '');
+        if (!validIds.has(studentId))
+            throw new http_error_1.HttpError(403, 'A student is not in this batch.');
+        if (!ATTENDANCE_STATUSES.includes(status)) {
+            throw new http_error_1.HttpError(400, `Invalid status "${status}".`);
+        }
+        return {
+            student_id: studentId,
+            batch_id: batch.id,
+            attendance_date: date,
+            status,
+            marked_by: teacher.id,
+            notes: e?.notes ? String(e.notes) : null,
+            updated_at: new Date().toISOString(),
+        };
+    });
+    const { error } = await (0, supabase_1.getSupabaseClient)()
+        .from('attendance')
+        .upsert(rows, { onConflict: 'student_id,attendance_date', ignoreDuplicates: false });
+    if (error)
+        throw new http_error_1.HttpError(500, `Failed to save attendance: ${error.message}`);
+    const present = rows.filter((r) => r.status === 'present' || r.status === 'late').length;
+    res.json({
+        success: true,
+        data: { batch_id: batch.id, date, saved: rows.length, present_count: present },
     });
 }));
 exports.default = router;

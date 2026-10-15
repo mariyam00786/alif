@@ -12,11 +12,36 @@ const leaderboardService = new achievement_service_1.LeaderboardService();
 router.get('/badges', authentication_1.authenticateRequest, (0, authorization_1.requireRoles)('admin', 'teacher', 'parent', 'student'), (0, async_handler_1.asyncHandler)(async (_req, res) => {
     res.json({ success: true, data: await badgeService.list('created_at') });
 }));
+/** Keeps only columns that exist on the `badges` table. */
+function shapeBadgePayload(body) {
+    const payload = {};
+    if (body.name !== undefined)
+        payload.name = body.name;
+    if (body.name_ml !== undefined)
+        payload.name_ml = body.name_ml;
+    if (body.description !== undefined)
+        payload.description = body.description;
+    if (body.icon !== undefined)
+        payload.icon = body.icon;
+    if (body.criteria !== undefined)
+        payload.criteria = body.criteria;
+    if (body.bonus_points !== undefined)
+        payload.bonus_points = body.bonus_points;
+    if (body.status !== undefined)
+        payload.status = body.status === 'inactive' ? 'inactive' : 'active';
+    return payload;
+}
 router.post('/badges', authentication_1.authenticateRequest, (0, authorization_1.requireRoles)('admin'), (0, async_handler_1.asyncHandler)(async (req, res) => {
-    res.status(201).json({ success: true, data: await badgeService.create((0, validation_1.ensureObject)(req.body), req.user) });
+    res.status(201).json({ success: true, data: await badgeService.create(shapeBadgePayload((0, validation_1.ensureObject)(req.body)), req.user) });
 }));
-router.patch('/badges/:id', authentication_1.authenticateRequest, (0, authorization_1.requireRoles)('admin'), (0, async_handler_1.asyncHandler)(async (req, res) => {
-    res.json({ success: true, data: await badgeService.update(req.params.id, (0, validation_1.ensureObject)(req.body), req.user) });
+const badgeUpdateHandler = (0, async_handler_1.asyncHandler)(async (req, res) => {
+    res.json({ success: true, data: await badgeService.updateBadge(req.params.id, shapeBadgePayload((0, validation_1.ensureObject)(req.body))) });
+});
+router.patch('/badges/:id', authentication_1.authenticateRequest, (0, authorization_1.requireRoles)('admin'), badgeUpdateHandler);
+router.put('/badges/:id', authentication_1.authenticateRequest, (0, authorization_1.requireRoles)('admin'), badgeUpdateHandler);
+router.delete('/badges/:id', authentication_1.authenticateRequest, (0, authorization_1.requireRoles)('admin'), (0, async_handler_1.asyncHandler)(async (req, res) => {
+    await badgeService.remove(req.params.id);
+    res.json({ success: true });
 }));
 router.get('/leaderboards/weekly', authentication_1.authenticateRequest, (0, authorization_1.requireRoles)('admin', 'teacher', 'parent', 'student'), (0, async_handler_1.asyncHandler)(async (req, res) => {
     const startDate = (0, validation_1.getDateString)(req.query.startDate, 'startDate', true);

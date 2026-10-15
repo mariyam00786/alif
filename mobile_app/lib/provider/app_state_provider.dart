@@ -3,10 +3,12 @@ import 'package:provider/provider.dart';
 
 import '../services/google_auth_service.dart';
 
-/// Supported app locales for bilingual (English / Malayalam) support.
+/// Supported app locales. English-only is shipped; Malayalam support is
+/// intentionally disabled, so [AppLocale.ml] is kept only for backwards
+/// compatibility with existing constructors and is never selected.
 enum AppLocale {
   en, // English
-  ml, // Malayalam
+  ml, // Malayalam (disabled — English-only build)
 }
 
 /// Central application state provider.
@@ -18,7 +20,10 @@ enum AppLocale {
 /// - Locale & theme preferences
 /// - Authentication / session state (role, selected student)
 class AppStateProvider extends ChangeNotifier {
-  AppLocale _locale = AppLocale.en;
+  // English-only build: locale is permanently [AppLocale.en]. Kept as a field
+  // (not const) only to preserve the original provider shape for callers that
+  // still read [locale]; it is never mutated.
+  final AppLocale _locale = AppLocale.en;
   bool _isDarkMode = false;
   bool _isLoggedIn = false;
   String? _activeRole;
@@ -37,7 +42,8 @@ class AppStateProvider extends ChangeNotifier {
   // ===== Getters =====
   AppLocale get locale => _locale;
   bool get isDarkMode => _isDarkMode;
-  bool get isMalayalam => _locale == AppLocale.ml;
+  // English-only build: Malayalam is permanently disabled.
+  bool get isMalayalam => false;
   // Both supported locales (English and Malayalam) are left-to-right scripts.
   TextDirection get textDirection => TextDirection.ltr;
   bool get isLoggedIn => _isLoggedIn;
@@ -70,14 +76,11 @@ class AppStateProvider extends ChangeNotifier {
 
   // ===== Locale & theme =====
   void setLocale(AppLocale locale) {
-    if (_locale == locale) return;
-    _locale = locale;
-    notifyListeners();
+    // English-only build: locale switching disabled.
   }
 
   void toggleLocale() {
-    _locale = isMalayalam ? AppLocale.en : AppLocale.ml;
-    notifyListeners();
+    // English-only build: locale switching disabled.
   }
 
   void setDarkMode(bool value) {

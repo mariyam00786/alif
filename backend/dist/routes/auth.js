@@ -8,6 +8,32 @@ const auth_service_2 = require("../services/auth-service");
 const validation_1 = require("../utils/validation");
 const router = (0, express_1.Router)();
 const authService = new auth_service_1.AuthService();
+router.post('/register', (0, async_handler_1.asyncHandler)(async (req, res) => {
+    const body = (0, validation_1.ensureObject)(req.body);
+    const method = (0, validation_1.getRequiredString)(body.method, 'method');
+    if (method !== 'phone' && method !== 'email') {
+        res.status(400).json({ success: false, message: 'method must be "phone" or "email".' });
+        return;
+    }
+    const result = await (0, auth_service_2.registerUser)({
+        method,
+        fullName: (0, validation_1.getRequiredString)(body.full_name, 'full_name'),
+        role: (0, validation_1.getRequiredString)(body.role, 'role'),
+        fullNameMl: (0, validation_1.getOptionalString)(body.full_name_ml, 'full_name_ml'),
+        phone: (0, validation_1.getOptionalString)(body.phone, 'phone'),
+        email: (0, validation_1.getOptionalString)(body.email, 'email'),
+        password: (0, validation_1.getOptionalString)(body.password, 'password'),
+    });
+    if (!result.success) {
+        res.status(400).json({ success: false, message: result.message });
+        return;
+    }
+    res.json({
+        success: true,
+        message: result.message,
+        data: { phone: result.phone },
+    });
+}));
 router.post('/request-otp', (0, async_handler_1.asyncHandler)(async (req, res) => {
     const body = (0, validation_1.ensureObject)(req.body);
     const phone = (0, validation_1.getRequiredString)(body.phone, 'phone');

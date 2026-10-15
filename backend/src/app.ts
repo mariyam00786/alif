@@ -19,6 +19,7 @@ import studentRoutes from './routes/students';
 import studentPortalRoutes from './routes/student-portal';
 import teacherRoutes from './routes/teachers';
 import teacherPortalRoutes from './routes/teacher-portal';
+import teacherPortalPhaseTRoutes from './routes/teacher-portal-phase-t';
 import academicRoutes from './routes/academics';
 import activityRoutes from './routes/activities';
 import activityLogRoutes from './routes/activity-logs';
@@ -102,6 +103,7 @@ app.use('/api/students', studentPortalRoutes);
 app.use('/api/students', studentRoutes);
 app.use('/api/teachers', teacherRoutes);
 app.use('/api/teacher', teacherPortalRoutes);
+app.use('/api/teacher', teacherPortalPhaseTRoutes);
 app.use('/api/academics', academicRoutes);
 app.use('/api/activities', activityRoutes);
 app.use('/api/activity-logs', activityLogRoutes);
@@ -159,7 +161,12 @@ export async function startServer(): Promise<void> {
 
     // Initialize Supabase
     console.log('🔄 Connecting to Supabase...');
-    await initializeSupabaseSchema();
+    try {
+      await initializeSupabaseSchema();
+    } catch (schemaError) {
+      console.warn('⚠️ Warning: Supabase schema verification failed or database is unreachable:', schemaError);
+      console.warn('⚠️ Server will continue starting, but database queries may fail until Supabase is active.');
+    }
 
     // Start listening
     app.listen(config.app.port, () => {

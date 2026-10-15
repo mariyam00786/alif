@@ -269,6 +269,187 @@ class TeacherApiService {
           : name,
       icon: j['icon']?.toString() ?? '🏅',
       bonusPoints: (j['bonus_points'] as num?)?.toInt() ?? 0,
+      awardedBy: j['awarded_by']?.toString(),
+      awardedByName: j['awarded_by_name']?.toString(),
+      earnedAt: j['earned_at']?.toString(),
+    );
+  }
+
+  // ===== Teacher-sent notifications (Phase T / FRD §4.3.4) =====
+
+  /// Sends a batch reminder / motivational / acknowledgement to a batch.
+  ///
+  /// Returns the created row (with `recipients`) on success, or null on
+  /// failure / demo mode.
+  static Future<TeacherNotificationResult?> notifyBatch(
+    String batchId, {
+    required String title,
+    required String body,
+    required String type, // batch_reminder | motivational | acknowledgement
+  }) async {
+    final token = MobileApiService.getAuthToken();
+    if (token == null || token == 'demo-teacher') return null;
+    try {
+      final res = await http
+          .post(
+            Uri.parse('$_base/teacher/batch/$batchId/notify'),
+            headers: _headers(),
+            body: jsonEncode({'title': title, 'body': body, 'type': type}),
+          )
+          .timeout(_timeout);
+      final data = _object(res);
+      return TeacherNotificationResult(
+        id: data['id']?.toString() ?? '',
+        batchId: data['batch_id']?.toString() ?? batchId,
+        recipients: (data['recipients'] as num?)?.toInt() ?? 0,
+        title: data['title']?.toString() ?? title,
+        body: data['body']?.toString() ?? body,
+        type: data['type']?.toString() ?? type,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Fetch announcements + batch reminders for the signed-in teacher (T2 bell).
+  static Future<List<Map<String, dynamic>>> fetchTeacherNotifications() async {
+    final token = MobileApiService.getAuthToken();
+    if (token == null || token == 'demo-teacher') return const [];
+    try {
+      final res = await http
+          .get(
+            Uri.parse('$_base/teacher/me/notifications'),
+            headers: _headers(),
+          )
+          .timeout(_timeout);
+      final list = _list(res);
+      return list
+          .map((e) => Map<String, dynamic>.from(e as Map<String, dynamic>))
+          .toList();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  // ===== Per-student monitoring extras (T4) =====
+
+  /// Loads the last [days] days of attendance for a student. Returns null on
+  /// failure / demo mode.
+  static Future<StudentAttendanceHistory?> fetchStudentAttendanceHistory(
+    String studentId, {
+    int days = 30,
+  }) async {
+    final token = MobileApiService.getAuthToken();
+    if (token == null || token == 'demo-teacher') return null;
+    try {
+      final res = await http
+          .get(
+            Uri.parse(
+              '$_base/teacher/student/$studentId/attendance?days=$days',
+            ),
+            headers: _headers(),
+          )
+          .timeout(_timeout);
+      final data = _object(res);
+      final entries = ((data['entries'] as List?) ?? const [])
+          .map((e) => AttendanceHistoryEntry(
+                date: (e as Map<String, dynamic>)['date']?.toString() ?? '',
+                status: e['status']?.toString(),
+                notes: e['notes']?.toString(),
+                markedByName: e['marked_by_name']?.toString(),
+              ))
+          .toList();
+      return StudentAttendanceHistory(
+        fromDate: data['from_date']?.toString() ?? '',
+        toDate: data['to_date']?.toString() ?? '',
+        presentCount: (data['present_count'] as num?)?.toInt() ?? 0,
+        totalMarked: (data['total_marked'] as num?)?.toInt() ?? 0,
+        entries: entries,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // ===== Class management (T5) =====
+
+  /// Loads the classes for the teacher's assigned batches.
+  static Future<List<TeacherClass>> fetchClasses() async {
+    final token = MobileApiService.getAuthToken();
+    if (token == null || token == 'demo-teacher') return const [];
+    try {
+      final res = await http
+          .get(Uri.parse('$_base/teacher/classes'), headers: _headers())
+          .timeout(_timeout);
+      return _list(res)
+          .map((e) => _mapClass(e as Map<String, dynamic>))
+          .toList();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  /// Loads the roster for a class (students + today's attendance status).
+  static Future<ClassRoster?> fetchClassRoster(
+    String classId, {
+    String? date,
+  }) async {
+    final token = MobileApiService.getAuthToken();
+    if (token == null || token == 'demo-teacher') return null;
+    try {
+      final q = date != null ? '?date=$date' : '';
+      final res = await http
+          .get(
+            Uri.parse('$_base/teacher/class/$classId$q'),
+            headers: _headers(),
+          )
+          .timeout(_timeout);
+      final data = _object(res);
+      final students = ((data['students'] as List?) ?? const [])
+          .map((e) {
+            final m = e as Map<String, dynamic>;
+            final name = m['name']?.toString() ?? 'Student';
+            return AttendanceRow(
+              studentId: m['id']?.toString() ?? '',
+              name: name,
+              nameMl: (m['name_ml']?.toString().isNotEmpty ?? false)
+                  ? m['name_ml'].toString()
+                  : name,
+              status: m['status']?.toString(),
+            );
+          })
+          .toList();
+      return ClassRoster(
+        classId: data['class_id']?.toString() ?? classId,
+        className: data['class_name']?.toString() ?? 'Class',
+        classNameMl: data['class_name_ml']?.toString() ??
+            data['class_name']?.toString() ??
+            'Class',
+        level: data['level']?.toString(),
+        batchId: data['batch_id']?.toString(),
+        batchName: data['batch_name']?.toString(),
+        date: data['date']?.toString() ?? '',
+        presentCount: (data['present_count'] as num?)?.toInt() ?? 0,
+        total: (data['total'] as num?)?.toInt() ?? students.length,
+        students: students,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static TeacherClass _mapClass(Map<String, dynamic> j) {
+    final name = j['name']?.toString() ?? 'Class';
+    return TeacherClass(
+      id: j['id']?.toString() ?? '',
+      name: name,
+      nameMl: (j['name_ml']?.toString().isNotEmpty ?? false)
+          ? j['name_ml'].toString()
+          : name,
+      level: j['level']?.toString(),
+      batchId: j['batch_id']?.toString(),
+      batchName: j['batch_name']?.toString(),
+      studentCount: (j['student_count'] as num?)?.toInt() ?? 0,
     );
   }
 
@@ -377,6 +558,30 @@ class TeacherApiService {
       final areas = ((data['areas_to_improve'] as List?) ?? const [])
           .map((e) => _mapCategory(e as Map<String, dynamic>))
           .toList();
+      final weeklyTrend = ((data['weekly_trend'] as List?) ?? const [])
+          .map(
+            (e) => TeacherWeekTrend(
+              weekStart: (e as Map<String, dynamic>)['week_start']?.toString() ?? '',
+              weekEnd: e['week_end']?.toString() ?? '',
+              completionPct: (e['completion_pct'] as num?)?.toInt() ?? 0,
+              marks: (e['marks'] as num?)?.toInt() ?? 0,
+            ),
+          )
+          .toList();
+      final crossBatch = ((data['cross_batch_comparison'] as List?) ?? const [])
+          .map(
+            (e) => TeacherCrossBatchPoint(
+              id: (e as Map<String, dynamic>)['id']?.toString() ?? '',
+              name: e['name']?.toString() ?? 'Batch',
+              nameMl: (e['name_ml']?.toString().isNotEmpty ?? false)
+                  ? e['name_ml'].toString()
+                  : (e['name']?.toString() ?? 'Batch'),
+              studentCount: (e['student_count'] as num?)?.toInt() ?? 0,
+              activeToday: (e['active_today'] as num?)?.toInt() ?? 0,
+              avgCompletion: (e['avg_completion'] as num?)?.toInt() ?? 0,
+            ),
+          )
+          .toList();
 
       return TeacherBatchAnalytics(
         studentCount: (data['student_count'] as num?)?.toInt() ?? 0,
@@ -384,6 +589,8 @@ class TeacherApiService {
         avgCompletion: (data['avg_completion'] as num?)?.toInt() ?? 0,
         topPerformers: performers,
         areasToImprove: areas,
+        weeklyTrend: weeklyTrend,
+        crossBatch: crossBatch,
       );
     } catch (_) {
       return null;
@@ -482,6 +689,8 @@ class TeacherBatchAnalytics {
   final int avgCompletion;
   final List<TeacherPerformer> topPerformers;
   final List<CategoryScore> areasToImprove;
+  final List<TeacherWeekTrend> weeklyTrend;
+  final List<TeacherCrossBatchPoint> crossBatch;
 
   const TeacherBatchAnalytics({
     required this.studentCount,
@@ -489,6 +698,42 @@ class TeacherBatchAnalytics {
     required this.avgCompletion,
     required this.topPerformers,
     required this.areasToImprove,
+    this.weeklyTrend = const [],
+    this.crossBatch = const [],
+  });
+}
+
+/// One week of completion trend (Phase T / FRD §4.3.3 4-week trend line).
+class TeacherWeekTrend {
+  final String weekStart;
+  final String weekEnd;
+  final int completionPct;
+  final int marks;
+
+  const TeacherWeekTrend({
+    required this.weekStart,
+    required this.weekEnd,
+    required this.completionPct,
+    required this.marks,
+  });
+}
+
+/// A cross-batch comparison point (Phase T / FRD §4.3.3 chart).
+class TeacherCrossBatchPoint {
+  final String id;
+  final String name;
+  final String nameMl;
+  final int studentCount;
+  final int activeToday;
+  final int avgCompletion;
+
+  const TeacherCrossBatchPoint({
+    required this.id,
+    required this.name,
+    required this.nameMl,
+    required this.studentCount,
+    required this.activeToday,
+    required this.avgCompletion,
   });
 }
 
@@ -500,12 +745,21 @@ class TeacherBadge {
   final String icon;
   final int bonusPoints;
 
+  /// Teacher who awarded the badge (only populated for already-awarded
+  /// badges returned by `/student/:id/badges`).
+  final String? awardedBy;
+  final String? awardedByName;
+  final String? earnedAt;
+
   const TeacherBadge({
     required this.id,
     required this.name,
     required this.nameMl,
     required this.icon,
     required this.bonusPoints,
+    this.awardedBy,
+    this.awardedByName,
+    this.earnedAt,
   });
 }
 
@@ -536,5 +790,104 @@ class BatchAttendance {
     required this.presentCount,
     required this.total,
     required this.rows,
+  });
+}
+
+/// Result of sending a batch notification (Phase T / FRD §4.3.4).
+class TeacherNotificationResult {
+  final String id;
+  final String batchId;
+  final int recipients;
+  final String title;
+  final String body;
+  final String type;
+
+  const TeacherNotificationResult({
+    required this.id,
+    required this.batchId,
+    required this.recipients,
+    required this.title,
+    required this.body,
+    required this.type,
+  });
+}
+
+/// A student's attendance history over a window (Phase T / T4).
+class StudentAttendanceHistory {
+  final String fromDate;
+  final String toDate;
+  final int presentCount;
+  final int totalMarked;
+  final List<AttendanceHistoryEntry> entries;
+
+  const StudentAttendanceHistory({
+    required this.fromDate,
+    required this.toDate,
+    required this.presentCount,
+    required this.totalMarked,
+    required this.entries,
+  });
+}
+
+/// One day's attendance in a student's history (Phase T / T4).
+class AttendanceHistoryEntry {
+  final String date;
+  final String? status;
+  final String? notes;
+  final String? markedByName;
+
+  const AttendanceHistoryEntry({
+    required this.date,
+    required this.status,
+    required this.notes,
+    this.markedByName,
+  });
+}
+
+/// A class under one of the teacher's batches (Phase T / T5).
+class TeacherClass {
+  final String id;
+  final String name;
+  final String nameMl;
+  final String? level;
+  final String? batchId;
+  final String? batchName;
+  final int studentCount;
+
+  const TeacherClass({
+    required this.id,
+    required this.name,
+    required this.nameMl,
+    required this.level,
+    required this.batchId,
+    required this.batchName,
+    required this.studentCount,
+  });
+}
+
+/// Roster + daily attendance for a class (Phase T / T5).
+class ClassRoster {
+  final String classId;
+  final String className;
+  final String classNameMl;
+  final String? level;
+  final String? batchId;
+  final String? batchName;
+  final String date;
+  final int presentCount;
+  final int total;
+  final List<AttendanceRow> students;
+
+  const ClassRoster({
+    required this.classId,
+    required this.className,
+    required this.classNameMl,
+    required this.level,
+    required this.batchId,
+    required this.batchName,
+    required this.date,
+    required this.presentCount,
+    required this.total,
+    required this.students,
   });
 }

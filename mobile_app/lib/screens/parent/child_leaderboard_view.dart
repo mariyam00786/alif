@@ -22,7 +22,7 @@ class ChildLeaderboardView extends StatefulWidget {
 }
 
 class _ChildLeaderboardViewState extends State<ChildLeaderboardView> {
-  static const _periods = ['daily', 'weekly'];
+  static const _periods = ['daily', 'weekly', 'monthly', 'all_time'];
   int _periodIndex = 1; // default: weekly
   late Future<List<LeaderEntry>> _future;
 
@@ -39,10 +39,7 @@ class _ChildLeaderboardViewState extends State<ChildLeaderboardView> {
     if (i == _periodIndex) return;
     setState(() {
       _periodIndex = i;
-      _future = ParentApiService.fetchLeaderboard(
-        widget.childId,
-        _periods[i],
-      );
+      _future = ParentApiService.fetchLeaderboard(widget.childId, _periods[i]);
     });
   }
 
@@ -57,8 +54,8 @@ class _ChildLeaderboardViewState extends State<ChildLeaderboardView> {
           child: PortalSegmented(
             index: _periodIndex,
             items: isMalayalam
-                ? const ['ദിവസം', 'ആഴ്ച']
-                : const ['Daily', 'Weekly'],
+                ? const ['ദിവസം', 'ആഴ്ച', 'മാസം', 'എല്ലാം']
+                : const ['Daily', 'Weekly', 'Monthly', 'All-time'],
             onChanged: _selectPeriod,
           ),
         ),
@@ -175,6 +172,8 @@ class _ChildLeaderboardViewState extends State<ChildLeaderboardView> {
               overflow: TextOverflow.ellipsis,
             ),
           ),
+          if (e.trend != 'same' && e.trend != 'new') _trendBadge(e.trend),
+          if (e.trend == 'new') _trendBadge('new', isMalayalam: isMalayalam),
           Text(
             '${e.marks}',
             style: const TextStyle(
@@ -194,6 +193,25 @@ class _ChildLeaderboardViewState extends State<ChildLeaderboardView> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _trendBadge(String trend, {bool isMalayalam = false}) {
+    final isUp = trend == 'up';
+    final isNew = trend == 'new';
+    final color = isUp
+        ? const Color(0xFF10B981)
+        : isNew
+        ? const Color(0xFF3B82F6)
+        : const Color(0xFFEF4444);
+    final icon = isUp
+        ? Icons.trending_up_rounded
+        : isNew
+        ? Icons.fiber_new_rounded
+        : Icons.trending_down_rounded;
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: Icon(icon, color: color, size: 18),
     );
   }
 }

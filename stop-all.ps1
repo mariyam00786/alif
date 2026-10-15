@@ -11,7 +11,7 @@ $ErrorActionPreference = 'SilentlyContinue'
 $stopped = @()
 
 # 1) Kill whatever is listening on the fixed ports.
-foreach ($port in 3000, 5001, 5002) {
+foreach ($port in 3000, 5001, 5002, 5071, 8080) {
     $conns = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
     foreach ($procId in ($conns.OwningProcess | Select-Object -Unique)) {
         $proc = Get-Process -Id $procId -ErrorAction SilentlyContinue
@@ -31,10 +31,10 @@ if ($stopped.Count -gt 0) {
     Write-Host '  Stopped:' -ForegroundColor Yellow
     $stopped | ForEach-Object { Write-Host "   - $_" -ForegroundColor DarkGray }
 } else {
-    Write-Host '  Nothing was running on 3000 / 5001 / 5002.' -ForegroundColor DarkGray
+    Write-Host '  Nothing was running on 3000 / 5001 / 5002 / 5071 / 8080.' -ForegroundColor DarkGray
 }
 
-foreach ($port in 3000, 5001, 5002) {
+foreach ($port in 3000, 5001, 5002, 5071, 8080) {
     if (Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue) {
         Write-Host "  PORT $port : STILL BUSY" -ForegroundColor Red
     } else {

@@ -231,19 +231,25 @@ class MobileApiService {
     required String studentId,
     required String activityId,
     required String logDate,
-    required String ratingId,
+    String? ratingId,
     int? quantity,
     String? notes,
+    bool? parentApproved,
   }) async {
     try {
       final body = <String, dynamic>{
         'studentId': studentId,
         'activityId': activityId,
         'logDate': logDate,
-        'ratingId': ratingId,
+        // ratingId is optional: quantity-type activities (e.g. Quran pages)
+        // omit it and let the backend derive marks from activity_scoring_rules.
+        // Sending a ratingId that belongs to a different activity was the
+        // root cause of the June 22 500-error bug.
+        if (ratingId != null && ratingId.isNotEmpty) 'ratingId': ratingId,
       };
       if (quantity != null) body['quantity'] = quantity;
       if (notes != null) body['notes'] = notes;
+      if (parentApproved != null) body['parentApproved'] = parentApproved;
 
       final response = await http
           .post(
@@ -518,6 +524,31 @@ class MobileApiService {
       final response = await http
           .get(
             Uri.parse(Apis.studentNotifications()),
+            headers: _buildHeaders(),
+          )
+          .timeout(timeout);
+
+      final result = _parseResponse(response);
+      if (result.success && result.data is List) {
+        return ApiResponse(
+          success: true,
+          data: List<Map<String, dynamic>>.from(result.data as List),
+        );
+      }
+      return ApiResponse.error('Failed to parse notifications');
+    } catch (e) {
+      return ApiResponse.error('Failed to fetch notifications');
+    }
+  }
+
+  /// Fetch announcements + batch reminders relevant to the signed-in teacher.
+  /// (Phase T — powers the teacher dashboard bell.)
+  static Future<ApiResponse<List<Map<String, dynamic>>>>
+  getTeacherNotifications() async {
+    try {
+      final response = await http
+          .get(
+            Uri.parse('${Apis.baseUrl}/teacher/me/notifications'),
             headers: _buildHeaders(),
           )
           .timeout(timeout);
