@@ -492,7 +492,12 @@ class _BadgeFormSheetState extends State<BadgeFormSheet> {
                         runSpacing: AdminSpacing.md,
                         children: [
                           field(
-                            _text(_name, 'Badge Name *', validator: _required),
+                            _text(
+                              _name,
+                              'Badge Name *',
+                              validator: _required,
+                              textCapitalization: TextCapitalization.words,
+                            ),
                           ),
                           field(
                             _text(
@@ -583,12 +588,14 @@ class _BadgeFormSheetState extends State<BadgeFormSheet> {
     String? Function(String?)? validator,
     TextInputType? keyboardType,
     int maxLines = 1,
+    TextCapitalization textCapitalization = TextCapitalization.none,
   }) {
     return TextFormField(
       controller: controller,
       validator: validator,
       keyboardType: keyboardType,
       maxLines: maxLines,
+      textCapitalization: textCapitalization,
       decoration: InputDecoration(labelText: label),
     );
   }

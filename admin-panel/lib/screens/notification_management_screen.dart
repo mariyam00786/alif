@@ -547,6 +547,9 @@ class _NotificationFormSheetState extends State<NotificationFormSheet> {
                       const SizedBox(height: AdminSpacing.lg),
                       DropdownButtonFormField<_TargetType>(
                         initialValue: _targetType,
+                        style: theme.textTheme.bodyLarge?.copyWith(
+                          fontWeight: FontWeight.normal,
+                        ),
                         decoration: const InputDecoration(labelText: 'Target'),
                         items: const [
                           DropdownMenuItem(
@@ -577,6 +580,9 @@ class _NotificationFormSheetState extends State<NotificationFormSheet> {
                         DropdownButtonFormField<String>(
                           initialValue: _targetValue,
                           isExpanded: true,
+                          style: theme.textTheme.bodyLarge?.copyWith(
+                            fontWeight: FontWeight.normal,
+                          ),
                           decoration: InputDecoration(
                             labelText: _targetType == _TargetType.batch
                                 ? 'Choose batch'
@@ -608,6 +614,9 @@ class _NotificationFormSheetState extends State<NotificationFormSheet> {
                       const SizedBox(height: AdminSpacing.lg),
                       DropdownButtonFormField<CampaignStatus>(
                         initialValue: _status,
+                        style: theme.textTheme.bodyLarge?.copyWith(
+                          fontWeight: FontWeight.normal,
+                        ),
                         decoration: const InputDecoration(labelText: 'Status'),
                         items: const [
                           DropdownMenuItem(

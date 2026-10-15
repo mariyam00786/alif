@@ -647,6 +647,7 @@ class _ActivityFormSheetState extends State<ActivityFormSheet> {
                               _name,
                               'Activity Name *',
                               validator: _required,
+                              textCapitalization: TextCapitalization.words,
                             ),
                           ),
                           field(_categoryField()),
@@ -743,11 +744,13 @@ class _ActivityFormSheetState extends State<ActivityFormSheet> {
     String label, {
     String? Function(String?)? validator,
     TextInputType? keyboardType,
+    TextCapitalization textCapitalization = TextCapitalization.none,
   }) {
     return TextFormField(
       controller: controller,
       validator: validator,
       keyboardType: keyboardType,
+      textCapitalization: textCapitalization,
       decoration: InputDecoration(labelText: label),
     );
   }

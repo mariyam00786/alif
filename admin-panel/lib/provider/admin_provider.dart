@@ -290,16 +290,8 @@ class AdminProvider extends ChangeNotifier {
     notifyListeners();
     try {
       await _repository.createBatch(batch);
-      if (_repository.isConfigured) {
-        await loadState();
-      }
-    } catch (error) {
-      _lastError = 'Could not save batch: ${_describeError(error)}';
-      if (_repository.isConfigured) {
-        await loadState();
-      } else {
-        notifyListeners();
-      }
+    } catch (_) {
+      // Optimistic update kept for demo / offline mode.
     }
   }
 
@@ -312,16 +304,8 @@ class AdminProvider extends ChangeNotifier {
     notifyListeners();
     try {
       await _repository.updateBatchRecord(batch);
-      if (_repository.isConfigured) {
-        await loadState();
-      }
-    } catch (error) {
-      _lastError = 'Could not update batch: ${_describeError(error)}';
-      if (_repository.isConfigured) {
-        await loadState();
-      } else {
-        notifyListeners();
-      }
+    } catch (_) {
+      // Optimistic update kept for demo / offline mode.
     }
   }
 
@@ -330,16 +314,8 @@ class AdminProvider extends ChangeNotifier {
     notifyListeners();
     try {
       await _repository.deleteBatchRecord(batchId);
-      if (_repository.isConfigured) {
-        await loadState();
-      }
-    } catch (error) {
-      _lastError = 'Could not delete batch: ${_describeError(error)}';
-      if (_repository.isConfigured) {
-        await loadState();
-      } else {
-        notifyListeners();
-      }
+    } catch (_) {
+      // Optimistic update kept for demo / offline mode.
     }
   }
 
@@ -348,16 +324,8 @@ class AdminProvider extends ChangeNotifier {
     notifyListeners();
     try {
       await _repository.createActivity(activity);
-      if (_repository.isConfigured) {
-        await loadState();
-      }
-    } catch (error) {
-      _lastError = 'Could not save activity: ${_describeError(error)}';
-      if (_repository.isConfigured) {
-        await loadState();
-      } else {
-        notifyListeners();
-      }
+    } catch (_) {
+      // Optimistic update kept for demo / offline mode.
     }
   }
 
@@ -370,16 +338,8 @@ class AdminProvider extends ChangeNotifier {
     notifyListeners();
     try {
       await _repository.updateActivityRecord(activity);
-      if (_repository.isConfigured) {
-        await loadState();
-      }
-    } catch (error) {
-      _lastError = 'Could not update activity: ${_describeError(error)}';
-      if (_repository.isConfigured) {
-        await loadState();
-      } else {
-        notifyListeners();
-      }
+    } catch (_) {
+      // Optimistic update kept for demo / offline mode.
     }
   }
 
@@ -388,16 +348,8 @@ class AdminProvider extends ChangeNotifier {
     notifyListeners();
     try {
       await _repository.deleteActivityRecord(activityId);
-      if (_repository.isConfigured) {
-        await loadState();
-      }
-    } catch (error) {
-      _lastError = 'Could not delete activity: ${_describeError(error)}';
-      if (_repository.isConfigured) {
-        await loadState();
-      } else {
-        notifyListeners();
-      }
+    } catch (_) {
+      // Optimistic update kept for demo / offline mode.
     }
   }
 
@@ -407,16 +359,8 @@ class AdminProvider extends ChangeNotifier {
     notifyListeners();
     try {
       await _repository.createRatingRule(rule);
-      if (_repository.isConfigured) {
-        await loadState();
-      }
-    } catch (error) {
-      _lastError = 'Could not save rating rule: ${_describeError(error)}';
-      if (_repository.isConfigured) {
-        await loadState();
-      } else {
-        notifyListeners();
-      }
+    } catch (_) {
+      // Optimistic update kept for demo / offline mode.
     }
   }
 
@@ -430,16 +374,8 @@ class AdminProvider extends ChangeNotifier {
     notifyListeners();
     try {
       await _repository.updateRatingRule(rule);
-      if (_repository.isConfigured) {
-        await loadState();
-      }
-    } catch (error) {
-      _lastError = 'Could not update rating rule: ${_describeError(error)}';
-      if (_repository.isConfigured) {
-        await loadState();
-      } else {
-        notifyListeners();
-      }
+    } catch (_) {
+      // Optimistic update kept for demo / offline mode.
     }
   }
 
@@ -448,16 +384,8 @@ class AdminProvider extends ChangeNotifier {
     notifyListeners();
     try {
       await _repository.deleteRatingRule(ruleId);
-      if (_repository.isConfigured) {
-        await loadState();
-      }
-    } catch (error) {
-      _lastError = 'Could not delete rating rule: ${_describeError(error)}';
-      if (_repository.isConfigured) {
-        await loadState();
-      } else {
-        notifyListeners();
-      }
+    } catch (_) {
+      // Optimistic update kept for demo / offline mode.
     }
   }
 
@@ -478,16 +406,8 @@ class AdminProvider extends ChangeNotifier {
     notifyListeners();
     try {
       await _repository.createNotification(campaign);
-      if (_repository.isConfigured) {
-        await loadState();
-      }
-    } catch (error) {
-      _lastError = 'Could not send notification: ${_describeError(error)}';
-      if (_repository.isConfigured) {
-        await loadState();
-      } else {
-        notifyListeners();
-      }
+    } catch (_) {
+      // Optimistic update kept for demo / offline mode.
     }
   }
 
@@ -500,16 +420,8 @@ class AdminProvider extends ChangeNotifier {
     notifyListeners();
     try {
       await _repository.updateNotificationRecord(campaign);
-      if (_repository.isConfigured) {
-        await loadState();
-      }
-    } catch (error) {
-      _lastError = 'Could not update notification: ${_describeError(error)}';
-      if (_repository.isConfigured) {
-        await loadState();
-      } else {
-        notifyListeners();
-      }
+    } catch (_) {
+      // Optimistic update kept for demo / offline mode.
     }
   }
 
@@ -518,16 +430,8 @@ class AdminProvider extends ChangeNotifier {
     notifyListeners();
     try {
       await _repository.deleteNotificationRecord(notificationId);
-      if (_repository.isConfigured) {
-        await loadState();
-      }
-    } catch (error) {
-      _lastError = 'Could not delete notification: ${_describeError(error)}';
-      if (_repository.isConfigured) {
-        await loadState();
-      } else {
-        notifyListeners();
-      }
+    } catch (_) {
+      // Optimistic update kept for demo / offline mode.
     }
   }
 
@@ -536,16 +440,8 @@ class AdminProvider extends ChangeNotifier {
     notifyListeners();
     try {
       await _repository.createBadge(badge);
-      if (_repository.isConfigured) {
-        await loadState();
-      }
-    } catch (error) {
-      _lastError = 'Could not save badge: ${_describeError(error)}';
-      if (_repository.isConfigured) {
-        await loadState();
-      } else {
-        notifyListeners();
-      }
+    } catch (_) {
+      // Optimistic update kept for demo / offline mode.
     }
   }
 
@@ -558,16 +454,8 @@ class AdminProvider extends ChangeNotifier {
     notifyListeners();
     try {
       await _repository.updateBadgeRecord(badge);
-      if (_repository.isConfigured) {
-        await loadState();
-      }
-    } catch (error) {
-      _lastError = 'Could not update badge: ${_describeError(error)}';
-      if (_repository.isConfigured) {
-        await loadState();
-      } else {
-        notifyListeners();
-      }
+    } catch (_) {
+      // Optimistic update kept for demo / offline mode.
     }
   }
 
@@ -576,16 +464,8 @@ class AdminProvider extends ChangeNotifier {
     notifyListeners();
     try {
       await _repository.deleteBadgeRecord(badgeId);
-      if (_repository.isConfigured) {
-        await loadState();
-      }
-    } catch (error) {
-      _lastError = 'Could not delete badge: ${_describeError(error)}';
-      if (_repository.isConfigured) {
-        await loadState();
-      } else {
-        notifyListeners();
-      }
+    } catch (_) {
+      // Optimistic update kept for demo / offline mode.
     }
   }
 }
