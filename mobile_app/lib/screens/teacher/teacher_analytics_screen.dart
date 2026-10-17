@@ -420,61 +420,6 @@ class _AreaRow extends StatelessWidget {
   }
 }
 
-class _ComparisonRow extends StatelessWidget {
-  final TeacherBatch batch;
-  final bool isMalayalam;
-  final bool highlight;
-
-  const _ComparisonRow({
-    required this.batch,
-    required this.isMalayalam,
-    required this.highlight,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        SizedBox(
-          width: 88,
-          child: Text(
-            isMalayalam ? batch.nameMl : batch.name,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: highlight ? FontWeight.w800 : FontWeight.w600,
-              color: highlight ? kGreen : kBody,
-            ),
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(6),
-            child: LinearProgressIndicator(
-              value: batch.avgCompletion / 100,
-              minHeight: 9,
-              backgroundColor: const Color(0xFFE5E7EB),
-              valueColor: AlwaysStoppedAnimation(
-                highlight ? kGreen : batch.color,
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(width: 10),
-        Text(
-          '${batch.avgCompletion}%',
-          style: const TextStyle(
-            fontSize: 13.5,
-            fontWeight: FontWeight.w800,
-            color: kHeading,
-          ),
-        ),
-      ],
-    );
-  }
-}
 
 class _LivePerformerRow extends StatelessWidget {
   final int rank;

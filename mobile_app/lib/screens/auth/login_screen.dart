@@ -658,8 +658,9 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
 
   /// Toggle between sign-in and create-account modes.
   Widget _buildAuthModeSwitch(bool isMalayalam) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
+    return Wrap(
+      alignment: WrapAlignment.center,
+      crossAxisAlignment: WrapCrossAlignment.center,
       children: [
         Text(
           _isRegister
